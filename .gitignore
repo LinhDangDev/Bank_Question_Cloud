@@ -1,0 +1,89 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# React build files
+frontend/build/
+frontend/.env
+
+# NestJS build files
+backend/dist/
+backend/.env
+
+# Docker
+docker-compose.override.yml
+*.log
+*.pid
+*.seed
+
+# SQL Server data files
+sql_data/
+
+# Redis data files
+dump.rdb
+appendonly.aof
+
+# Kafka logs and temporary files
+kafka-logs/
+zookeeper-logs/
+
+# Elasticsearch data files
+elasticsearch/data/
+
+# AWS credentials and temporary files
+.aws/
+.aws-s3-cache/
+
+# Monitoring tools (Prometheus, Grafana)
+configs/prometheus.yml
+configs/grafana/
+
+# IDE and editor settings
+.vscode/
+.idea/
+*.swp
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Cursor-specific files and folders
+.cursor/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Localization files
+*.json
+
+# Cache files
+*.cache
+
+# Temporary files
+*.tmp
+*.temp
+
+# Backup files
+*.bak
+*.backup
+
+# Configuration files
+*.cfg
+*.conf
+
+# Configuration files
+*.cfg
+*.conf
