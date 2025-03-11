@@ -1,0 +1,4 @@
+* text=auto eol=lf
+*.{cmd,bat} text eol=crlf
+* text eol=lf
+*.{json,md} text eol=lf
