@@ -1,14 +1,19 @@
-version: '3.8'
-
 services:
   # Frontend (React)
   frontend:
     build:
       context: ./frontend
+    command: npm run dev
     ports:
       - "3000:3000"
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}"
 
   # Backend (NestJS)
   backend:
@@ -25,10 +30,17 @@ services:
       - AWS_S3_ENDPOINT=${AWS_S3_ENDPOINT}
     depends_on:
       - redis
-      - kafka
-      - qdrant
+      # Temporarily comment out dependencies to allow backend to start
+      # - kafka
+      # - qdrant
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}"
 
   # Redis (Caching)
   redis:
@@ -37,27 +49,58 @@ services:
       - "6379:6379"
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}"
 
-  # Kafka & Zookeeper (Message Queue)
+  # Zookeeper - Fixed hostname issue
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper
+    hostname: zookeeper
     ports:
       - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}"
 
+  # Kafka - Fixed connection to Zookeeper
   kafka:
     image: confluentinc/cp-kafka:latest
+    container_name: kafka
+    hostname: kafka
+    depends_on:
+      - zookeeper
     ports:
       - "9092:9092"
     environment:
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    depends_on:
-      - zookeeper
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}"
 
   # Qdrant (Vector Search)
   qdrant:
@@ -69,24 +112,42 @@ services:
       - ./search/custom_config.yaml:/qdrant/config/production.yaml
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}"
 
   # Prometheus (Monitoring)
   prometheus:
-    image: prom/prometheus:v2.x.x
+    image: prom/prometheus:v2.48.0  # Use a specific version number instead of v2.x.x
     ports:
       - "9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}"
 
   # Grafana (Monitoring Dashboard)
   grafana:
-    image: grafana/grafana-oss:v10.x.x-ubuntu-arm64v8-debian-11-r13-build...
+    image: grafana/grafana-oss:10.2.0  # Use a specific version number
     ports:
       - "3002:3000"
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}"
 
 networks:
   app-network:
