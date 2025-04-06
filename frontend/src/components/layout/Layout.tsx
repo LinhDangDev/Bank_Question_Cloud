@@ -1,0 +1,32 @@
+import { useState } from 'react'
+import { Outlet } from 'react-router-dom'
+import Sidebar from './Sidebar'
+import Header from './Header'
+
+const Layout = () => {
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(true)
+
+  const toggleSidebar = () => {
+    setIsSidebarExpanded(!isSidebarExpanded)
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Sidebar isExpanded={isSidebarExpanded} onToggle={toggleSidebar} />
+      <Header isExpanded={isSidebarExpanded} />
+      <main
+        className="transition-all duration-300"
+        style={{
+          paddingLeft: isSidebarExpanded ? '200px' : '64px',
+          paddingTop: '64px',
+          position: 'relative',
+          zIndex: 1
+        }}
+      >
+        <Outlet />
+      </main>
+    </div>
+  )
+}
+
+export default Layout

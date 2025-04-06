@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../Final-Project/UI"
+		}
+	],
+    "settings": {
+        "powershell.cwd": "Graduation"
+    }
+}
