@@ -11,19 +11,21 @@ const Layout = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar isExpanded={isSidebarExpanded} onToggle={toggleSidebar} />
       <Header isExpanded={isSidebarExpanded} />
       <main
-        className="transition-all duration-300"
+        className="pt-16 transition-all duration-300"
         style={{
-          paddingLeft: isSidebarExpanded ? '200px' : '64px',
-          paddingTop: '64px',
+          marginLeft: isSidebarExpanded ? '200px' : '64px',
+          minHeight: 'calc(100vh - 4rem)',
           position: 'relative',
           zIndex: 1
         }}
       >
-        <Outlet />
+        <div className="p-6">
+          <Outlet />
+        </div>
       </main>
     </div>
   )

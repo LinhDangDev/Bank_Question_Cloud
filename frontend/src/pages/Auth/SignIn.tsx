@@ -57,7 +57,7 @@ const SignIn = () => {
 
           <div className="flex items-center">
             <Checkbox id="remember" />
-            <Label htmlFor="remember" className="ml-2 text-sm text-gray-400">
+            <Label htmlFor="remember" className="ml-2 text-sm text-gray-400 ">
               Remember me
             </Label>
           </div>
