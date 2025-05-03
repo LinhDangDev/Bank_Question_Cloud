@@ -88,3 +88,30 @@ yarn-error.log*
 # Configuration files
 *.cfg
 *.conf
+
+# Ignore all files in the node_modules directory
+node_modules/
+
+# Ignore all files in the dist directory
+dist/
+
+# Ignore all files in the build directory
+build/
+
+# Ignore all files in the .gitignore directory
+.gitignore/
+
+# Ignore all files in the .git directory
+.git/
+
+# Ignore all files in the .idea directory
+.idea/
+
+# Ignore all files in the .vscode directory
+.vscode/
+
+# Ignore all files in the .cursor directory
+.cursor/
+
+# Ignore files plan
+.Plan/

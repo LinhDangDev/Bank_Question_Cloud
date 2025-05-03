@@ -1,25 +1,49 @@
-import * as React from "react"
+import React, { InputHTMLAttributes } from 'react';
+import { useThemeStyles, cx } from '../../utils/theme';
 
-import { cn } from "@/lib/utils"
+interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+  label?: string;
+  error?: string;
+  fullWidth?: boolean;
+}
 
-export interface InputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {}
+export const Input: React.FC<InputProps> = ({
+  label,
+  error,
+  className,
+  fullWidth = false,
+  id,
+  ...props
+}) => {
+  const styles = useThemeStyles();
 
-const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, ...props }, ref) => {
-    return (
+  return (
+    <div className={fullWidth ? 'w-full' : ''}>
+      {label && (
+        <label
+          htmlFor={id}
+          className={cx(
+            "block text-sm font-medium mb-1",
+            styles.isDark ? 'text-gray-300' : 'text-gray-700'
+          )}
+        >
+          {label}
+        </label>
+      )}
       <input
-        type={type}
-        className={cn(
-          "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+        id={id}
+        className={cx(
+          "px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors",
+          fullWidth ? 'w-full' : '',
+          styles.input,
+          error ? 'border-red-500 focus:ring-red-500' : 'focus:ring-blue-500',
           className
         )}
-        ref={ref}
         {...props}
       />
-    )
-  }
-)
-Input.displayName = "Input"
-
-export { Input }
+      {error && (
+        <p className="mt-1 text-sm text-red-500">{error}</p>
+      )}
+    </div>
+  );
+};

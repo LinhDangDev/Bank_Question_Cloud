@@ -23,7 +23,7 @@ const CodeBlock = ({ children }: { children: string }) => {
 const UploadQuestions = () => {
   const [selectedQuestions, setSelectedQuestions] = useState<any[]>([]);
   const [showGuideModal, setShowGuideModal] = useState(false);
-  const [guideType, setGuideType] = useState<'word' | 'excel' | 'backup' | 'package'>('word');
+  const [guideType, setGuideType] = useState< 'word' | 'excel' | 'backup' | 'package'>('word');
   const [facultyId, setFacultyId] = useState('');
   const [subjectId, setSubjectId] = useState('');
   const [chapterId, setChapterId] = useState('');

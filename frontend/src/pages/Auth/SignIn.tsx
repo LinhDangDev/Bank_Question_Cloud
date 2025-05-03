@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { useThemeStyles, cx } from '../../utils/theme'
 
 const SignIn = () => {
   const [showPassword, setShowPassword] = useState(false)
+  const styles = useThemeStyles();
 
   return (
     <div className="bg-slate-900 min-h-screen flex items-center justify-center">
@@ -22,7 +22,7 @@ const SignIn = () => {
                 type="text"
                 placeholder="Account"
                 required
-                className="w-full pl-10 pr-3 py-2 bg-slate-800/50 border border-gray-700 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10"
               />
               <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -36,7 +36,7 @@ const SignIn = () => {
                 type={showPassword ? "text" : "password"}
                 placeholder="Password"
                 required
-                className="w-full pl-10 pr-10 py-2 bg-slate-800/50 border border-gray-700 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-10"
               />
               <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -56,13 +56,24 @@ const SignIn = () => {
           </div>
 
           <div className="flex items-center">
-            <Checkbox id="remember" />
-            <Label htmlFor="remember" className="ml-2 text-sm text-gray-400 ">
+            <input
+              type="checkbox"
+              id="remember"
+              className={cx(
+                "h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500",
+                styles.isDark ? "bg-gray-700 border-gray-600" : ""
+              )}
+            />
+            <label htmlFor="remember" className="ml-2 text-sm text-gray-400">
               Remember me
-            </Label>
+            </label>
           </div>
 
-          <Button type="submit" className="w-full bg-blue-500 hover:bg-blue-600">
+          <Button
+            type="submit"
+            variant="primary"
+            fullWidth
+          >
             Sign In
           </Button>
         </form>

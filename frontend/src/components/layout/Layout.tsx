@@ -2,16 +2,18 @@ import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Header from './Header'
+import { useTheme } from '../../context/ThemeContext'
 
 const Layout = () => {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true)
+  const { theme } = useTheme()
 
   const toggleSidebar = () => {
     setIsSidebarExpanded(!isSidebarExpanded)
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={`min-h-screen ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <Sidebar isExpanded={isSidebarExpanded} onToggle={toggleSidebar} />
       <Header isExpanded={isSidebarExpanded} />
       <main
