@@ -7,9 +7,16 @@ import Card from "../../components/ui/Card"
 import { useThemeStyles, cx } from "../../utils/theme"
 import { File, Upload, ChevronRight, Edit, Check, X, Trash } from "lucide-react"
 
-const QuestionTypeCard = ({ icon, title, description, onClick, isSelected }) => {
-  const styles = useThemeStyles();
+interface QuestionTypeCardProps {
+  icon: React.ReactNode
+  title: string
+  description: string
+  onClick: () => void
+  isSelected: boolean
+}
 
+const QuestionTypeCard = ({ icon, title, description, onClick, isSelected }: QuestionTypeCardProps) => {
+  const styles = useThemeStyles();
   return (
     <div
       className={cx(
@@ -37,25 +44,33 @@ const QuestionTypeCard = ({ icon, title, description, onClick, isSelected }) => 
   )
 }
 
-const QuestionUploader = ({ onNextStep, onCancel }) => {
-  const styles = useThemeStyles();
-  const [file, setFile] = useState(null);
-  const [questions, setQuestions] = useState([]);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadSuccess, setUploadSuccess] = useState(false);
+interface Question {
+  id: number
+  content: string
+  type: string
+  selected: boolean
+}
 
-  const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
+interface QuestionUploaderProps {
+  onNextStep: (questions: Question[]) => void
+  onCancel: () => void
+}
+
+const QuestionUploader = ({ onNextStep, onCancel }: QuestionUploaderProps) => {
+  const styles = useThemeStyles();
+  const [file, setFile] = useState<File | null>(null);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [uploadSuccess, setUploadSuccess] = useState<boolean>(false);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files && e.target.files[0];
     if (selectedFile) {
       setFile(selectedFile);
-      // Normally here we'd upload and parse the file
       setIsUploading(true);
-
-      // Mock file upload and parsing
       setTimeout(() => {
         setIsUploading(false);
         setUploadSuccess(true);
-        // Mock parsed questions
         setQuestions([
           { id: 1, content: "When did the woman put her keys in her purse?", type: "choice", selected: true },
           { id: 2, content: "Which of the following best describes the organization of the passage?", type: "choice", selected: true },
@@ -75,7 +90,6 @@ const QuestionUploader = ({ onNextStep, onCancel }) => {
           Hỗ trợ định dạng Word, Excel và file backup
         </p>
       </div>
-
       {!file && (
         <div className={cx(
           "border-2 border-dashed rounded-lg p-8 flex flex-col items-center gap-4",
@@ -113,7 +127,6 @@ const QuestionUploader = ({ onNextStep, onCancel }) => {
           </label>
         </div>
       )}
-
       {file && isUploading && (
         <div className="py-8 flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-t-blue-500 border-r-blue-500 border-b-gray-200 border-l-gray-200 rounded-full animate-spin"></div>
@@ -122,7 +135,6 @@ const QuestionUploader = ({ onNextStep, onCancel }) => {
           </p>
         </div>
       )}
-
       {file && !isUploading && (
         <div className="space-y-4">
           <div className={cx(
@@ -157,7 +169,6 @@ const QuestionUploader = ({ onNextStep, onCancel }) => {
               <X className="h-5 w-5" />
             </button>
           </div>
-
           {questions.length > 0 && (
             <div className="space-y-3">
               <h3 className={cx("font-medium", styles.isDark ? 'text-gray-200' : 'text-gray-700')}>
@@ -181,7 +192,7 @@ const QuestionUploader = ({ onNextStep, onCancel }) => {
                         checked={question.selected}
                         onChange={() => {
                           setQuestions(questions.map(q =>
-                            q.id === question.id ? {...q, selected: !q.selected} : q
+                            q.id === question.id ? { ...q, selected: !q.selected } : q
                           ));
                         }}
                         className={cx(
@@ -220,7 +231,6 @@ const QuestionUploader = ({ onNextStep, onCancel }) => {
               </div>
             </div>
           )}
-
           <div className="flex justify-end gap-3 pt-2">
             <Button
               variant="outline"
@@ -247,11 +257,21 @@ const QuestionUploader = ({ onNextStep, onCancel }) => {
   )
 }
 
+type QuestionType =
+  | 'single-choice'
+  | 'multi-choice'
+  | 'fill-blank'
+  | 'essay'
+  | 'image'
+  | 'audio'
+  | 'group'
+  | 'upload'
+
 const CreateQuestion = () => {
   const styles = useThemeStyles();
-  const [selectedType, setSelectedType] = useState(null);
-  const [step, setStep] = useState(1);
-  const [uploadedQuestions, setUploadedQuestions] = useState([]);
+  const [selectedType, setSelectedType] = useState<QuestionType | null>(null);
+  const [step, setStep] = useState<number>(1);
+  const [uploadedQuestions, setUploadedQuestions] = useState<Question[]>([]);
 
   const questionTypes = [
     {
@@ -304,9 +324,9 @@ const CreateQuestion = () => {
     }
   ];
 
-  const handleNextStep = (questions) => {
+  const handleNextStep = (questions: Question[]) => {
     setUploadedQuestions(questions);
-    setStep(3); // Move to review step
+    setStep(3);
   };
 
   const renderStep = () => {
@@ -323,12 +343,11 @@ const CreateQuestion = () => {
                 description={type.description}
                 isSelected={selectedType === type.id}
                 onClick={() => {
-                  setSelectedType(type.id);
+                  setSelectedType(type.id as QuestionType);
                   if (type.id === 'upload') {
-                    setStep(2); // Move to upload step
+                    window.location.href = '/questions/upload';
                   } else {
-                    // Handle other question types
-                    console.log(`Selected question type: ${type.id}`);
+                    window.location.href = `/questions/edit/new?type=${type.id}`;
                   }
                 }}
               />
@@ -366,7 +385,6 @@ const CreateQuestion = () => {
               Chỉnh sửa
             </Button>
           </div>
-
           <div className={cx(
             "border rounded-lg",
             styles.isDark ? 'border-gray-700' : 'border-gray-200'
@@ -414,8 +432,6 @@ const CreateQuestion = () => {
                 <p className={cx("font-medium mb-2", styles.isDark ? 'text-gray-200' : 'text-gray-700')}>
                   {question.content}
                 </p>
-
-                {/* Mock answers */}
                 {question.type === 'choice' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
                     {['A. Đáp án A', 'B. Đáp án B', 'C. Đáp án C', 'D. Đáp án D'].map((answer, i) => (
@@ -440,7 +456,6 @@ const CreateQuestion = () => {
                     ))}
                   </div>
                 )}
-
                 {question.type === 'fillInBlank' && (
                   <div className="grid grid-cols-1 gap-2 mt-3">
                     <div className={cx(
@@ -459,7 +474,6 @@ const CreateQuestion = () => {
               </div>
             ))}
           </div>
-
           <div className="flex items-center justify-between pt-4">
             <Button
               variant="outline"
@@ -495,7 +509,7 @@ const CreateQuestion = () => {
   return (
     <PageContainer className="p-6">
       <h1 className="text-2xl font-bold mb-6">Tạo câu hỏi mới</h1>
-      <Card className="max-w-5xl mx-auto">
+      <Card className="w-full">
         {renderStep()}
       </Card>
     </PageContainer>

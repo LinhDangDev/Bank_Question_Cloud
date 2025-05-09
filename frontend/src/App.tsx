@@ -17,6 +17,7 @@ import Help from './pages/Support/Help'
 import Feedback from './pages/Support/Feedback'
 import Settings from './pages/Settings/Settings'
 import NotFound from './pages/NotFound'
+import EditQuestion from './pages/Questions/EditQuestion'
 import { ThemeProvider } from './context/ThemeContext'
 
 function App() {
@@ -37,6 +38,7 @@ function App() {
               <Route index element={<Questions />} />
               <Route path="create" element={<CreateQuestion />} />
               <Route path="upload" element={<UploadQuestions />} />
+              <Route path="edit/:id" element={<EditQuestion />} />
             </Route>
 
             {/* Keep backward compatibility with old routes */}

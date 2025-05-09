@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, Upload as UploadIcon, FileText, Database, File, X } from 'lucide-react';
+import { Modal } from '../../components/Modal/Modal';
 
 // Component để hiển thị code với syntax highlighting
 const CodeBlock = ({ children }: { children: string }) => {
@@ -29,6 +30,21 @@ const UploadQuestions = () => {
   const [chapterId, setChapterId] = useState('');
   const [showStats, setShowStats] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
+
+  // Add new state for portal
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+
+  // Initialize portal container
+  useEffect(() => {
+    const container = document.createElement('div');
+    container.id = 'modal-portal';
+    document.body.appendChild(container);
+    setPortalContainer(container);
+
+    return () => {
+      document.body.removeChild(container);
+    };
+  }, []);
 
   // Close modal when clicking outside
   useEffect(() => {
@@ -584,46 +600,23 @@ D. All are correct.
         </button>
       </div>
 
-      {/* Guidance Modal */}
-      {showGuideModal && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-[9999] flex items-center justify-center"
-          onClick={() => setShowGuideModal(false)}
-        >
-          <div
-            ref={modalRef}
-            className="bg-white w-[95%] sm:w-[90%] max-w-3xl mx-auto shadow-2xl rounded-lg overflow-hidden m-2 sm:m-4 relative"
-            style={{ maxHeight: 'calc(100vh - 40px)' }}
-            onClick={(e) => e.stopPropagation()}
+      {/* Replace the old modal with the new Modal component */}
+      <Modal
+        isOpen={showGuideModal}
+        onClose={() => setShowGuideModal(false)}
+        title="Hướng Dẫn Soạn Thảo Nội Dung"
+        size="xl"
+        footer={
+          <button
+            onClick={() => setShowGuideModal(false)}
+            className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-3 sm:px-6 py-1 sm:py-2 rounded text-xs sm:text-sm font-medium"
           >
-            {/* Modal Header */}
-            <div className="bg-blue-500 text-white px-4 sm:px-6 py-2 sm:py-3 flex justify-between items-center sticky top-0 z-10">
-              <h3 className="font-semibold text-sm sm:text-lg">Hướng Dẫn Soạn Thảo Nội Dung</h3>
-              <button
-                onClick={() => setShowGuideModal(false)}
-                className="text-white hover:text-gray-200 focus:outline-none text-base sm:text-xl"
-              >
-                &#x2715;
-              </button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-3 sm:p-6 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 120px)' }}>
-              {renderGuideContent()}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="border-t px-4 sm:px-6 py-2 sm:py-3 flex justify-end sticky bottom-0 bg-white z-10">
-              <button
-                onClick={() => setShowGuideModal(false)}
-                className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-3 sm:px-6 py-1 sm:py-2 rounded text-xs sm:text-sm font-medium"
-              >
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            Đóng
+          </button>
+        }
+      >
+        {renderGuideContent()}
+      </Modal>
     </div>
   );
 };
