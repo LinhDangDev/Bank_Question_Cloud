@@ -14,7 +14,7 @@ const sampleQuestions = [
       { label: 'C', text: 'sdf' },
       { label: 'D', text: 'sdf' },
     ],
-    type: 'Biết',
+    type: 'CL01',
     status: 'Đã xoá',
     createdBy: 'Light Hunter',
     createdAt: '28/11/2024 21:53:36',
@@ -23,7 +23,7 @@ const sampleQuestions = [
   {
     id: 760631,
     content: "Đánh giá tác động của mạng xã hội đối với giới trẻ hiện nay.",
-    type: 'Vận dụng cao',
+    type: 'CLO2',
     status: 'Hoạt động',
     createdBy: 'Light Hunter',
     createdAt: '28/11/2024 15:21:33',
@@ -32,7 +32,7 @@ const sampleQuestions = [
   {
     id: 760630,
     content: "Vận dụng kiến thức về điện từ, giải thích cách hoạt động của một chiếc máy biến áp.",
-    type: 'Vận dụng',
+    type: 'CLO3',
     status: 'Hoạt động',
     createdBy: 'Light Hunter',
     createdAt: '28/11/2024 15:21:33',
@@ -41,7 +41,7 @@ const sampleQuestions = [
   {
     id: 760629,
     content: "Giải thích nguyên nhân gây ra hiện tượng hiệu ứng nhà kính.",
-    type: 'Hiểu',
+    type: 'CLO4',
     status: 'Hoạt động',
     createdBy: 'Light Hunter',
     createdAt: '28/11/2024 15:21:33',
@@ -56,7 +56,7 @@ const sampleQuestions = [
       { label: 'C', text: 'Các cuộc xâm lược của người Viking' },
       { label: 'D', text: 'Sự lan rộng của Kitô giáo' },
     ],
-    type: 'Hiểu',
+    type: 'CLO5',
     status: 'Hoạt động',
     createdBy: 'Light Hunter',
     createdAt: '28/11/2024 15:21:32',
@@ -65,11 +65,13 @@ const sampleQuestions = [
 ]
 
 const typeColors: Record<string, string> = {
-  'Biết': 'bg-green-100 text-green-700',
-  'Hiểu': 'bg-blue-100 text-blue-700',
-  'Vận dụng': 'bg-purple-100 text-purple-700',
-  'Vận dụng cao': 'bg-orange-100 text-orange-700',
+  'CLO1': 'bg-green-100 text-green-700',
+  'CLO2': 'bg-blue-100 text-blue-700',
+  'CLO3': 'bg-purple-100 text-purple-700',
+  'CLO4': 'bg-orange-100 text-orange-700',
+  'CLO5': 'bg-orange-100 text-orange-700'
 }
+
 
 const statusColors: Record<string, string> = {
   'Hoạt động': 'text-green-600',

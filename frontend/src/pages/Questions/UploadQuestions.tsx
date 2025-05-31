@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { ChevronLeft, Upload as UploadIcon, FileText, Database, File, X } from 'lucide-react';
 import { Modal } from '../../components/Modal/Modal';
 
@@ -15,7 +15,7 @@ const CodeBlock = ({ children }: { children: string }) => {
 
   return (
     <pre
-      className="whitespace-pre-wrap text-sm font-mono bg-gray-50 p-2 sm:p-4 rounded-lg shadow-inner border border-gray-200 overflow-x-auto text-xs sm:text-sm"
+      className="whitespace-pre-wrap text-sm font-mono bg-gray-50 p-2 sm:p-4 rounded-lg shadow-inner border border-gray-200 overflow-x-auto sm:text-sm"
       dangerouslySetInnerHTML={{ __html: formattedCode }}
     />
   );
@@ -24,53 +24,11 @@ const CodeBlock = ({ children }: { children: string }) => {
 const UploadQuestions = () => {
   const [selectedQuestions, setSelectedQuestions] = useState<any[]>([]);
   const [showGuideModal, setShowGuideModal] = useState(false);
-  const [guideType, setGuideType] = useState< 'word' | 'excel' | 'backup' | 'package'>('word');
+  const [guideType, setGuideType] = useState<'word' | 'excel' | 'backup' | 'package'>('word');
   const [facultyId, setFacultyId] = useState('');
   const [subjectId, setSubjectId] = useState('');
   const [chapterId, setChapterId] = useState('');
   const [showStats, setShowStats] = useState(false);
-  const modalRef = useRef<HTMLDivElement>(null);
-
-  // Add new state for portal
-  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
-
-  // Initialize portal container
-  useEffect(() => {
-    const container = document.createElement('div');
-    container.id = 'modal-portal';
-    document.body.appendChild(container);
-    setPortalContainer(container);
-
-    return () => {
-      document.body.removeChild(container);
-    };
-  }, []);
-
-  // Close modal when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
-        setShowGuideModal(false);
-      }
-    };
-
-    // Close modal when pressing Escape key
-    const handleEscKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setShowGuideModal(false);
-      }
-    };
-
-    if (showGuideModal) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', handleEscKey);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscKey);
-    };
-  }, [showGuideModal]);
 
   const handleFileUpload = (fileType: string) => {
     console.log(`Uploading ${fileType} file`);
@@ -87,12 +45,10 @@ const UploadQuestions = () => {
       alert('Vui lòng chọn đầy đủ Khoa, Môn học và Chương/Phần');
       return;
     }
-
     if (selectedQuestions.length === 0) {
       alert('Chưa có câu hỏi nào được chọn');
       return;
     }
-
     console.log('Saving questions', {
       facultyId,
       subjectId,
@@ -552,7 +508,7 @@ D. All are correct.
       </div>
 
       {/* Statistics Card */}
-      <div className={`
+      {/* <div className={`
         md:w-64 md:fixed md:top-[100px] md:right-4 bg-white p-3 sm:p-4 rounded-lg shadow-lg
         ${showStats ? 'fixed inset-x-4 bottom-16 z-20' : 'hidden md:block'}
       `}>
@@ -587,7 +543,7 @@ D. All are correct.
             <span>0</span>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Save Button */}
       <div className="fixed bottom-4 right-4 z-20">

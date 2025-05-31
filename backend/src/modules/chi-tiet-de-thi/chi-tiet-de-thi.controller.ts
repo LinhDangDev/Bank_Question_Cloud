@@ -1,6 +1,7 @@
-import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { ChiTietDeThiService } from './chi-tiet-de-thi.service';
 import { CreateChiTietDeThiDto, UpdateChiTietDeThiDto } from '../../dto';
+import { PaginationDto } from '../../dto/pagination.dto';
 import { ChiTietDeThi } from '../../entities/chi-tiet-de-thi.entity';
 
 @Controller('chi-tiet-de-thi')
@@ -8,22 +9,28 @@ export class ChiTietDeThiController {
     constructor(private readonly chiTietDeThiService: ChiTietDeThiService) { }
 
     @Get()
-    async findAll(): Promise<ChiTietDeThi[]> {
-        return await this.chiTietDeThiService.findAll();
+    async findAll(@Query() paginationDto: PaginationDto) {
+        return await this.chiTietDeThiService.findAll(paginationDto);
     }
 
     @Get('de-thi/:maDeThi')
-    async findByMaDeThi(@Param('maDeThi') maDeThi: string): Promise<ChiTietDeThi[]> {
-        return await this.chiTietDeThiService.findByMaDeThi(maDeThi);
+    async findByMaDeThi(
+        @Param('maDeThi') maDeThi: string,
+        @Query() paginationDto: PaginationDto
+    ) {
+        return await this.chiTietDeThiService.findByMaDeThi(maDeThi, paginationDto);
     }
 
     @Get('phan/:maPhan')
-    async findByMaPhan(@Param('maPhan') maPhan: string): Promise<ChiTietDeThi[]> {
-        return await this.chiTietDeThiService.findByMaPhan(maPhan);
+    async findByMaPhan(
+        @Param('maPhan') maPhan: string,
+        @Query() paginationDto: PaginationDto
+    ) {
+        return await this.chiTietDeThiService.findByMaPhan(maPhan, paginationDto);
     }
 
     @Post()
-    async create(@Body() createChiTietDeThiDto: CreateChiTietDeThiDto): Promise<ChiTietDeThi> {
+    async create(@Body() createChiTietDeThiDto: CreateChiTietDeThiDto) {
         return await this.chiTietDeThiService.createChiTietDeThi(createChiTietDeThiDto);
     }
 
@@ -33,7 +40,7 @@ export class ChiTietDeThiController {
         @Param('maPhan') maPhan: string,
         @Param('maCauHoi') maCauHoi: string,
         @Body() updateChiTietDeThiDto: UpdateChiTietDeThiDto,
-    ): Promise<ChiTietDeThi> {
+    ) {
         return await this.chiTietDeThiService.updateChiTietDeThi(
             maDeThi,
             maPhan,

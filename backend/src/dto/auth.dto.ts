@@ -1,40 +1,52 @@
 import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
 
 export class LoginDto {
-    @IsNotEmpty()
     @IsString()
+    @IsNotEmpty()
     loginName: string;
 
-    @IsNotEmpty()
     @IsString()
+    @IsNotEmpty()
+    @MinLength(6)
     password: string;
 }
 
 export class RegisterDto {
-    @IsNotEmpty()
     @IsString()
+    @IsNotEmpty()
     loginName: string;
 
-    @IsNotEmpty()
     @IsEmail()
+    @IsNotEmpty()
     email: string;
 
-    @IsNotEmpty()
     @IsString()
+    @IsNotEmpty()
     name: string;
 
-    @IsNotEmpty()
     @IsString()
+    @IsNotEmpty()
     @MinLength(6)
     password: string;
+}
+
+export class AssignRoleDto {
+    @IsString()
+    @IsNotEmpty()
+    userId: string;
+
+    @IsString()
+    @IsNotEmpty()
+    role: string;
 }
 
 export class TokenResponseDto {
     access_token: string;
     user: {
-        id: string;
+        userId: string;
         loginName: string;
         email: string;
         name: string;
+        role: string;
     };
 }

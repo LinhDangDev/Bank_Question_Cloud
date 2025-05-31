@@ -1,15 +1,15 @@
-import { Body, Controller, Get, Post, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { LoginDto, RegisterDto, TokenResponseDto } from '../../dto/auth.dto';
-import { LocalAuthGuard } from './guards/local-auth.guard';
+import { LoginDto, RegisterDto, AssignRoleDto, TokenResponseDto } from '../../dto/auth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { RolesGuard } from './guards/roles.guard';
+import { Roles } from './decorators/roles.decorator';
 
 @Controller('auth')
 export class AuthController {
     constructor(private readonly authService: AuthService) { }
 
     @Post('login')
-    @UseGuards(LocalAuthGuard)
     async login(@Body() loginDto: LoginDto): Promise<TokenResponseDto> {
         return this.authService.login(loginDto);
     }
@@ -19,9 +19,16 @@ export class AuthController {
         return this.authService.register(registerDto);
     }
 
-    @Get('profile')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin')
+    @Post('assign-role')
+    async assignRole(@Body() assignRoleDto: AssignRoleDto) {
+        return this.authService.assignRole(assignRoleDto);
+    }
+
     @UseGuards(JwtAuthGuard)
-    async getProfile(@Request() req) {
+    @Get('profile')
+    getProfile(@Request() req) {
         return req.user;
     }
 }

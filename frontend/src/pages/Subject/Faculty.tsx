@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Search, Plus } from 'lucide-react'
 import PageContainer from "../../components/ui/PageContainer"
-import Card from "../../components/ui/Card"
+import Card from '@/components/ui/Card'
 import { useThemeStyles, cx } from "../../utils/theme"
 
 const Faculty = () => {

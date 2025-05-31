@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Search, Filter, Plus, Edit, Trash2, UserCheck, UserX } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import PageContainer from '../../components/ui/PageContainer'
-import Card from '../../components/ui/Card'
+import Card from '@/components/ui/Card'
 import { useThemeStyles, cx } from '../../utils/theme'
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -15,10 +15,10 @@ const Users = () => {
 
   // Mock data - would be replaced with API data
   const users = [
-    { id: 1, name: 'Nguyễn Văn A', email: 'nguyenvana@gmail.com', role: 'Quản trị viên', department: 'Khoa CNTT', status: 'Hoạt động', lastLogin: '12/04/2023 08:30' },
-    { id: 2, name: 'Trần Thị B', email: 'tranthib@gmail.com', role: 'Giảng viên', department: 'Khoa CNTT', status: 'Hoạt động', lastLogin: '10/04/2023 14:15' },
-    { id: 3, name: 'Lê Văn C', email: 'levanc@gmail.com', role: 'Giảng viên', department: 'Khoa Vật lý', status: 'Không hoạt động', lastLogin: '02/03/2023 09:45' },
-    { id: 4, name: 'Phạm Thị D', email: 'phamthid@gmail.com', role: 'Quản trị viên', department: 'Khoa Toán', status: 'Hoạt động', lastLogin: '11/04/2023 16:20' },
+    { id: 1, name: 'Nguyễn Văn A', email: 'nguyenvana@gmail.com', role: 'Quản trị viên', department: 'Khoa CNTT', status: 'Hoạt động', lastLogin: '12/04/2025 08:30' },
+    { id: 2, name: 'Trần Thị B', email: 'tranthib@gmail.com', role: 'Giảng viên', department: 'Khoa CNTT', status: 'Hoạt động', lastLogin: '10/04/2025 14:15' },
+    { id: 3, name: 'Lê Văn C', email: 'levanc@gmail.com', role: 'Giảng viên', department: 'Khoa Vật lý', status: 'Không hoạt động', lastLogin: '02/03/2025 09:45' },
+    { id: 4, name: 'Phạm Thị D', email: 'phamthid@gmail.com', role: 'Quản trị viên', department: 'Khoa Toán', status: 'Hoạt động', lastLogin: '11/04/2025 16:20' },
   ]
 
   const roles = ['Tất cả', 'Quản trị viên', 'Giảng viên']

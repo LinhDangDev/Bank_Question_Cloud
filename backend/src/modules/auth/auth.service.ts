@@ -1,17 +1,17 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../../entities/user.entity';
+import { LoginDto, RegisterDto, AssignRoleDto, TokenResponseDto } from '../../dto/auth.dto';
 import * as bcrypt from 'bcrypt';
-import { LoginDto, RegisterDto } from '../../dto/auth.dto';
 
 @Injectable()
 export class AuthService {
     constructor(
         @InjectRepository(User)
-        private readonly userRepository: Repository<User>,
-        private readonly jwtService: JwtService,
+        private userRepository: Repository<User>,
+        private jwtService: JwtService,
     ) { }
 
     async validateUser(loginName: string, password: string): Promise<any> {
@@ -23,53 +23,89 @@ export class AuthService {
         return null;
     }
 
-    async login(loginDto: LoginDto) {
+    async login(loginDto: LoginDto): Promise<TokenResponseDto> {
         const user = await this.validateUser(loginDto.loginName, loginDto.password);
         if (!user) {
             throw new UnauthorizedException('Invalid credentials');
         }
 
-        // Update last login
+        if (user.IsLockedOut) {
+            throw new UnauthorizedException('Account is locked');
+        }
+
+        if (user.IsDeleted) {
+            throw new UnauthorizedException('Account is deleted');
+        }
+
+        // Update last login date
         await this.userRepository.update(user.UserId, {
             LastLoginDate: new Date(),
-            LastActivityDate: new Date(),
+            LastActivityDate: new Date()
         });
 
-        const payload = { username: user.LoginName, sub: user.UserId };
+        const payload = {
+            sub: user.UserId,
+            loginName: user.LoginName,
+            email: user.Email,
+            name: user.Name
+        };
+
         return {
             access_token: this.jwtService.sign(payload),
             user: {
-                id: user.UserId,
+                userId: user.UserId,
                 loginName: user.LoginName,
                 email: user.Email,
                 name: user.Name,
-            },
+                role: user.IsBuildInUser ? 'admin' : 'user'
+            }
         };
     }
 
-    async register(registerDto: RegisterDto) {
-        const { password, ...rest } = registerDto;
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        const user = this.userRepository.create({
-            ...rest,
-            Password: hashedPassword,
-            DateCreated: new Date(),
-            IsDeleted: false,
-            IsLockedOut: false,
-            IsBuildInUser: false,
+    async register(registerDto: RegisterDto): Promise<User> {
+        const existingUser = await this.userRepository.findOne({
+            where: [
+                { LoginName: registerDto.loginName },
+                { Email: registerDto.email }
+            ]
         });
 
-        try {
-            const savedUser = await this.userRepository.save(user);
-            const { Password, ...result } = savedUser;
-            return result;
-        } catch (error) {
-            if (error.code === 'UNIQUE_VIOLATION') {
-                throw new UnauthorizedException('Username or email already exists');
-            }
-            throw error;
+        if (existingUser) {
+            throw new BadRequestException('Username or email already exists');
         }
+
+        const salt = await bcrypt.genSalt();
+        const hashedPassword = await bcrypt.hash(registerDto.password, salt);
+
+        const user = this.userRepository.create({
+            LoginName: registerDto.loginName,
+            Email: registerDto.email,
+            Name: registerDto.name,
+            Password: hashedPassword,
+            PasswordSalt: salt,
+            DateCreated: new Date(),
+            IsBuildInUser: false
+        });
+
+        return this.userRepository.save(user);
+    }
+
+    async assignRole(assignRoleDto: AssignRoleDto): Promise<User> {
+        const user = await this.userRepository.findOne({
+            where: { UserId: assignRoleDto.userId }
+        });
+
+        if (!user) {
+            throw new BadRequestException('User not found');
+        }
+
+        // Only allow assigning admin role to build-in users
+        if (assignRoleDto.role === 'admin' && !user.IsBuildInUser) {
+            throw new BadRequestException('Cannot assign admin role to non-build-in users');
+        }
+
+        user.IsBuildInUser = assignRoleDto.role === 'admin';
+        return this.userRepository.save(user);
     }
 
     async validateToken(token: string) {

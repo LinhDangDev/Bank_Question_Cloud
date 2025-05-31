@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { BaseService } from '../../common/base.service';
 import { ChiTietDeThi } from '../../entities/chi-tiet-de-thi.entity';
 import { CreateChiTietDeThiDto, UpdateChiTietDeThiDto } from '../../dto';
+import { PaginationDto } from '../../dto/pagination.dto';
 
 @Injectable()
 export class ChiTietDeThiService extends BaseService<ChiTietDeThi> {
@@ -14,20 +15,58 @@ export class ChiTietDeThiService extends BaseService<ChiTietDeThi> {
         super(chiTietDeThiRepository);
     }
 
-    async findByMaDeThi(maDeThi: string): Promise<ChiTietDeThi[]> {
-        return await this.chiTietDeThiRepository.find({
+    async findByMaDeThi(maDeThi: string, paginationDto?: PaginationDto) {
+        if (!paginationDto) {
+            return await this.chiTietDeThiRepository.find({
+                where: { MaDeThi: maDeThi },
+                relations: ['CauHoi', 'Phan'],
+                order: { ThuTu: 'ASC' },
+            });
+        }
+        const { page = 1, limit = 10 } = paginationDto;
+        const [items, total] = await this.chiTietDeThiRepository.findAndCount({
             where: { MaDeThi: maDeThi },
             relations: ['CauHoi', 'Phan'],
             order: { ThuTu: 'ASC' },
+            skip: (page - 1) * limit,
+            take: limit,
         });
+        return {
+            items,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
+        };
     }
 
-    async findByMaPhan(maPhan: string): Promise<ChiTietDeThi[]> {
-        return await this.chiTietDeThiRepository.find({
+    async findByMaPhan(maPhan: string, paginationDto?: PaginationDto) {
+        if (!paginationDto) {
+            return await this.chiTietDeThiRepository.find({
+                where: { MaPhan: maPhan },
+                relations: ['CauHoi', 'DeThi'],
+                order: { ThuTu: 'ASC' },
+            });
+        }
+        const { page = 1, limit = 10 } = paginationDto;
+        const [items, total] = await this.chiTietDeThiRepository.findAndCount({
             where: { MaPhan: maPhan },
             relations: ['CauHoi', 'DeThi'],
             order: { ThuTu: 'ASC' },
+            skip: (page - 1) * limit,
+            take: limit,
         });
+        return {
+            items,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
+        };
     }
 
     async createChiTietDeThi(createChiTietDeThiDto: CreateChiTietDeThiDto): Promise<ChiTietDeThi> {

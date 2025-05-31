@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Repository, ObjectLiteral, DeepPartial, FindOptionsWhere } from 'typeorm';
+import { PaginationDto } from '../dto/pagination.dto';
 
 @Injectable()
 export class BaseService<T extends ObjectLiteral> {
@@ -17,8 +18,26 @@ export class BaseService<T extends ObjectLiteral> {
         return result;
     }
 
-    async findAll(): Promise<T[]> {
-        return await this.repository.find();
+    async findAll(paginationDto?: PaginationDto) {
+        if (!paginationDto) {
+            return await this.repository.find();
+        }
+
+        const { page = 1, limit = 10 } = paginationDto;
+        const [items, total] = await this.repository.findAndCount({
+            skip: (page - 1) * limit,
+            take: limit,
+        });
+
+        return {
+            items,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
+        };
     }
 
     async create(entity: DeepPartial<T>): Promise<T> {

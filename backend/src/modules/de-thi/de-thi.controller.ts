@@ -1,29 +1,33 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { DeThiService } from './de-thi.service';
 import { CreateDeThiDto, UpdateDeThiDto } from '../../dto';
 import { DeThi } from '../../entities/de-thi.entity';
+import { PaginationDto } from '../../dto/pagination.dto';
 
 @Controller('de-thi')
 export class DeThiController {
     constructor(private readonly deThiService: DeThiService) { }
 
     @Get()
-    async findAll(): Promise<DeThi[]> {
-        return await this.deThiService.findAll();
+    async findAll(@Query() paginationDto: PaginationDto) {
+        return await this.deThiService.findAll(paginationDto);
     }
 
     @Get(':id')
-    async findOne(@Param('id') id: string): Promise<DeThi> {
+    async findOne(@Param('id') id: string) {
         return await this.deThiService.findOne(id);
     }
 
     @Get('mon-hoc/:maMonHoc')
-    async findByMaMonHoc(@Param('maMonHoc') maMonHoc: string): Promise<DeThi[]> {
-        return await this.deThiService.findByMaMonHoc(maMonHoc);
+    async findByMaMonHoc(
+        @Param('maMonHoc') maMonHoc: string,
+        @Query() paginationDto: PaginationDto
+    ) {
+        return await this.deThiService.findByMaMonHoc(maMonHoc, paginationDto);
     }
 
     @Post()
-    async create(@Body() createDeThiDto: CreateDeThiDto): Promise<DeThi> {
+    async create(@Body() createDeThiDto: CreateDeThiDto) {
         return await this.deThiService.createDeThi(createDeThiDto);
     }
 
@@ -31,7 +35,7 @@ export class DeThiController {
     async update(
         @Param('id') id: string,
         @Body() updateDeThiDto: UpdateDeThiDto,
-    ): Promise<DeThi> {
+    ) {
         return await this.deThiService.updateDeThi(id, updateDeThiDto);
     }
 

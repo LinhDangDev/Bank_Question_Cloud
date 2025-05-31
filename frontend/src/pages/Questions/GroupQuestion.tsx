@@ -67,7 +67,7 @@ const GroupQuestion = () => {
                 <h3 className="font-medium">Câu hỏi {index + 1}</h3>
                 {subQuestions.length > 1 && (
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
                     onClick={() => removeSubQuestion(q.id)}
                     className="text-red-500 hover:text-red-600"

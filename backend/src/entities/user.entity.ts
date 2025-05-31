@@ -5,57 +5,57 @@ export class User {
     @PrimaryGeneratedColumn('uuid')
     UserId: string;
 
-    @Column({ type: 'nvarchar', length: 100 })
+    @Column({ unique: true })
     LoginName: string;
 
-    @Column({ type: 'nvarchar', length: 100 })
+    @Column({ unique: true })
     Email: string;
 
-    @Column({ type: 'nvarchar', length: 255 })
+    @Column()
     Name: string;
 
-    @Column({ type: 'nvarchar', length: 128 })
+    @Column()
     Password: string;
 
-    @Column({ type: 'datetime' })
+    @Column()
     DateCreated: Date;
 
-    @Column()
+    @Column({ default: false })
     IsDeleted: boolean;
 
-    @Column()
+    @Column({ default: false })
     IsLockedOut: boolean;
 
-    @Column({ type: 'datetime', nullable: true })
+    @Column({ nullable: true })
     LastActivityDate: Date;
 
-    @Column({ type: 'datetime', nullable: true })
+    @Column({ nullable: true })
     LastLoginDate: Date;
 
-    @Column({ type: 'datetime', nullable: true })
+    @Column({ nullable: true })
     LastPasswordChangedDate: Date;
 
-    @Column({ type: 'datetime', nullable: true })
+    @Column({ nullable: true })
     LastLockoutDate: Date;
 
     @Column({ nullable: true })
     FailedPwdAttemptCount: number;
 
-    @Column({ type: 'datetime', nullable: true })
+    @Column({ nullable: true })
     FailedPwdAttemptWindowStart: Date;
 
     @Column({ nullable: true })
     FailedPwdAnswerCount: number;
 
-    @Column({ type: 'datetime', nullable: true })
+    @Column({ nullable: true })
     FailedPwdAnswerWindowStart: Date;
 
-    @Column({ type: 'nvarchar', length: 255, nullable: true })
+    @Column({ nullable: true })
     PasswordSalt: string;
 
-    @Column({ type: 'ntext', nullable: true })
+    @Column({ nullable: true, type: 'ntext' })
     Comment: string;
 
-    @Column()
+    @Column({ default: false })
     IsBuildInUser: boolean;
 }

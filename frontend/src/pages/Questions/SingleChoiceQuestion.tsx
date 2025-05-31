@@ -145,34 +145,34 @@ const SingleChoiceQuestion = () => {
           <input type="checkbox" checked={fixedOrder} onChange={e => setFixedOrder(e.target.checked)} />
           <span>Cố định thứ tự đáp án</span>
         </div>
-        <div className="flex items-center gap-2 mb-4">
+        {/* <div className="flex items-center gap-2 mb-4">
           <input type="checkbox" checked={advanced} onChange={e => setAdvanced(e.target.checked)} />
           <span>Nhập dữ liệu nâng cao</span>
-        </div>
+        </div> */}
         <div className="font-semibold mb-2 text-left">Thông tin câu hỏi</div>
         <div className="mb-2">
           <label className="block text-sm mb-1 text-left">Lưu tại</label>
           <div className="flex gap-4">
             <label className="flex items-center gap-1">
               <input type="radio" checked={saveLocation === 'frame'} onChange={() => setSaveLocation('frame')} />
-              Lưu tại khung đề
+              Lưu tại bộ đề
             </label>
             <label className="flex items-center gap-1">
               <input type="radio" checked={saveLocation === 'bank'} onChange={() => setSaveLocation('bank')} />
-              Lưu tại kho
+              Lưu tại kho cá nhân
             </label>
           </div>
         </div>
         <div className="mb-2">
-          <label className="block text-sm mb-1 text-left">Khung đề <span className="text-red-500">*</span></label>
-          <Input value={frame} onChange={e => setFrame(e.target.value)} placeholder="Chọn khung đề" />
+          <label className="block text-sm mb-1 text-left">Bộ đề <span className="text-red-500">*</span></label>
+          <Input value={frame} onChange={e => setFrame(e.target.value)} placeholder="Chọn bộ đề" />
         </div>
         <div className="mb-2">
           <label className="block text-sm mb-1 text-left">Đơn vị kiến thức <span className="text-red-500">*</span></label>
           <Input value={knowledgeUnit} onChange={e => setKnowledgeUnit(e.target.value)} placeholder="Chọn" />
         </div>
         <div className="mb-2">
-          <label className="block text-sm mb-1 text-left">Mức độ tư duy <span className="text-red-500">*</span></label>
+          <label className="block text-sm mb-1 text-left">Mức độ CLO <span className="text-red-500">*</span></label>
           <Input value={level} onChange={e => setLevel(e.target.value)} placeholder="Chọn" />
         </div>
       </div>
