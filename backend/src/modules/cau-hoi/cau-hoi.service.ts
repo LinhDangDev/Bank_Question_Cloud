@@ -5,6 +5,7 @@ import { BaseService } from '../../common/base.service';
 import { CauHoi } from '../../entities/cau-hoi.entity';
 import { CreateCauHoiDto, UpdateCauHoiDto } from '../../dto';
 import { PaginationDto } from '../../dto/pagination.dto';
+import { PAGINATION_CONSTANTS } from '../../constants/pagination.constants';
 
 @Injectable()
 export class CauHoiService extends BaseService<CauHoi> {
@@ -16,7 +17,7 @@ export class CauHoiService extends BaseService<CauHoi> {
     }
 
     async findAll(paginationDto: PaginationDto) {
-        const { page = 1, limit = 10 } = paginationDto;
+        const { page = PAGINATION_CONSTANTS.DEFAULT_PAGE, limit = PAGINATION_CONSTANTS.DEFAULT_LIMIT } = paginationDto;
         const [items, total] = await this.cauHoiRepository.findAndCount({
             skip: (page - 1) * limit,
             take: limit,
@@ -31,7 +32,8 @@ export class CauHoiService extends BaseService<CauHoi> {
                 total,
                 page,
                 limit,
-                totalPages: Math.ceil(total / limit)
+                totalPages: Math.ceil(total / limit),
+                availableLimits: PAGINATION_CONSTANTS.AVAILABLE_LIMITS
             }
         };
     }

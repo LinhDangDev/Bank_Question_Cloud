@@ -5,6 +5,7 @@ import { BaseService } from '../../common/base.service';
 import { ChiTietDeThi } from '../../entities/chi-tiet-de-thi.entity';
 import { CreateChiTietDeThiDto, UpdateChiTietDeThiDto } from '../../dto';
 import { PaginationDto } from '../../dto/pagination.dto';
+import { PAGINATION_CONSTANTS } from '../../constants/pagination.constants';
 
 @Injectable()
 export class ChiTietDeThiService extends BaseService<ChiTietDeThi> {
@@ -23,7 +24,7 @@ export class ChiTietDeThiService extends BaseService<ChiTietDeThi> {
                 order: { ThuTu: 'ASC' },
             });
         }
-        const { page = 1, limit = 10 } = paginationDto;
+        const { page = PAGINATION_CONSTANTS.DEFAULT_PAGE, limit = PAGINATION_CONSTANTS.DEFAULT_LIMIT } = paginationDto;
         const [items, total] = await this.chiTietDeThiRepository.findAndCount({
             where: { MaDeThi: maDeThi },
             relations: ['CauHoi', 'Phan'],
@@ -37,7 +38,8 @@ export class ChiTietDeThiService extends BaseService<ChiTietDeThi> {
                 total,
                 page,
                 limit,
-                totalPages: Math.ceil(total / limit)
+                totalPages: Math.ceil(total / limit),
+                availableLimits: PAGINATION_CONSTANTS.AVAILABLE_LIMITS
             }
         };
     }
@@ -50,7 +52,7 @@ export class ChiTietDeThiService extends BaseService<ChiTietDeThi> {
                 order: { ThuTu: 'ASC' },
             });
         }
-        const { page = 1, limit = 10 } = paginationDto;
+        const { page = PAGINATION_CONSTANTS.DEFAULT_PAGE, limit = PAGINATION_CONSTANTS.DEFAULT_LIMIT } = paginationDto;
         const [items, total] = await this.chiTietDeThiRepository.findAndCount({
             where: { MaPhan: maPhan },
             relations: ['CauHoi', 'DeThi'],
@@ -64,7 +66,8 @@ export class ChiTietDeThiService extends BaseService<ChiTietDeThi> {
                 total,
                 page,
                 limit,
-                totalPages: Math.ceil(total / limit)
+                totalPages: Math.ceil(total / limit),
+                availableLimits: PAGINATION_CONSTANTS.AVAILABLE_LIMITS
             }
         };
     }

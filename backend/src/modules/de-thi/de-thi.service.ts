@@ -5,6 +5,7 @@ import { BaseService } from '../../common/base.service';
 import { DeThi } from '../../entities/de-thi.entity';
 import { CreateDeThiDto, UpdateDeThiDto } from '../../dto';
 import { PaginationDto } from '../../dto/pagination.dto';
+import { PAGINATION_CONSTANTS } from '../../constants/pagination.constants';
 
 @Injectable()
 export class DeThiService extends BaseService<DeThi> {
@@ -23,7 +24,7 @@ export class DeThiService extends BaseService<DeThi> {
                 order: { NgayTao: 'DESC' },
             });
         }
-        const { page = 1, limit = 10 } = paginationDto;
+        const { page = PAGINATION_CONSTANTS.DEFAULT_PAGE, limit = PAGINATION_CONSTANTS.DEFAULT_LIMIT } = paginationDto;
         const [items, total] = await this.deThiRepository.findAndCount({
             where: { MaMonHoc: maMonHoc },
             relations: ['ChiTietDeThi'],
@@ -37,7 +38,8 @@ export class DeThiService extends BaseService<DeThi> {
                 total,
                 page,
                 limit,
-                totalPages: Math.ceil(total / limit)
+                totalPages: Math.ceil(total / limit),
+                availableLimits: PAGINATION_CONSTANTS.AVAILABLE_LIMITS
             }
         };
     }

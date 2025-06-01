@@ -5,6 +5,7 @@ import { BaseService } from '../../common/base.service';
 import { CauTraLoi } from '../../entities/cau-tra-loi.entity';
 import { CreateCauTraLoiDto, UpdateCauTraLoiDto } from '../../dto';
 import { PaginationDto } from '../../dto/pagination.dto';
+import { PAGINATION_CONSTANTS } from '../../constants/pagination.constants';
 
 @Injectable()
 export class CauTraLoiService extends BaseService<CauTraLoi> {
@@ -23,7 +24,7 @@ export class CauTraLoiService extends BaseService<CauTraLoi> {
                 order: { ThuTu: 'ASC' },
             });
         }
-        const { page = 1, limit = 10 } = paginationDto;
+        const { page = PAGINATION_CONSTANTS.DEFAULT_PAGE, limit = PAGINATION_CONSTANTS.DEFAULT_LIMIT } = paginationDto;
         const [items, total] = await this.cauTraLoiRepository.findAndCount({
             where: { MaCauHoi: maCauHoi },
             relations: ['Files'],
@@ -37,7 +38,8 @@ export class CauTraLoiService extends BaseService<CauTraLoi> {
                 total,
                 page,
                 limit,
-                totalPages: Math.ceil(total / limit)
+                totalPages: Math.ceil(total / limit),
+                availableLimits: PAGINATION_CONSTANTS.AVAILABLE_LIMITS
             }
         };
     }

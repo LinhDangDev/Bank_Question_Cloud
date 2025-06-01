@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Repository, ObjectLiteral, DeepPartial, FindOptionsWhere } from 'typeorm';
 import { PaginationDto } from '../dto/pagination.dto';
+import { PAGINATION_CONSTANTS } from '../constants/pagination.constants';
 
 @Injectable()
 export class BaseService<T extends ObjectLiteral> {
@@ -23,7 +24,7 @@ export class BaseService<T extends ObjectLiteral> {
             return await this.repository.find();
         }
 
-        const { page = 1, limit = 10 } = paginationDto;
+        const { page = PAGINATION_CONSTANTS.DEFAULT_PAGE, limit = PAGINATION_CONSTANTS.DEFAULT_LIMIT } = paginationDto;
         const [items, total] = await this.repository.findAndCount({
             skip: (page - 1) * limit,
             take: limit,
@@ -35,7 +36,8 @@ export class BaseService<T extends ObjectLiteral> {
                 total,
                 page,
                 limit,
-                totalPages: Math.ceil(total / limit)
+                totalPages: Math.ceil(total / limit),
+                availableLimits: PAGINATION_CONSTANTS.AVAILABLE_LIMITS
             }
         };
     }
