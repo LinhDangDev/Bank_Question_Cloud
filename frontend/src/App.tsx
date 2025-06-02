@@ -19,6 +19,7 @@ import Settings from './pages/Settings/Settings'
 import NotFound from './pages/NotFound'
 import EditQuestion from './pages/Questions/EditQuestion'
 import { ThemeProvider } from './context/ThemeContext'
+import 'katex/dist/katex.min.css'
 
 function App() {
   return (

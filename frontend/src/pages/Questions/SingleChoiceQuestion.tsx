@@ -1,9 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useThemeStyles, cx } from '../../utils/theme';
 import { Eye, Plus, Trash2, Info, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import { Editor } from '@tinymce/tinymce-react';
+
+// @ts-ignore
+declare global {
+  interface Window {
+    MathJax?: any;
+  }
+}
 
 const defaultAnswers = [
   { text: '', correct: false },
@@ -26,6 +34,8 @@ function splitAnswers(answers: { text: string; correct: boolean }[], columns: nu
   }
   return rows;
 }
+
+const EditorAny = Editor as any;
 
 const SingleChoiceQuestion = () => {
   const styles = useThemeStyles();
@@ -57,23 +67,57 @@ const SingleChoiceQuestion = () => {
 
   const answerRows = splitAnswers(answers, 1);
 
+  useEffect(() => {
+    if (showPreview && window.MathJax) {
+      window.MathJax.typesetPromise && window.MathJax.typesetPromise();
+    }
+  }, [showPreview, content, answers, explanation]);
+
   return (
     <div className="flex flex-col md:flex-row w-full py-8 text-left">
       {/* Left: Main form */}
-      <div className="flex-1 rounded-lg p-6 shadow md:mr-[380px]">
+      <div className="flex-1 rounded-lg p-6 shadow md:mr-[300px]">
         <div className="flex items-center gap-2 mb-6">
           <h2 className="text-xl font-bold text-blue-700 text-left">Câu hỏi trắc nghiệm 1 đáp án</h2>
           <Info className="w-5 h-5 text-blue-400" />
         </div>
-        <div className="mb-4">
+        <div className="mb-4" style={{ minWidth: 920 }}>
           <label className="font-medium mb-1 flex items-center gap-1 text-left">
             Câu hỏi <Info className="w-4 h-4 text-blue-400" />
           </label>
-          <textarea
-            className="w-full border rounded-md p-2 min-h-[80px] focus:ring-2 focus:ring-blue-500"
-            placeholder="Nhập nội dung câu hỏi"
+          <EditorAny
+            apiKey="6gjaodohdncfz36azjc7q49f26yrhh881rljxqshfack7cax"
             value={content}
-            onChange={e => setContent(e.target.value)}
+            onEditorChange={setContent}
+            init={{
+              height: 180,
+              menubar: false,
+              plugins: [
+                'advlist autolink lists link image charmap preview anchor',
+                'searchreplace visualblocks code fullscreen',
+                'insertdatetime media table code help wordcount',
+                'mathjax',
+                'table',
+                'media',
+                'codesample',
+              ],
+              toolbar:
+                'bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | fontselect fontsizeselect formatselect | forecolor backcolor removeformat | subscript superscript | link image media table codesample blockquote | mathjax',
+              setup: (editor: any) => {
+
+                editor.on('focus', () => {
+                  editor.theme.panel && editor.theme.panel.show();
+                });
+                editor.on('blur', () => {
+                  editor.theme.panel && editor.theme.panel.hide();
+                });
+              },
+              mathjax: {
+                lib: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js',
+              },
+              content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }',
+              toolbar_mode: 'sliding',
+            }}
           />
         </div>
         <div className="mb-4">
@@ -182,7 +226,7 @@ const SingleChoiceQuestion = () => {
             </button>
             <h3 className="text-lg font-bold mb-4 text-blue-700 text-left">Xem trước câu hỏi</h3>
             <div className="mb-4">
-              <div className="font-medium mb-2 text-left">{content || <span className="italic text-gray-400">[Chưa nhập nội dung câu hỏi]</span>}</div>
+              <div className="font-medium mb-2 text-left" dangerouslySetInnerHTML={{ __html: content || '<span class=\"italic text-gray-400\">[Chưa nhập nội dung câu hỏi]</span>' }} />
               <div className="space-y-2">
                 {splitAnswers(answers, layout).map((row, rowIdx) => (
                   <div key={rowIdx} className="flex gap-8 mb-2">
@@ -196,9 +240,7 @@ const SingleChoiceQuestion = () => {
                           )}>
                             {String.fromCharCode(65 + answerIdx)}
                           </span>
-                          <span className={cx('flex-1', a.text ? '' : 'italic text-gray-400')}>
-                            {a.text || '[Chưa nhập đáp án]'}
-                          </span>
+                          <span className={cx('flex-1', a.text ? '' : 'italic text-gray-400')} dangerouslySetInnerHTML={{ __html: a.text || '[Chưa nhập đáp án]' }} />
                         </div>
                       );
                     })}
@@ -209,7 +251,7 @@ const SingleChoiceQuestion = () => {
             {explanation && (
               <div className="mt-4 p-3 bg-blue-50 rounded">
                 <div className="font-semibold mb-1 text-blue-700 text-left">Hướng dẫn giải</div>
-                <div>{explanation}</div>
+                <div dangerouslySetInnerHTML={{ __html: explanation }} />
               </div>
             )}
           </div>
