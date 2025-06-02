@@ -165,7 +165,7 @@ const EditQuestion = () => {
           {id === 'new' ? 'Tạo câu hỏi mới' : 'Chỉnh sửa câu hỏi'}
         </h2>
       </div>
-      <div className="flex-1 min-w-[340px] max-w-[800px] bg-white rounded-lg p-6 shadow">
+      <div>
         {renderForm()}
       </div>
     </div>

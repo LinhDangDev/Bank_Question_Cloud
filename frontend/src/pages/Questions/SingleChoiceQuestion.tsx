@@ -60,7 +60,7 @@ const SingleChoiceQuestion = () => {
   return (
     <div className="flex flex-col md:flex-row w-full py-8 text-left">
       {/* Left: Main form */}
-      <div className="flex-1 bg-white rounded-lg p-6 shadow md:mr-[380px]">
+      <div className="flex-1 rounded-lg p-6 shadow md:mr-[380px]">
         <div className="flex items-center gap-2 mb-6">
           <h2 className="text-xl font-bold text-blue-700 text-left">Câu hỏi trắc nghiệm 1 đáp án</h2>
           <Info className="w-5 h-5 text-blue-400" />
@@ -112,18 +112,10 @@ const SingleChoiceQuestion = () => {
             <Plus className="w-4 h-4" /> Thêm đáp án
           </Button>
         </div>
-        <div className="mb-4">
-          <label className="block font-medium mb-1 text-left">Hướng dẫn giải</label>
-          <textarea
-            className="w-full border rounded-md p-2 min-h-[60px] focus:ring-2 focus:ring-blue-500"
-            placeholder="Thêm hướng dẫn giải"
-            value={explanation}
-            onChange={e => setExplanation(e.target.value)}
-          />
-        </div>
+
       </div>
       {/* Right: Info panel */}
-      <div className="fixed right-8 w-[340px] bg-white rounded-lg p-6 shadow h-fit text-left z-50" style={{ top: '88px' }}>
+      <div className="fixed right-8 w-[300px] bg-white rounded-lg p-6 shadow h-fit text-left z-50" style={{ top: '88px' }}>
         <div className="flex gap-2 mb-4 justify-end">
           <Button variant="outline" className="flex items-center gap-1 border-gray-300 text-gray-700 hover:bg-gray-100" onClick={() => setShowPreview(true)}><Eye className="w-4 h-4" /> Xem trước</Button>
           <Button className="bg-green-600 hover:bg-green-700 text-white">Lưu</Button>
@@ -145,12 +137,9 @@ const SingleChoiceQuestion = () => {
           <input type="checkbox" checked={fixedOrder} onChange={e => setFixedOrder(e.target.checked)} />
           <span>Cố định thứ tự đáp án</span>
         </div>
-        {/* <div className="flex items-center gap-2 mb-4">
-          <input type="checkbox" checked={advanced} onChange={e => setAdvanced(e.target.checked)} />
-          <span>Nhập dữ liệu nâng cao</span>
-        </div> */}
+
         <div className="font-semibold mb-2 text-left">Thông tin câu hỏi</div>
-        <div className="mb-2">
+        {/* <div className="mb-2">
           <label className="block text-sm mb-1 text-left">Lưu tại</label>
           <div className="flex gap-4">
             <label className="flex items-center gap-1">
@@ -162,7 +151,7 @@ const SingleChoiceQuestion = () => {
               Lưu tại kho cá nhân
             </label>
           </div>
-        </div>
+        </div> */}
         <div className="mb-2">
           <label className="block text-sm mb-1 text-left">Bộ đề <span className="text-red-500">*</span></label>
           <Input value={frame} onChange={e => setFrame(e.target.value)} placeholder="Chọn bộ đề" />
