@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Modal } from './Modal';
-import { MathfieldElement } from 'react-mathlive';
+import 'mathlive';
 import katex from 'katex';
+import type { MathfieldElement } from '../../types/mathlive';
 
 interface MathModalProps {
   isOpen: boolean;
@@ -12,7 +13,25 @@ interface MathModalProps {
 
 export default function MathModal({ isOpen, onClose, onOk, initialLatex = '' }: MathModalProps) {
   const [latex, setLatex] = useState(initialLatex);
-  const [input, setInput] = useState(initialLatex);
+  const mathFieldRef = useRef<MathfieldElement>(null);
+
+  useEffect(() => {
+    const el = mathFieldRef.current;
+    if (el) {
+      el.value = latex;
+      const handler = (e: any) => setLatex(e.target.value);
+      el.addEventListener('input', handler);
+      return () => el.removeEventListener('input', handler);
+    }
+  }, [latex]);
+
+  useEffect(() => {
+    if (mathFieldRef.current) {
+      mathFieldRef.current.value = initialLatex;
+    }
+    setLatex(initialLatex);
+    // eslint-disable-next-line
+  }, [isOpen]);
 
   return (
     <Modal
@@ -29,9 +48,8 @@ export default function MathModal({ isOpen, onClose, onOk, initialLatex = '' }: 
     >
       <div className="mb-4">
         <math-field
-          value={latex}
-          onInput={(e: any) => setLatex(e.target.value)}
-          virtualKeyboardMode="onfocus"
+          ref={mathFieldRef}
+          virtualkeyboardmode="onfocus"
           style={{ width: '100%', minHeight: 40, fontSize: 22 }}
         />
       </div>
@@ -54,7 +72,8 @@ export default function MathModal({ isOpen, onClose, onOk, initialLatex = '' }: 
   );
 }
 
-// Đăng ký custom element nếu chưa có
+// Register custom element if not already defined
 if (typeof window !== 'undefined' && !window.customElements.get('math-field')) {
-  window.customElements.define('math-field', MathfieldElement);
+  // @ts-ignore
+  window.customElements.define('math-field', (window as any).MathfieldElement || class extends HTMLElement {});
 }
