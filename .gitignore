@@ -20,7 +20,7 @@ docker-compose.override.yml
 
 # SQL Server data files
 sql_data/
-database/
+# database/
 
 # Redis data files
 dump.rdb
