@@ -9,13 +9,3 @@ export * from './phan.dto';
 export * from './user.dto';
 export * from './yeu-cau-rut-trich.dto';
 export * from './clo.dto';
-
-// New English-named DTOs
-export * from './departments.dto';
-export * from './subjects.dto';
-export * from './sections.dto';
-export * from './questions.dto';
-export * from './answers.dto';
-export * from './exams.dto';
-export * from './exam-questions.dto';
-export * from './extraction-requests.dto';

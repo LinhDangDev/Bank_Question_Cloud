@@ -11,7 +11,7 @@ import { DeThiModule } from './modules/de-thi/de-thi.module';
 import { ChiTietDeThiModule } from './modules/chi-tiet-de-thi/chi-tiet-de-thi.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { SkipAuthMiddleware } from './middleware/skip-auth.middleware';
-import { DepartmentsModule } from './modules/departments/departments.module';
+
 
 @Module({
     imports: [
@@ -25,7 +25,6 @@ import { DepartmentsModule } from './modules/departments/departments.module';
         DeThiModule,
         ChiTietDeThiModule,
         AuthModule,
-        DepartmentsModule,
     ],
     controllers: [AppController],
     providers: [AppService],
