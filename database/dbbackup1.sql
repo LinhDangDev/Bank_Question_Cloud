@@ -1,29 +1,107 @@
-﻿USE master
+
+USE [master]
 GO
-
--- Kiểm tra xem database [QuestionBank] đã tồn tại chưa
-IF EXISTS (SELECT name FROM master.dbo.sysdatabases WHERE name = N'question_bank')
-BEGIN
-    -- Nếu database tồn tại, thực hiện drop database
-    DROP DATABASE question_bank
-    PRINT N'Database [QuestionBank] đã được drop thành công.' -- In thông báo (tùy chọn)
-END
+/****** Object:  Database [question_bank]    Script Date: 04/06/2025 8:35:47 CH ******/
+CREATE DATABASE [question_bank]
+ CONTAINMENT = NONE
+ ON  PRIMARY
+( NAME = N'question_bank', FILENAME = N'C:\Program Files\Microsoft SQL Server\MSSQL16.SQLEXPRESS\MSSQL\DATA\question_bank.mdf' , SIZE = 73728KB , MAXSIZE = UNLIMITED, FILEGROWTH = 65536KB )
+ LOG ON
+( NAME = N'question_bank_log', FILENAME = N'C:\Program Files\Microsoft SQL Server\MSSQL16.SQLEXPRESS\MSSQL\DATA\question_bank_log.ldf' , SIZE = 73728KB , MAXSIZE = 2048GB , FILEGROWTH = 65536KB )
+ WITH CATALOG_COLLATION = DATABASE_DEFAULT, LEDGER = OFF
 GO
-
--- Tạo database [QuestionBank]
-CREATE DATABASE question_bank
+ALTER DATABASE [question_bank] SET COMPATIBILITY_LEVEL = 160
 GO
-
-PRINT N'Database [QuestionBank] đã được tạo thành công.' -- In thông báo (tùy chọn)
+IF (1 = FULLTEXTSERVICEPROPERTY('IsFullTextInstalled'))
+begin
+EXEC [question_bank].[dbo].[sp_fulltext_database] @action = 'enable'
+end
 GO
-
-USE question_bank
-go
-
-
-
-
-/****** Object:  Table [dbo].[CauHoi]    Script Date: 2/16/2025 7:35:53 AM ******/
+ALTER DATABASE [question_bank] SET ANSI_NULL_DEFAULT OFF
+GO
+ALTER DATABASE [question_bank] SET ANSI_NULLS OFF
+GO
+ALTER DATABASE [question_bank] SET ANSI_PADDING OFF
+GO
+ALTER DATABASE [question_bank] SET ANSI_WARNINGS OFF
+GO
+ALTER DATABASE [question_bank] SET ARITHABORT OFF
+GO
+ALTER DATABASE [question_bank] SET AUTO_CLOSE ON
+GO
+ALTER DATABASE [question_bank] SET AUTO_SHRINK OFF
+GO
+ALTER DATABASE [question_bank] SET AUTO_UPDATE_STATISTICS ON
+GO
+ALTER DATABASE [question_bank] SET CURSOR_CLOSE_ON_COMMIT OFF
+GO
+ALTER DATABASE [question_bank] SET CURSOR_DEFAULT  GLOBAL
+GO
+ALTER DATABASE [question_bank] SET CONCAT_NULL_YIELDS_NULL OFF
+GO
+ALTER DATABASE [question_bank] SET NUMERIC_ROUNDABORT OFF
+GO
+ALTER DATABASE [question_bank] SET QUOTED_IDENTIFIER OFF
+GO
+ALTER DATABASE [question_bank] SET RECURSIVE_TRIGGERS OFF
+GO
+ALTER DATABASE [question_bank] SET  ENABLE_BROKER
+GO
+ALTER DATABASE [question_bank] SET AUTO_UPDATE_STATISTICS_ASYNC OFF
+GO
+ALTER DATABASE [question_bank] SET DATE_CORRELATION_OPTIMIZATION OFF
+GO
+ALTER DATABASE [question_bank] SET TRUSTWORTHY OFF
+GO
+ALTER DATABASE [question_bank] SET ALLOW_SNAPSHOT_ISOLATION OFF
+GO
+ALTER DATABASE [question_bank] SET PARAMETERIZATION SIMPLE
+GO
+ALTER DATABASE [question_bank] SET READ_COMMITTED_SNAPSHOT OFF
+GO
+ALTER DATABASE [question_bank] SET HONOR_BROKER_PRIORITY OFF
+GO
+ALTER DATABASE [question_bank] SET RECOVERY SIMPLE
+GO
+ALTER DATABASE [question_bank] SET  MULTI_USER
+GO
+ALTER DATABASE [question_bank] SET PAGE_VERIFY CHECKSUM
+GO
+ALTER DATABASE [question_bank] SET DB_CHAINING OFF
+GO
+ALTER DATABASE [question_bank] SET FILESTREAM( NON_TRANSACTED_ACCESS = OFF )
+GO
+ALTER DATABASE [question_bank] SET TARGET_RECOVERY_TIME = 60 SECONDS
+GO
+ALTER DATABASE [question_bank] SET DELAYED_DURABILITY = DISABLED
+GO
+ALTER DATABASE [question_bank] SET ACCELERATED_DATABASE_RECOVERY = OFF
+GO
+ALTER DATABASE [question_bank] SET QUERY_STORE = ON
+GO
+ALTER DATABASE [question_bank] SET QUERY_STORE (OPERATION_MODE = READ_WRITE, CLEANUP_POLICY = (STALE_QUERY_THRESHOLD_DAYS = 30), DATA_FLUSH_INTERVAL_SECONDS = 900, INTERVAL_LENGTH_MINUTES = 60, MAX_STORAGE_SIZE_MB = 1000, QUERY_CAPTURE_MODE = AUTO, SIZE_BASED_CLEANUP_MODE = AUTO, MAX_PLANS_PER_QUERY = 200, WAIT_STATS_CAPTURE_MODE = ON)
+GO
+USE [question_bank]
+GO
+/****** Object:  Table [dbo].[Answers]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Answers](
+	[answerId] [uniqueidentifier] NOT NULL,
+	[questionId] [uniqueidentifier] NOT NULL,
+	[content] [nvarchar](max) NULL,
+	[order] [int] NOT NULL,
+	[isCorrectAnswer] [bit] NOT NULL,
+	[isPermutable] [bit] NOT NULL,
+ CONSTRAINT [PK_Answers] PRIMARY KEY CLUSTERED
+(
+	[answerId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[CauHoi]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -50,7 +128,7 @@ CREATE TABLE [dbo].[CauHoi](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  Table [dbo].[CauTraLoi]    Script Date: 2/16/2025 7:35:53 AM ******/
+/****** Object:  Table [dbo].[CauTraLoi]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -68,7 +146,7 @@ CREATE TABLE [dbo].[CauTraLoi](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  Table [dbo].[ChiTietDeThi]    Script Date: 2/16/2025 7:35:53 AM ******/
+/****** Object:  Table [dbo].[ChiTietDeThi]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -86,7 +164,39 @@ CREATE TABLE [dbo].[ChiTietDeThi](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
 ) ON [PRIMARY]
 GO
-/****** Object:  Table [dbo].[DeThi]    Script Date: 2/16/2025 7:35:53 AM ******/
+/****** Object:  Table [dbo].[CLO]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[CLO](
+	[MaCLO] [uniqueidentifier] NOT NULL,
+	[TenCLO] [nvarchar](250) NOT NULL,
+	[MoTa] [nvarchar](max) NULL,
+	[ThuTu] [int] NOT NULL,
+	[XoaTamCLO] [bit] NULL,
+ CONSTRAINT [PK_CLO] PRIMARY KEY CLUSTERED
+(
+	[MaCLO] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Departments]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Departments](
+	[departmentId] [uniqueidentifier] NOT NULL,
+	[departmentName] [nvarchar](250) NOT NULL,
+	[isDepartmentDeleted] [bit] NULL,
+ CONSTRAINT [PK_Departments] PRIMARY KEY CLUSTERED
+(
+	[departmentId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[DeThi]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -103,7 +213,58 @@ CREATE TABLE [dbo].[DeThi](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
 ) ON [PRIMARY]
 GO
-/****** Object:  Table [dbo].[Files]    Script Date: 2/16/2025 7:35:53 AM ******/
+/****** Object:  Table [dbo].[ExamQuestions]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[ExamQuestions](
+	[examId] [uniqueidentifier] NOT NULL,
+	[sectionId] [uniqueidentifier] NOT NULL,
+	[questionId] [uniqueidentifier] NOT NULL,
+	[order] [int] NOT NULL,
+ CONSTRAINT [PK_ExamQuestions] PRIMARY KEY CLUSTERED
+(
+	[examId] ASC,
+	[sectionId] ASC,
+	[questionId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Exams]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Exams](
+	[examId] [uniqueidentifier] NOT NULL,
+	[subjectId] [uniqueidentifier] NOT NULL,
+	[examName] [nvarchar](250) NOT NULL,
+	[createdAt] [datetime] NOT NULL,
+	[isApproved] [bit] NULL,
+ CONSTRAINT [PK_Exams] PRIMARY KEY CLUSTERED
+(
+	[examId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[ExtractionRequests]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[ExtractionRequests](
+	[extractionRequestId] [uniqueidentifier] NOT NULL,
+	[teacherName] [nvarchar](50) NULL,
+	[extractionContent] [nvarchar](max) NULL,
+	[extractionDate] [datetime] NULL,
+ CONSTRAINT [PK_ExtractionRequests] PRIMARY KEY CLUSTERED
+(
+	[extractionRequestId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Files]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -120,7 +281,7 @@ CREATE TABLE [dbo].[Files](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
 ) ON [PRIMARY]
 GO
-/****** Object:  Table [dbo].[Khoa]    Script Date: 2/16/2025 7:35:53 AM ******/
+/****** Object:  Table [dbo].[Khoa]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -135,7 +296,7 @@ CREATE TABLE [dbo].[Khoa](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
 ) ON [PRIMARY]
 GO
-/****** Object:  Table [dbo].[MonHoc]    Script Date: 2/16/2025 7:35:53 AM ******/
+/****** Object:  Table [dbo].[MonHoc]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -152,7 +313,7 @@ CREATE TABLE [dbo].[MonHoc](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
 ) ON [PRIMARY]
 GO
-/****** Object:  Table [dbo].[Phan]    Script Date: 2/16/2025 7:35:53 AM ******/
+/****** Object:  Table [dbo].[Phan]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -174,7 +335,73 @@ CREATE TABLE [dbo].[Phan](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  Table [dbo].[User]    Script Date: 2/16/2025 7:35:53 AM ******/
+/****** Object:  Table [dbo].[Questions]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Questions](
+	[questionId] [uniqueidentifier] NOT NULL,
+	[sectionId] [uniqueidentifier] NOT NULL,
+	[questionNumber] [int] NOT NULL,
+	[content] [nvarchar](max) NULL,
+	[isPermutable] [bit] NOT NULL,
+	[difficultyLevel] [smallint] NOT NULL,
+	[subQuestionCount] [int] NOT NULL,
+	[questionSpacing] [float] NULL,
+	[parentQuestionId] [uniqueidentifier] NULL,
+	[isDeleted] [bit] NULL,
+	[timesUsedInExam] [int] NULL,
+	[timesAnsweredCorrectly] [int] NULL,
+	[createdAt] [datetime] NULL,
+	[updatedAt] [datetime] NULL,
+	[cloId] [uniqueidentifier] NULL,
+ CONSTRAINT [PK_Questions] PRIMARY KEY CLUSTERED
+(
+	[questionId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Sections]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Sections](
+	[sectionId] [uniqueidentifier] NOT NULL,
+	[subjectId] [uniqueidentifier] NOT NULL,
+	[sectionName] [nvarchar](250) NOT NULL,
+	[content] [nvarchar](max) NULL,
+	[order] [int] NOT NULL,
+	[questionCount] [int] NOT NULL,
+	[parentSectionId] [uniqueidentifier] NULL,
+	[sectionNumber] [int] NULL,
+	[isSectionDeleted] [bit] NULL,
+	[isGroupQuestion] [bit] NOT NULL,
+ CONSTRAINT [PK_Sections] PRIMARY KEY CLUSTERED
+(
+	[sectionId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Subjects]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Subjects](
+	[subjectId] [uniqueidentifier] NOT NULL,
+	[departmentId] [uniqueidentifier] NOT NULL,
+	[subjectCode] [nvarchar](50) NOT NULL,
+	[subjectName] [nvarchar](250) NOT NULL,
+	[isSubjectDeleted] [bit] NULL,
+ CONSTRAINT [PK_Subjects] PRIMARY KEY CLUSTERED
+(
+	[subjectId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[User]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -205,7 +432,7 @@ CREATE TABLE [dbo].[User](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  Table [dbo].[YeuCauRutTrich]    Script Date: 2/16/2025 7:35:53 AM ******/
+/****** Object:  Table [dbo].[YeuCauRutTrich]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -221,10 +448,24 @@ CREATE TABLE [dbo].[YeuCauRutTrich](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-
 ALTER TABLE [dbo].[CauHoi] ADD  CONSTRAINT [DF_CauHoi_SoCauHoiCon]  DEFAULT ((0)) FOR [SoCauHoiCon]
 GO
 ALTER TABLE [dbo].[Phan] ADD  CONSTRAINT [DF_Phan_LaCauHoiNhom]  DEFAULT ((0)) FOR [LaCauHoiNhom]
+GO
+ALTER TABLE [dbo].[Questions] ADD  CONSTRAINT [DF_Questions_SubQuestionCount]  DEFAULT ((0)) FOR [subQuestionCount]
+GO
+ALTER TABLE [dbo].[Sections] ADD  CONSTRAINT [DF_Sections_IsGroupQuestion]  DEFAULT ((0)) FOR [isGroupQuestion]
+GO
+ALTER TABLE [dbo].[Answers]  WITH CHECK ADD  CONSTRAINT [FK_Answers_Questions] FOREIGN KEY([questionId])
+REFERENCES [dbo].[Questions] ([questionId])
+ON UPDATE CASCADE
+GO
+ALTER TABLE [dbo].[Answers] CHECK CONSTRAINT [FK_Answers_Questions]
+GO
+ALTER TABLE [dbo].[CauHoi]  WITH CHECK ADD  CONSTRAINT [FK_CauHoi_CLO] FOREIGN KEY([MaCLO])
+REFERENCES [dbo].[CLO] ([MaCLO])
+GO
+ALTER TABLE [dbo].[CauHoi] CHECK CONSTRAINT [FK_CauHoi_CLO]
 GO
 ALTER TABLE [dbo].[CauHoi]  WITH CHECK ADD  CONSTRAINT [FK_CauHoi_Phan] FOREIGN KEY([MaPhan])
 REFERENCES [dbo].[Phan] ([MaPhan])
@@ -259,6 +500,27 @@ ON UPDATE CASCADE
 GO
 ALTER TABLE [dbo].[DeThi] CHECK CONSTRAINT [FK_DeThi_MonHoc]
 GO
+ALTER TABLE [dbo].[ExamQuestions]  WITH CHECK ADD  CONSTRAINT [FK_ExamQuestions_Exams] FOREIGN KEY([examId])
+REFERENCES [dbo].[Exams] ([examId])
+GO
+ALTER TABLE [dbo].[ExamQuestions] CHECK CONSTRAINT [FK_ExamQuestions_Exams]
+GO
+ALTER TABLE [dbo].[ExamQuestions]  WITH CHECK ADD  CONSTRAINT [FK_ExamQuestions_Questions] FOREIGN KEY([questionId])
+REFERENCES [dbo].[Questions] ([questionId])
+GO
+ALTER TABLE [dbo].[ExamQuestions] CHECK CONSTRAINT [FK_ExamQuestions_Questions]
+GO
+ALTER TABLE [dbo].[ExamQuestions]  WITH CHECK ADD  CONSTRAINT [FK_ExamQuestions_Sections] FOREIGN KEY([sectionId])
+REFERENCES [dbo].[Sections] ([sectionId])
+GO
+ALTER TABLE [dbo].[ExamQuestions] CHECK CONSTRAINT [FK_ExamQuestions_Sections]
+GO
+ALTER TABLE [dbo].[Exams]  WITH CHECK ADD  CONSTRAINT [FK_Exams_Subjects] FOREIGN KEY([subjectId])
+REFERENCES [dbo].[Subjects] ([subjectId])
+ON UPDATE CASCADE
+GO
+ALTER TABLE [dbo].[Exams] CHECK CONSTRAINT [FK_Exams_Subjects]
+GO
 ALTER TABLE [dbo].[Files]  WITH CHECK ADD  CONSTRAINT [FK_File_CauHoi] FOREIGN KEY([MaCauHoi])
 REFERENCES [dbo].[CauHoi] ([MaCauHoi])
 GO
@@ -276,7 +538,25 @@ ON UPDATE CASCADE
 GO
 ALTER TABLE [dbo].[Phan] CHECK CONSTRAINT [FK_Phan_MonHoc]
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_Delete]    Script Date: 2/16/2025 7:35:54 AM ******/
+ALTER TABLE [dbo].[Questions]  WITH CHECK ADD  CONSTRAINT [FK_Questions_Sections] FOREIGN KEY([sectionId])
+REFERENCES [dbo].[Sections] ([sectionId])
+ON UPDATE CASCADE
+GO
+ALTER TABLE [dbo].[Questions] CHECK CONSTRAINT [FK_Questions_Sections]
+GO
+ALTER TABLE [dbo].[Sections]  WITH CHECK ADD  CONSTRAINT [FK_Sections_Subjects] FOREIGN KEY([subjectId])
+REFERENCES [dbo].[Subjects] ([subjectId])
+ON UPDATE CASCADE
+GO
+ALTER TABLE [dbo].[Sections] CHECK CONSTRAINT [FK_Sections_Subjects]
+GO
+ALTER TABLE [dbo].[Subjects]  WITH CHECK ADD  CONSTRAINT [FK_Subjects_Departments] FOREIGN KEY([departmentId])
+REFERENCES [dbo].[Departments] ([departmentId])
+ON UPDATE CASCADE
+GO
+ALTER TABLE [dbo].[Subjects] CHECK CONSTRAINT [FK_Subjects_Departments]
+GO
+/****** Object:  StoredProcedure [dbo].[CauHoi_Delete]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -298,7 +578,7 @@ DELETE FROM [dbo].[CauHoi]
 WHERE
 	[MaCauHoi] = @MaCauHoi
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_Delete_Excel]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_Delete_Excel]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -333,7 +613,7 @@ WHERE    [MaCauHoi] IN
 		or [MaCauHoiCha]=@MaCauHoi
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_ExportWord_SelectBy_MaDeThi]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_ExportWord_SelectBy_MaDeThi]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -355,7 +635,7 @@ WHERE
 		and XoaTamCauHoi = 'False'
 ORDER BY MaSoCauHoi
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_FlagAsDeleted]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_FlagAsDeleted]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -373,7 +653,7 @@ WHERE
 		and XoaTamCauHoi = 'False'
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_GetCount]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_GetCount]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -384,7 +664,7 @@ AS
 SELECT COUNT(*) FROM [dbo].[CauHoi]
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_GetCountNotCauHoiNhomBy_MaPhan]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_GetCountNotCauHoiNhomBy_MaPhan]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -404,7 +684,7 @@ WHERE
 	AND SoCauHoiCon = 0
 	AND XoaTamCauHoi = 'False'
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_Insert]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_Insert]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -469,7 +749,7 @@ VALUES
 
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_Restore]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_Restore]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -490,7 +770,7 @@ WHERE
 		and XoaTamCauHoi = 'True'
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_SelectAll]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_SelectAll]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -518,7 +798,7 @@ FROM
 		[dbo].[CauHoi]
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_SelectAll_Deleted]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_SelectAll_Deleted]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -537,7 +817,7 @@ WHERE
 ORDER BY [MaSoCauHoi]
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_SelectBy_MaCauHoiCha]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_SelectBy_MaCauHoiCha]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -560,7 +840,7 @@ WHERE
 		and XoaTamCauHoi = 'False'
 ORDER BY MaSoCauHoi
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_SelectBy_MaDeThi]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_SelectBy_MaDeThi]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -587,7 +867,7 @@ ORDER BY ct.ThuTu
 
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_SelectBy_MaMonHoc]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_SelectBy_MaMonHoc]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -609,7 +889,7 @@ WHERE
 ORDER BY MaSoCauHoi
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_SelectBy_MaPhan]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_SelectBy_MaPhan]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -633,7 +913,7 @@ ORDER BY [MaSoCauHoi]
 
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_SelectBy_MaPhan_CapDo]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_SelectBy_MaPhan_CapDo]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -658,7 +938,7 @@ WHERE
 ORDER BY [MaSoCauHoi]
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_SelectBy_MaPhan_CapDo_MaSoCauHoi]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_SelectBy_MaPhan_CapDo_MaSoCauHoi]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -687,7 +967,7 @@ ORDER BY [MaSoCauHoi]
 
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_SelectBy_MaPhan_MaCauHoiCha]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_SelectBy_MaPhan_MaCauHoiCha]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -713,7 +993,7 @@ WHERE
 ORDER BY [MaSoCauHoi]
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_SelectBy_MaPhan_MaSoCauHoi]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_SelectBy_MaPhan_MaSoCauHoi]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -739,7 +1019,7 @@ WHERE
 ORDER BY [MaSoCauHoi]
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_SelectBy_MaSoCauHoi]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_SelectBy_MaSoCauHoi]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -761,7 +1041,7 @@ WHERE
 ORDER BY MaSoCauHoi
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_SelectDapAn]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_SelectDapAn]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -779,7 +1059,7 @@ WHERE	[MaCauHoi]  = @MaCauHoi
 ORDER BY ThuTu
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_SelectMax_MaSoCauHoi]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_SelectMax_MaSoCauHoi]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -804,7 +1084,7 @@ IF(@Max IS NULL) SELECT 0
 ELSE SELECT @Max
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_SelectMax_MaSoCauHoiCapDo]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_SelectMax_MaSoCauHoiCapDo]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -826,7 +1106,7 @@ IF(@Max IS NULL) SELECT 0
 ELSE SELECT @Max
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_SelectOne]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_SelectOne]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -861,7 +1141,7 @@ WHERE
 		[MaCauHoi] = @MaCauHoi
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_SelectPage]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_SelectPage]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -938,7 +1218,7 @@ ORDER BY t2.IndexID
 DROP TABLE #PageIndex
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_SelectSoCauHoiCon]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_SelectSoCauHoiCon]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -965,7 +1245,7 @@ IF(@C IS NULL) SELECT 0
 ELSE SELECT @C
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauHoi_Update]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauHoi_Update]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1011,7 +1291,7 @@ WHERE
 			[MaCauHoi] = @MaCauHoi
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauTraLoi_Delete]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauTraLoi_Delete]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1026,7 +1306,7 @@ DELETE FROM [dbo].[CauTraLoi]
 WHERE
 	[MaCauTraLoi] = @MaCauTraLoi
 GO
-/****** Object:  StoredProcedure [dbo].[CauTraLoi_GetCount]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauTraLoi_GetCount]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1039,7 +1319,7 @@ AS
 SELECT COUNT(*) FROM [dbo].[CauTraLoi]
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauTraLoi_Insert]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauTraLoi_Insert]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1077,7 +1357,7 @@ VALUES
 
 )
 GO
-/****** Object:  StoredProcedure [dbo].[CauTraLoi_SelectAll]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauTraLoi_SelectAll]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1100,7 +1380,7 @@ FROM
 		[dbo].[CauTraLoi]
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauTraLoi_SelectBy_MaCauHoi]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauTraLoi_SelectBy_MaCauHoi]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1129,7 +1409,7 @@ WHERE
 ORDER BY ThuTu
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauTraLoi_SelectBy_MaDeThi]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauTraLoi_SelectBy_MaDeThi]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1151,7 +1431,7 @@ WHERE
 ORDER BY ThuTu
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauTraLoi_SelectBy_MaMonHoc]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauTraLoi_SelectBy_MaMonHoc]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1172,7 +1452,7 @@ FROM
 WHERE
 		[MaMonHoc] = @MaMonHoc
 GO
-/****** Object:  StoredProcedure [dbo].[CauTraLoi_SelectBy_MaPhan]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauTraLoi_SelectBy_MaPhan]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1193,7 +1473,7 @@ WHERE
 		[MaPhan] = @MaPhan
 ORDER BY ThuTu
 GO
-/****** Object:  StoredProcedure [dbo].[CauTraLoi_SelectOne]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauTraLoi_SelectOne]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1221,7 +1501,7 @@ WHERE
 		[MaCauTraLoi] = @MaCauTraLoi
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauTraLoi_SelectPage]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauTraLoi_SelectPage]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1299,7 +1579,7 @@ ORDER BY t2.IndexID
 DROP TABLE #PageIndex
 
 GO
-/****** Object:  StoredProcedure [dbo].[CauTraLoi_Update]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CauTraLoi_Update]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1329,7 +1609,7 @@ WHERE
 			[MaCauTraLoi] = @MaCauTraLoi
 
 GO
-/****** Object:  StoredProcedure [dbo].[ChiTietDeThi_Delete]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[ChiTietDeThi_Delete]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1349,7 +1629,7 @@ WHERE
 	AND [MaPhan] = @MaPhan
 	AND [MaCauHoi] = @MaCauHoi
 GO
-/****** Object:  StoredProcedure [dbo].[ChiTietDeThi_GetCount]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[ChiTietDeThi_GetCount]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1362,7 +1642,7 @@ AS
 SELECT COUNT(*) FROM [dbo].[ChiTietDeThi]
 
 GO
-/****** Object:  StoredProcedure [dbo].[ChiTietDeThi_Insert]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[ChiTietDeThi_Insert]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1398,7 +1678,7 @@ VALUES
 
 
 GO
-/****** Object:  StoredProcedure [dbo].[ChiTietDeThi_SelectAll]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[ChiTietDeThi_SelectAll]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1419,7 +1699,7 @@ FROM
 		[dbo].[ChiTietDeThi]
 
 GO
-/****** Object:  StoredProcedure [dbo].[ChiTietDeThi_SelectContent]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[ChiTietDeThi_SelectContent]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1443,7 +1723,7 @@ WHERE
 		[MaDeThi] = @MaDeThi
 
 GO
-/****** Object:  StoredProcedure [dbo].[ChiTietDeThi_SelectOne]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[ChiTietDeThi_SelectOne]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1473,7 +1753,7 @@ WHERE
 		AND [MaCauHoi] = @MaCauHoi
 
 GO
-/****** Object:  StoredProcedure [dbo].[ChiTietDeThi_SelectPage]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[ChiTietDeThi_SelectPage]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1563,7 +1843,7 @@ ORDER BY t2.IndexID
 DROP TABLE #PageIndex
 
 GO
-/****** Object:  StoredProcedure [dbo].[ChiTietDeThi_Update]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[ChiTietDeThi_Update]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1589,7 +1869,216 @@ WHERE
 			AND [MaCauHoi] = @MaCauHoi
 
 GO
-/****** Object:  StoredProcedure [dbo].[DeThi_Delete]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[CLO_AssignToQuestion]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+-- Stored Procedures để liên kết CLO với Câu hỏi
+CREATE PROCEDURE [dbo].[CLO_AssignToQuestion]
+    @cloId uniqueidentifier,
+    @questionId uniqueidentifier
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    UPDATE [dbo].[Questions]
+    SET [cloId] = @cloId
+    WHERE [questionId] = @questionId
+END
+
+GO
+/****** Object:  StoredProcedure [dbo].[CLO_Delete]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE PROCEDURE [dbo].[CLO_Delete]
+    @MaCLO uniqueidentifier
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DELETE FROM [dbo].[CLO]
+    WHERE [MaCLO] = @MaCLO
+END
+GO
+/****** Object:  StoredProcedure [dbo].[CLO_GetCount]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE PROCEDURE [dbo].[CLO_GetCount]
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT COUNT(*) AS TotalCount
+    FROM [dbo].[CLO]
+END
+
+GO
+/****** Object:  StoredProcedure [dbo].[CLO_GetQuestionsByCLO]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE PROCEDURE [dbo].[CLO_GetQuestionsByCLO]
+    @MaCLO uniqueidentifier
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT c.[MaCauHoi], c.[NoiDung], c.[CapDo], c.[SoCauHoiCon],
+           cl.[TenCLO], cl.[MoTa] as CLO_MoTa
+    FROM [dbo].[CauHoi] c
+    INNER JOIN [dbo].[CLO] cl ON c.[MaCLO] = cl.[MaCLO]
+    WHERE c.[MaCLO] = @MaCLO
+    ORDER BY c.[MaSoCauHoi]
+END
+GO
+/****** Object:  StoredProcedure [dbo].[CLO_GetQuestionsNotAssigned]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE PROCEDURE [dbo].[CLO_GetQuestionsNotAssigned]
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT [questionId], [content], [difficultyLevel], [subQuestionCount]
+    FROM [dbo].[Questions]
+    WHERE [cloId] IS NULL
+    ORDER BY [questionNumber]
+END
+
+GO
+/****** Object:  StoredProcedure [dbo].[CLO_Insert]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+-- Stored Procedures cho bảng CLO
+CREATE PROCEDURE [dbo].[CLO_Insert]
+    @TenCLO nvarchar(250),
+    @MoTa nvarchar(max),
+    @ThuTu int
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @MaCLO uniqueidentifier = NEWID()
+
+    INSERT INTO [dbo].[CLO] ([MaCLO], [TenCLO], [MoTa], [ThuTu])
+    VALUES (@MaCLO, @TenCLO, @MoTa, @ThuTu)
+
+    SELECT @MaCLO AS MaCLO
+END
+GO
+/****** Object:  StoredProcedure [dbo].[CLO_RemoveFromQuestion]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE PROCEDURE [dbo].[CLO_RemoveFromQuestion]
+    @questionId uniqueidentifier
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    UPDATE [dbo].[Questions]
+    SET [cloId] = NULL
+    WHERE [questionId] = @questionId
+END
+
+GO
+/****** Object:  StoredProcedure [dbo].[CLO_SelectAll]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE PROCEDURE [dbo].[CLO_SelectAll]
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT [MaCLO], [TenCLO], [MoTa], [ThuTu], [XoaTamCLO]
+    FROM [dbo].[CLO]
+    ORDER BY [ThuTu]
+END
+GO
+/****** Object:  StoredProcedure [dbo].[CLO_SelectOne]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE PROCEDURE [dbo].[CLO_SelectOne]
+    @MaCLO uniqueidentifier
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT [MaCLO], [TenCLO], [MoTa], [ThuTu], [XoaTamCLO]
+    FROM [dbo].[CLO]
+    WHERE [MaCLO] = @MaCLO
+END
+GO
+/****** Object:  StoredProcedure [dbo].[CLO_SelectPage]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE PROCEDURE [dbo].[CLO_SelectPage]
+    @PageIndex int,
+    @PageSize int,
+    @TotalRecords int OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT @TotalRecords = COUNT(*)
+    FROM [dbo].[CLO]
+
+    SELECT [MaCLO], [TenCLO], [MoTa], [ThuTu], [XoaTamCLO]
+    FROM [dbo].[CLO]
+    ORDER BY [ThuTu]
+    OFFSET (@PageIndex - 1) * @PageSize ROWS
+    FETCH NEXT @PageSize ROWS ONLY
+END
+GO
+/****** Object:  StoredProcedure [dbo].[CLO_Update]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE PROCEDURE [dbo].[CLO_Update]
+    @MaCLO uniqueidentifier,
+    @TenCLO nvarchar(250),
+    @MoTa nvarchar(max),
+    @ThuTu int
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    UPDATE [dbo].[CLO]
+    SET [TenCLO] = @TenCLO,
+        [MoTa] = @MoTa,
+        [ThuTu] = @ThuTu
+    WHERE [MaCLO] = @MaCLO
+END
+GO
+/****** Object:  StoredProcedure [dbo].[DeThi_Delete]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1605,7 +2094,7 @@ DELETE FROM [dbo].[DeThi]
 WHERE
 	[MaDeThi] = @MaDeThi
 GO
-/****** Object:  StoredProcedure [dbo].[DeThi_GetCount]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[DeThi_GetCount]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1617,7 +2106,7 @@ AS
 SELECT COUNT(*) FROM [dbo].[DeThi]
 
 GO
-/****** Object:  StoredProcedure [dbo].[DeThi_Insert]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[DeThi_Insert]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1655,7 +2144,7 @@ VALUES
 
 
 GO
-/****** Object:  StoredProcedure [dbo].[DeThi_SelectAll]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[DeThi_SelectAll]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1677,7 +2166,7 @@ FROM
 		[dbo].[DeThi]
 
 GO
-/****** Object:  StoredProcedure [dbo].[DeThi_SelectBy_MaMonHoc]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[DeThi_SelectBy_MaMonHoc]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1705,7 +2194,7 @@ WHERE
 
 
 GO
-/****** Object:  StoredProcedure [dbo].[DeThi_SelectOne]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[DeThi_SelectOne]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1732,7 +2221,7 @@ WHERE
 		[MaDeThi] = @MaDeThi
 
 GO
-/****** Object:  StoredProcedure [dbo].[DeThi_SelectPage]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[DeThi_SelectPage]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1810,7 +2299,7 @@ ORDER BY t2.IndexID
 DROP TABLE #PageIndex
 
 GO
-/****** Object:  StoredProcedure [dbo].[DeThi_Update]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[DeThi_Update]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1837,7 +2326,7 @@ WHERE
 			[MaDeThi] = @MaDeThi
 
 GO
-/****** Object:  StoredProcedure [dbo].[Files_Delete]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Files_Delete]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1852,7 +2341,7 @@ DELETE FROM [dbo].[Files]
 WHERE
 	[MaFile] = @MaFile
 GO
-/****** Object:  StoredProcedure [dbo].[Files_GetCount]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Files_GetCount]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1865,7 +2354,7 @@ AS
 SELECT COUNT(*) FROM [dbo].[Files]
 
 GO
-/****** Object:  StoredProcedure [dbo].[Files_Insert]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Files_Insert]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1903,7 +2392,7 @@ VALUES
 
 
 GO
-/****** Object:  StoredProcedure [dbo].[Files_SelectAll]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Files_SelectAll]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1924,7 +2413,7 @@ FROM
 		[dbo].[Files]
 
 GO
-/****** Object:  StoredProcedure [dbo].[Files_SelectBy_MaCauHoi]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Files_SelectBy_MaCauHoi]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1946,7 +2435,7 @@ WHERE
 		[MaCauHoi] = @MaCauHoi
 
 GO
-/****** Object:  StoredProcedure [dbo].[Files_SelectBy_MaCauHoi_LoaiFile]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Files_SelectBy_MaCauHoi_LoaiFile]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1969,7 +2458,7 @@ WHERE
 		AND [LoaiFile] = @LoaiFile
 
 GO
-/****** Object:  StoredProcedure [dbo].[Files_SelectOne]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Files_SelectOne]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1995,7 +2484,7 @@ WHERE
 		[MaFile] = @MaFile
 
 GO
-/****** Object:  StoredProcedure [dbo].[Files_SelectPage]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Files_SelectPage]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2053,7 +2542,7 @@ FROM
 
 END
 GO
-/****** Object:  StoredProcedure [dbo].[Files_Update]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Files_Update]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2082,7 +2571,7 @@ WHERE
 			[MaFile] = @MaFile
 
 GO
-/****** Object:  StoredProcedure [dbo].[Files_Update_MaCauTraLoi]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Files_Update_MaCauTraLoi]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2103,7 +2592,7 @@ WHERE		[MaFile]		= @MaFile
 
 
 GO
-/****** Object:  StoredProcedure [dbo].[Khoa_Delete]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Khoa_Delete]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2118,7 +2607,7 @@ DELETE FROM [dbo].[Khoa]
 WHERE
 	[MaKhoa] = @MaKhoa
 GO
-/****** Object:  StoredProcedure [dbo].[Khoa_FlagAsDeleted]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Khoa_FlagAsDeleted]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2175,7 +2664,7 @@ WHERE
 	MaKhoa = @MaKhoa
 	and XoaTamKhoa = 'False'
 GO
-/****** Object:  StoredProcedure [dbo].[Khoa_GetCount]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Khoa_GetCount]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2188,7 +2677,7 @@ AS
 SELECT COUNT(*) FROM [dbo].[Khoa]
 
 GO
-/****** Object:  StoredProcedure [dbo].[Khoa_Insert]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Khoa_Insert]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2219,7 +2708,7 @@ VALUES
 
 
 GO
-/****** Object:  StoredProcedure [dbo].[Khoa_Restore]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Khoa_Restore]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2276,7 +2765,7 @@ WHERE
 	and XoaTamKhoa = 'True'
 
 GO
-/****** Object:  StoredProcedure [dbo].[Khoa_SelectAll]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Khoa_SelectAll]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2295,7 +2784,7 @@ FROM
 		[dbo].[Khoa]
 
 GO
-/****** Object:  StoredProcedure [dbo].[Khoa_SelectAll_Deleted]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Khoa_SelectAll_Deleted]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2314,7 +2803,7 @@ FROM
 where
 		XoaTamKhoa = 'True'
 GO
-/****** Object:  StoredProcedure [dbo].[Khoa_SelectOne]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Khoa_SelectOne]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2339,7 +2828,7 @@ WHERE
 		[MaKhoa] = @MaKhoa
 
 GO
-/****** Object:  StoredProcedure [dbo].[Khoa_SelectPage]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Khoa_SelectPage]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2417,7 +2906,7 @@ ORDER BY t2.IndexID
 DROP TABLE #PageIndex
 
 GO
-/****** Object:  StoredProcedure [dbo].[Khoa_Update]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Khoa_Update]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2442,7 +2931,7 @@ WHERE
 			[MaKhoa] = @MaKhoa
 
 GO
-/****** Object:  StoredProcedure [dbo].[MonHoc_Delete]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[MonHoc_Delete]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2458,7 +2947,7 @@ DELETE FROM [dbo].[MonHoc]
 WHERE
 	[MaMonHoc] = @MaMonHoc
 GO
-/****** Object:  StoredProcedure [dbo].[MonHoc_FlagAsDeleted]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[MonHoc_FlagAsDeleted]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2504,7 +2993,7 @@ WHERE
 	MaMonHoc = @MaMonHoc
 	and XoaTamMonHoc = 'False';
 GO
-/****** Object:  StoredProcedure [dbo].[MonHoc_GetCount]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[MonHoc_GetCount]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2517,7 +3006,7 @@ AS
 SELECT COUNT(*) FROM [dbo].[MonHoc]
 
 GO
-/****** Object:  StoredProcedure [dbo].[MonHoc_Insert]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[MonHoc_Insert]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2554,7 +3043,7 @@ VALUES
 
 
 GO
-/****** Object:  StoredProcedure [dbo].[MonHoc_Restore]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[MonHoc_Restore]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2600,7 +3089,7 @@ WHERE
 	MaMonHoc = @MaMonHoc
 	and XoaTamMonHoc = 'True';
 GO
-/****** Object:  StoredProcedure [dbo].[MonHoc_SelectAll]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[MonHoc_SelectAll]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2621,7 +3110,7 @@ FROM
 		[dbo].[MonHoc]
 
 GO
-/****** Object:  StoredProcedure [dbo].[MonHoc_SelectAll_Deleted]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[MonHoc_SelectAll_Deleted]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2638,7 +3127,7 @@ FROM
 where
 		XoaTamMonHoc = 'True'
 GO
-/****** Object:  StoredProcedure [dbo].[MonHoc_SelectBy_MaDeThi]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[MonHoc_SelectBy_MaDeThi]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2662,7 +3151,7 @@ WHERE
 		[MaDeThi] = @MaDeThi
 
 GO
-/****** Object:  StoredProcedure [dbo].[MonHoc_SelectBy_MaKhoa]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[MonHoc_SelectBy_MaKhoa]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2685,7 +3174,7 @@ WHERE
 		[MaKhoa] = @MaKhoa
 		and XoaTamMonHoc = 'False'
 GO
-/****** Object:  StoredProcedure [dbo].[MonHoc_SelectBy_MaSoMonHoc]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[MonHoc_SelectBy_MaSoMonHoc]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2709,7 +3198,7 @@ WHERE
 	AND	[MaKhoa]		= @MaKhoa
 	AND [XoaTamMonHoc]			= 'False'
 GO
-/****** Object:  StoredProcedure [dbo].[MonHoc_SelectOne]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[MonHoc_SelectOne]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2735,7 +3224,7 @@ WHERE
 		[MaMonHoc] = @MaMonHoc
 
 GO
-/****** Object:  StoredProcedure [dbo].[MonHoc_SelectOneBy_MaSoMonHoc]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[MonHoc_SelectOneBy_MaSoMonHoc]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2758,7 +3247,7 @@ WHERE
 		[MaSoMonHoc]	= @MaSoMonHoc
 	AND [XoaTamMonHoc]			= 'False'
 GO
-/****** Object:  StoredProcedure [dbo].[MonHoc_SelectOneByName]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[MonHoc_SelectOneByName]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2780,7 +3269,7 @@ WHERE
 		lower([TenMonHoc]) =  lower(@TenMonHoc)
 		and [MaKhoa] = @MaKhoa
 GO
-/****** Object:  StoredProcedure [dbo].[MonHoc_SelectPage]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[MonHoc_SelectPage]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2858,7 +3347,7 @@ ORDER BY t2.IndexID
 DROP TABLE #PageIndex
 
 GO
-/****** Object:  StoredProcedure [dbo].[MonHoc_Update]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[MonHoc_Update]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2886,7 +3375,7 @@ WHERE
 			[MaMonHoc] = @MaMonHoc
 
 GO
-/****** Object:  StoredProcedure [dbo].[Phan_CheckExistPhanCon]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Phan_CheckExistPhanCon]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2914,7 +3403,7 @@ ELSE
 
 
 GO
-/****** Object:  StoredProcedure [dbo].[Phan_Delete]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Phan_Delete]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -2965,7 +3454,7 @@ Return
 Error_Lbl:
 Rollback Tran DeleteCate_Child
 GO
-/****** Object:  StoredProcedure [dbo].[Phan_FlagAsDeleted]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Phan_FlagAsDeleted]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3000,7 +3489,7 @@ WHERE
 	and XoaTamPhan = 'False';
 
 GO
-/****** Object:  StoredProcedure [dbo].[Phan_GetCount]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Phan_GetCount]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3013,7 +3502,7 @@ AS
 SELECT COUNT(*) FROM [dbo].[Phan]
 
 GO
-/****** Object:  StoredProcedure [dbo].[Phan_Insert]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Phan_Insert]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3063,7 +3552,7 @@ VALUES
 
 
 GO
-/****** Object:  StoredProcedure [dbo].[Phan_Restore]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Phan_Restore]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3097,7 +3586,7 @@ WHERE
 	MaPhan = @MaPhan
 	and XoaTamPhan = 'True';
 GO
-/****** Object:  StoredProcedure [dbo].[Phan_SelectAll]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Phan_SelectAll]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3123,7 +3612,7 @@ FROM
 		[dbo].[Phan]
 
 GO
-/****** Object:  StoredProcedure [dbo].[Phan_SelectAll_Deleted]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Phan_SelectAll_Deleted]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3143,7 +3632,7 @@ FROM
 WHERE XoaTamPhan = 'True'
 ORDER BY ThuTu, TenPhan
 GO
-/****** Object:  StoredProcedure [dbo].[Phan_SelectBy_MaDeThi]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Phan_SelectBy_MaDeThi]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3174,7 +3663,7 @@ ORDER BY P.MaSoPhan
 
 
 GO
-/****** Object:  StoredProcedure [dbo].[Phan_SelectBy_MaMonHoc]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Phan_SelectBy_MaMonHoc]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3198,7 +3687,7 @@ ORDER BY MaSoPhan
 
 
 GO
-/****** Object:  StoredProcedure [dbo].[Phan_SelectBy_MaMonHoc_MaPhanCha]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Phan_SelectBy_MaMonHoc_MaPhanCha]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3224,7 +3713,7 @@ WHERE
 
 ORDER BY ThuTu, TenPhan
 GO
-/****** Object:  StoredProcedure [dbo].[Phan_SelectBy_MaMonHoc_MaSoPhan]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Phan_SelectBy_MaMonHoc_MaSoPhan]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3250,7 +3739,7 @@ WHERE
 
 ORDER BY ThuTu, TenPhan
 GO
-/****** Object:  StoredProcedure [dbo].[Phan_SelectBy_MaPhanCha]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Phan_SelectBy_MaPhanCha]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3273,7 +3762,7 @@ WHERE
 ORDER BY ThuTu, TenPhan
 
 GO
-/****** Object:  StoredProcedure [dbo].[Phan_SelectBy_MaSoPhan]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Phan_SelectBy_MaSoPhan]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3298,7 +3787,7 @@ WHERE
 
 ORDER BY ThuTu, TenPhan
 GO
-/****** Object:  StoredProcedure [dbo].[Phan_SelectBy_MaSoPhan_CoMaPhanCha]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Phan_SelectBy_MaSoPhan_CoMaPhanCha]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3326,7 +3815,7 @@ OR (p.[MaMonHoc]	= @MaMonHoc
 	AND p.[XoaTamPhan]		= 'False')
 ORDER BY p.ThuTu, p.TenPhan
 GO
-/****** Object:  StoredProcedure [dbo].[Phan_SelectBy_MaSoPhan_MaSoMonHoc]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Phan_SelectBy_MaSoPhan_MaSoMonHoc]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3351,7 +3840,7 @@ WHERE
 ORDER BY ThuTu, TenPhan
 
 GO
-/****** Object:  StoredProcedure [dbo].[Phan_SelectMax_MaSoPhan]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Phan_SelectMax_MaSoPhan]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3372,7 +3861,7 @@ IF(@Max IS NULL) SELECT 0
 ELSE SELECT @Max
 
 GO
-/****** Object:  StoredProcedure [dbo].[Phan_SelectOne]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Phan_SelectOne]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3402,7 +3891,7 @@ WHERE
 		[MaPhan] = @MaPhan
 
 GO
-/****** Object:  StoredProcedure [dbo].[Phan_SelectOneByName]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Phan_SelectOneByName]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3422,7 +3911,7 @@ WHERE	[MaMonHoc] = @MaMonHoc
 	AND [MaPhanCha] = @MaPhanCha
 	AND	Lower([TenPhan]) = Lower(@TenPhan)
 GO
-/****** Object:  StoredProcedure [dbo].[Phan_SelectPage]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Phan_SelectPage]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3501,7 +3990,7 @@ ORDER BY t2.IndexID
 DROP TABLE #PageIndex
 
 GO
-/****** Object:  StoredProcedure [dbo].[Phan_Update]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Phan_Update]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3538,7 +4027,590 @@ WHERE
 			[MaPhan] = @MaPhan
 
 GO
-/****** Object:  StoredProcedure [dbo].[YeuCauRutTrich_Delete]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[Question_ExportWord_SelectBy_ExamId]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[Question_ExportWord_SelectBy_ExamId]
+
+@examId uniqueidentifier
+WITH EXECUTE AS CALLER
+AS
+
+
+SELECT
+		DISTINCT CH.*, 'originalSectionId' = CTDT.[sectionId]
+FROM
+		[dbo].[Questions] CH
+		JOIN [dbo].[ExamQuestions] CTDT ON CTDT.questionId = CH.questionId
+WHERE
+		[examId] = @examId
+		and isDeleted = 'False'
+ORDER BY questionNumber
+
+GO
+/****** Object:  StoredProcedure [dbo].[Question_FlagAsDeleted]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[Question_FlagAsDeleted]
+
+@questionId uniqueidentifier
+WITH EXECUTE AS CALLER
+AS
+UPDATE 		[dbo].[Questions]
+SET
+		isDeleted = 'True'
+WHERE
+		[questionId] = @questionId
+		and isDeleted = 'False'
+
+
+GO
+/****** Object:  StoredProcedure [dbo].[Question_GetCount]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[Question_GetCount]
+WITH EXECUTE AS CALLER
+AS
+SELECT COUNT(*) FROM [dbo].[Questions]
+
+
+GO
+/****** Object:  StoredProcedure [dbo].[Question_Insert]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[Question_Insert]
+
+
+@questionId uniqueidentifier,
+@sectionId uniqueidentifier,
+@questionNumber int,
+@content nvarchar(max),
+@isPermutable bit,
+@difficultyLevel smallint,
+@subQuestionCount int,
+@questionSpacing float,
+@parentQuestionId uniqueidentifier,
+@isDeleted bit,
+@timesUsedInExam int,
+@timesAnsweredCorrectly int,
+@createdAt datetime,
+@updatedAt datetime
+
+WITH EXECUTE AS CALLER
+AS
+
+INSERT INTO 	[dbo].[Questions]
+(
+				[questionId],
+				[sectionId],
+				[questionNumber],
+				[content],
+				[isPermutable],
+				[difficultyLevel],
+				[subQuestionCount],
+				[questionSpacing],
+				[parentQuestionId],
+				[isDeleted],
+				[timesUsedInExam],
+				[timesAnsweredCorrectly],
+				[createdAt],
+				[updatedAt]
+)
+
+VALUES
+(
+				@questionId,
+				@sectionId,
+				@questionNumber,
+				@content,
+				@isPermutable,
+				@difficultyLevel,
+				@subQuestionCount,
+				@questionSpacing,
+				@parentQuestionId,
+				@isDeleted,
+				@timesUsedInExam,
+				@timesAnsweredCorrectly,
+				@createdAt,
+				@updatedAt
+
+)
+
+
+
+GO
+/****** Object:  StoredProcedure [dbo].[Question_Restore]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[Question_Restore]
+
+@questionId uniqueidentifier
+
+WITH EXECUTE AS CALLER
+AS
+UPDATE 		[dbo].[Questions]
+
+SET
+		isDeleted = 'False'
+
+WHERE
+		[questionId] = @questionId
+		and isDeleted = 'True'
+
+
+GO
+/****** Object:  StoredProcedure [dbo].[Question_SelectAll]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[Question_SelectAll]
+WITH EXECUTE AS CALLER
+AS
+SELECT
+		[questionId],
+		[sectionId],
+		[questionNumber],
+		[content],
+		[isPermutable],
+		[difficultyLevel],
+		[subQuestionCount],
+		[questionSpacing],
+		[parentQuestionId],
+		[isDeleted],
+		[timesUsedInExam],
+		[timesAnsweredCorrectly],
+		[createdAt],
+		[updatedAt]
+
+FROM
+		[dbo].[Questions]
+
+
+GO
+/****** Object:  StoredProcedure [dbo].[Question_SelectAll_Deleted]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[Question_SelectAll_Deleted]
+WITH EXECUTE AS CALLER
+AS
+
+
+SELECT
+		*
+FROM
+		[dbo].[Questions]
+WHERE
+		isDeleted = 'True'
+ORDER BY [questionNumber]
+
+
+GO
+/****** Object:  StoredProcedure [dbo].[Question_SelectBy_ParentQuestionId]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[Question_SelectBy_ParentQuestionId]
+
+
+@parentQuestionId uniqueidentifier
+WITH EXECUTE AS CALLER
+AS
+
+
+SELECT
+		*
+FROM
+		[dbo].[Questions]
+
+WHERE
+		[parentQuestionId] = @parentQuestionId
+		and isDeleted = 'False'
+ORDER BY questionNumber
+
+GO
+/****** Object:  StoredProcedure [dbo].[Question_SelectBy_QuestionNumber]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[Question_SelectBy_QuestionNumber]
+
+@questionNumber int
+WITH EXECUTE AS CALLER
+AS
+
+SELECT
+		*
+FROM
+		[dbo].[Questions]
+
+WHERE
+		[questionNumber] = @questionNumber
+		and isDeleted = 'False'
+ORDER BY questionNumber
+
+
+GO
+/****** Object:  StoredProcedure [dbo].[Question_SelectBy_SectionId]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[Question_SelectBy_SectionId]
+
+@sectionId uniqueidentifier
+WITH EXECUTE AS CALLER
+AS
+
+
+SELECT
+		*
+FROM
+		[dbo].[Questions]
+
+WHERE
+		[sectionId] = @sectionId
+		and isDeleted = 'False'
+ORDER BY [questionNumber]
+
+
+
+GO
+/****** Object:  StoredProcedure [dbo].[Question_SelectBy_SectionId_DifficultyLevel]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[Question_SelectBy_SectionId_DifficultyLevel]
+
+@sectionId uniqueidentifier,
+@difficultyLevel int
+WITH EXECUTE AS CALLER
+AS
+
+
+SELECT
+		*
+FROM
+		[dbo].[Questions]
+
+WHERE
+		[sectionId] = @sectionId
+		and [difficultyLevel] = @difficultyLevel
+		and isDeleted = 'False'
+ORDER BY [questionNumber]
+
+
+GO
+/****** Object:  StoredProcedure [dbo].[Question_SelectBy_SectionId_DifficultyLevel_QuestionNumber]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[Question_SelectBy_SectionId_DifficultyLevel_QuestionNumber]
+
+@sectionId uniqueidentifier,
+@difficultyLevel int,
+@questionNumber int
+WITH EXECUTE AS CALLER
+AS
+
+
+SELECT
+		*
+FROM
+		[dbo].[Questions]
+
+WHERE
+		[sectionId] = @sectionId
+		and [difficultyLevel] = @difficultyLevel
+		and [questionNumber] = @questionNumber
+		and isDeleted = 'False'
+ORDER BY [questionNumber]
+
+
+
+
+GO
+/****** Object:  StoredProcedure [dbo].[Question_SelectBy_SectionId_ParentQuestionId]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[Question_SelectBy_SectionId_ParentQuestionId]
+
+
+@sectionId uniqueidentifier,
+@parentQuestionId uniqueidentifier
+WITH EXECUTE AS CALLER
+AS
+
+
+SELECT
+		*
+FROM
+		[dbo].[Questions]
+
+WHERE
+		[sectionId] = @sectionId
+		and [parentQuestionId] = @parentQuestionId
+		and isDeleted = 'False'
+ORDER BY [questionNumber]
+
+
+GO
+/****** Object:  StoredProcedure [dbo].[Question_SelectBy_SectionId_QuestionNumber]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[Question_SelectBy_SectionId_QuestionNumber]
+
+
+@sectionId uniqueidentifier,
+@questionNumber int
+WITH EXECUTE AS CALLER
+AS
+
+
+SELECT
+		*
+FROM
+		[dbo].[Questions]
+
+WHERE
+		[sectionId] = @sectionId
+		and [questionNumber] = @questionNumber
+		and isDeleted = 'False'
+ORDER BY [questionNumber]
+
+
+GO
+/****** Object:  StoredProcedure [dbo].[Question_SelectMax_QuestionNumber]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[Question_SelectMax_QuestionNumber]
+
+@sectionId uniqueidentifier
+WITH EXECUTE AS CALLER
+AS
+
+DECLARE @Max int
+
+SELECT
+		@Max = MAX([questionNumber])
+FROM
+		[dbo].[Questions]
+
+WHERE
+		[sectionId] = @sectionId
+
+IF(@Max IS NULL) SELECT 0
+ELSE SELECT @Max
+
+
+GO
+/****** Object:  StoredProcedure [dbo].[Question_SelectMax_QuestionNumberDifficultyLevel]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[Question_SelectMax_QuestionNumberDifficultyLevel]
+
+@sectionId uniqueidentifier,
+@difficultyLevel int
+WITH EXECUTE AS CALLER
+AS
+
+DECLARE @Max int
+
+SELECT	@Max = MAX([questionNumber])
+FROM	[dbo].[Questions]
+WHERE	[sectionId] = @sectionId
+	AND [difficultyLevel] = @difficultyLevel
+IF(@Max IS NULL) SELECT 0
+ELSE SELECT @Max
+
+
+GO
+/****** Object:  StoredProcedure [dbo].[Question_SelectOne]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[Question_SelectOne]
+
+@questionId uniqueidentifier
+WITH EXECUTE AS CALLER
+AS
+
+
+SELECT
+		[questionId],
+		[sectionId],
+		[questionNumber],
+		[content],
+		[isPermutable],
+		[difficultyLevel],
+		[subQuestionCount],
+		[questionSpacing],
+		[parentQuestionId],
+		[isDeleted],
+		[timesUsedInExam],
+		[timesAnsweredCorrectly],
+		[createdAt],
+		[updatedAt]
+
+FROM
+		[dbo].[Questions]
+
+WHERE
+		[questionId] = @questionId
+
+
+GO
+/****** Object:  StoredProcedure [dbo].[Question_SelectPage]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[Question_SelectPage]
+@PageNumber 			int,
+@PageSize 			int
+WITH EXECUTE AS CALLER
+AS
+
+DECLARE @PageLowerBound int
+DECLARE @PageUpperBound int
+
+
+SET @PageLowerBound = (@PageSize * @PageNumber) - @PageSize
+SET @PageUpperBound = @PageLowerBound + @PageSize + 1
+
+/*
+Note: temp tables use the server default for collation not the database default
+so if adding character columns be sure and specify to use the database collation like this
+to avoid collation errors:
+
+CREATE TABLE #PageIndexForUsers
+(
+IndexID int IDENTITY (1, 1) NOT NULL,
+UserName nvarchar(50) COLLATE DATABASE_DEFAULT,
+LoginName nvarchar(50) COLLATE DATABASE_DEFAULT
+)
+
+
+*/
+
+CREATE TABLE #PageIndex
+(
+	IndexID int IDENTITY (1, 1) NOT NULL,
+MaCauHoi UniqueIdentifier
+)
+
+BEGIN
+
+INSERT INTO #PageIndex (
+MaCauHoi
+)
+
+SELECT
+		[questionId]
+
+FROM
+		[dbo].[Questions]
+
+-- WHERE
+
+-- ORDER BY
+
+END
+
+
+SELECT
+		t1.*
+
+FROM
+		[dbo].[Questions] t1
+
+JOIN			#PageIndex t2
+ON
+		t1.[questionId] = t2.[questionId]
+
+WHERE
+		t2.IndexID > @PageLowerBound
+		AND t2.IndexID < @PageUpperBound
+
+ORDER BY t2.IndexID
+
+DROP TABLE #PageIndex
+
+
+GO
+/****** Object:  StoredProcedure [dbo].[Question_Update]    Script Date: 04/06/2025 8:35:47 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[Question_Update]
+
+@questionId uniqueidentifier,
+@sectionId uniqueidentifier,
+@questionNumber int,
+@content nvarchar(max),
+@isPermutable bit,
+@difficultyLevel smallint,
+@subQuestionCount int,
+@questionSpacing float,
+@parentQuestionId uniqueidentifier,
+@isDeleted bit,
+@timesUsedInExam int,
+@timesAnsweredCorrectly int,
+@createdAt datetime,
+@updatedAt datetime
+
+WITH EXECUTE AS CALLER
+AS
+
+UPDATE 		[dbo].[Questions]
+
+SET
+			[sectionId] = @sectionId,
+			[questionNumber] = @questionNumber,
+			[content] = @content,
+			[isPermutable] = @isPermutable,
+			[difficultyLevel] = @difficultyLevel,
+			[subQuestionCount] = @subQuestionCount,
+			[questionSpacing] = @questionSpacing,
+			[parentQuestionId] = @parentQuestionId,
+			[isDeleted] = @isDeleted,
+			[timesUsedInExam] = @timesUsedInExam,
+			[timesAnsweredCorrectly] = @timesAnsweredCorrectly,
+			[createdAt] = @createdAt,
+			[updatedAt] = @updatedAt
+
+WHERE
+			[questionId] = @questionId
+
+
+GO
+/****** Object:  StoredProcedure [dbo].[YeuCauRutTrich_Delete]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3553,7 +4625,7 @@ DELETE FROM [dbo].[YeuCauRutTrich]
 WHERE
 	[MaYeuCauDe] = @MaYeuCauDe
 GO
-/****** Object:  StoredProcedure [dbo].[YeuCauRutTrich_GetCount]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[YeuCauRutTrich_GetCount]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3566,7 +4638,7 @@ AS
 SELECT COUNT(*) FROM [dbo].[YeuCauRutTrich]
 
 GO
-/****** Object:  StoredProcedure [dbo].[YeuCauRutTrich_Insert]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[YeuCauRutTrich_Insert]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3600,7 +4672,7 @@ VALUES
 
 
 GO
-/****** Object:  StoredProcedure [dbo].[YeuCauRutTrich_SelectAll]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[YeuCauRutTrich_SelectAll]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3621,7 +4693,7 @@ FROM
 		[dbo].[YeuCauRutTrich]
 
 GO
-/****** Object:  StoredProcedure [dbo].[YeuCauRutTrich_SelectOne]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[YeuCauRutTrich_SelectOne]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3646,7 +4718,7 @@ WHERE
 		[MaYeuCauDe] = @MaYeuCauDe
 
 GO
-/****** Object:  StoredProcedure [dbo].[YeuCauRutTrich_SelectPage]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[YeuCauRutTrich_SelectPage]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3724,7 +4796,7 @@ ORDER BY t2.IndexID
 DROP TABLE #PageIndex
 
 GO
-/****** Object:  StoredProcedure [dbo].[YeuCauRutTrich_Update]    Script Date: 2/16/2025 7:35:54 AM ******/
+/****** Object:  StoredProcedure [dbo].[YeuCauRutTrich_Update]    Script Date: 04/06/2025 8:35:47 CH ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -3751,179 +4823,7 @@ WHERE
 			[MaYeuCauDe] = @MaYeuCauDe
 
 GO
-/****** Object:  Table [dbo].[CLO]    Script Date: 2/16/2025 7:35:53 AM ******/
-SET ANSI_NULLS ON
+USE [master]
 GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[CLO](
-	[MaCLO] [uniqueidentifier] NOT NULL,
-	[TenCLO] [nvarchar](250) NOT NULL,
-	[MoTa] [nvarchar](max) NULL,
-	[ThuTu] [int] NOT NULL,
-	[XoaTamCLO] [bit] NULL,
- CONSTRAINT [PK_CLO] PRIMARY KEY CLUSTERED
-(
-	[MaCLO] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
-
--- Thêm ràng buộc khóa ngoại cho CauHoi
-ALTER TABLE [dbo].[CauHoi]  WITH CHECK ADD  CONSTRAINT [FK_CauHoi_CLO] FOREIGN KEY([MaCLO])
-REFERENCES [dbo].[CLO] ([MaCLO])
-ON UPDATE NO ACTION
-ON DELETE NO ACTION
-GO
-ALTER TABLE [dbo].[CauHoi] CHECK CONSTRAINT [FK_CauHoi_CLO]
-GO
-
--- Stored Procedures cho bảng CLO
-CREATE PROCEDURE [dbo].[CLO_Insert]
-    @TenCLO nvarchar(250),
-    @MoTa nvarchar(max),
-    @ThuTu int
-AS
-BEGIN
-    SET NOCOUNT ON;
-    DECLARE @MaCLO uniqueidentifier = NEWID()
-
-    INSERT INTO [dbo].[CLO] ([MaCLO], [TenCLO], [MoTa], [ThuTu])
-    VALUES (@MaCLO, @TenCLO, @MoTa, @ThuTu)
-
-    SELECT @MaCLO AS MaCLO
-END
-GO
-
-CREATE PROCEDURE [dbo].[CLO_Update]
-    @MaCLO uniqueidentifier,
-    @TenCLO nvarchar(250),
-    @MoTa nvarchar(max),
-    @ThuTu int
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    UPDATE [dbo].[CLO]
-    SET [TenCLO] = @TenCLO,
-        [MoTa] = @MoTa,
-        [ThuTu] = @ThuTu
-    WHERE [MaCLO] = @MaCLO
-END
-GO
-
-CREATE PROCEDURE [dbo].[CLO_Delete]
-    @MaCLO uniqueidentifier
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    DELETE FROM [dbo].[CLO]
-    WHERE [MaCLO] = @MaCLO
-END
-GO
-
-CREATE PROCEDURE [dbo].[CLO_SelectAll]
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    SELECT [MaCLO], [TenCLO], [MoTa], [ThuTu], [XoaTamCLO]
-    FROM [dbo].[CLO]
-    ORDER BY [ThuTu]
-END
-GO
-
-CREATE PROCEDURE [dbo].[CLO_SelectOne]
-    @MaCLO uniqueidentifier
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    SELECT [MaCLO], [TenCLO], [MoTa], [ThuTu], [XoaTamCLO]
-    FROM [dbo].[CLO]
-    WHERE [MaCLO] = @MaCLO
-END
-GO
-
-CREATE PROCEDURE [dbo].[CLO_GetCount]
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    SELECT COUNT(*) AS TotalCount
-    FROM [dbo].[CLO]
-END
-GO
-
-CREATE PROCEDURE [dbo].[CLO_SelectPage]
-    @PageIndex int,
-    @PageSize int,
-    @TotalRecords int OUTPUT
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    SELECT @TotalRecords = COUNT(*)
-    FROM [dbo].[CLO]
-
-    SELECT [MaCLO], [TenCLO], [MoTa], [ThuTu], [XoaTamCLO]
-    FROM [dbo].[CLO]
-    ORDER BY [ThuTu]
-    OFFSET (@PageIndex - 1) * @PageSize ROWS
-    FETCH NEXT @PageSize ROWS ONLY
-END
-GO
-
--- Stored Procedures để liên kết CLO với Câu hỏi
-CREATE PROCEDURE [dbo].[CLO_AssignToQuestion]
-    @MaCLO uniqueidentifier,
-    @MaCauHoi uniqueidentifier
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    UPDATE [dbo].[CauHoi]
-    SET [MaCLO] = @MaCLO
-    WHERE [MaCauHoi] = @MaCauHoi
-END
-GO
-
-CREATE PROCEDURE [dbo].[CLO_GetQuestionsByCLO]
-    @MaCLO uniqueidentifier
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    SELECT c.[MaCauHoi], c.[NoiDung], c.[CapDo], c.[SoCauHoiCon],
-           cl.[TenCLO], cl.[MoTa] as CLO_MoTa
-    FROM [dbo].[CauHoi] c
-    INNER JOIN [dbo].[CLO] cl ON c.[MaCLO] = cl.[MaCLO]
-    WHERE c.[MaCLO] = @MaCLO
-    ORDER BY c.[MaSoCauHoi]
-END
-GO
-
-CREATE PROCEDURE [dbo].[CLO_GetQuestionsNotAssigned]
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    SELECT [MaCauHoi], [NoiDung], [CapDo], [SoCauHoiCon]
-    FROM [dbo].[CauHoi]
-    WHERE [MaCLO] IS NULL
-    ORDER BY [MaSoCauHoi]
-END
-GO
-
-CREATE PROCEDURE [dbo].[CLO_RemoveFromQuestion]
-    @MaCauHoi uniqueidentifier
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    UPDATE [dbo].[CauHoi]
-    SET [MaCLO] = NULL
-    WHERE [MaCauHoi] = @MaCauHoi
-END
+ALTER DATABASE [question_bank] SET  READ_WRITE
 GO

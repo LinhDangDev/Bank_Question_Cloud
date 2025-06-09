@@ -197,11 +197,15 @@ const SingleChoiceQuestion = () => {
           </div>
         </div> */}
         <div className="mb-2">
-          <label className="block text-sm mb-1 text-left">Bộ đề <span className="text-red-500">*</span></label>
+          <label className="block text-sm mb-1 text-left">Khoa <span className="text-red-500">*</span></label>
           <Input value={frame} onChange={e => setFrame(e.target.value)} placeholder="Chọn bộ đề" />
         </div>
         <div className="mb-2">
-          <label className="block text-sm mb-1 text-left">Đơn vị kiến thức <span className="text-red-500">*</span></label>
+          <label className="block text-sm mb-1 text-left">Môn học <span className="text-red-500">*</span></label>
+          <Input value={knowledgeUnit} onChange={e => setKnowledgeUnit(e.target.value)} placeholder="Chọn" />
+        </div>
+        <div className="mb-2">
+          <label className="block text-sm mb-1 text-left">Phần <span className="text-red-500">*</span></label>
           <Input value={knowledgeUnit} onChange={e => setKnowledgeUnit(e.target.value)} placeholder="Chọn" />
         </div>
         <div className="mb-2">
