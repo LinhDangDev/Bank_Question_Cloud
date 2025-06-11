@@ -104,35 +104,208 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
   }, [showPreview, content, answers, explanation]);
 
   const handleSave = async () => {
-    if (!question) return;
     setSaving(true);
     setMessage(null);
     setErrorMsg(null);
+
     try {
-      const mappedAnswers = answers.map((a, idx) => ({
-        MaCauTraLoi: question.answers?.[idx]?.MaCauTraLoi || undefined,
-        MaCauHoi: question.MaCauHoi,
-        NoiDung: a.text,
-        ThuTu: idx + 1,
-        LaDapAn: a.correct,
-        HoanVi: false
-      }));
-      const payload = {
-        question: {
-          ...question,
-          NoiDung: content,
-        },
-        answers: mappedAnswers
-      };
-      const res = await fetch(`http://localhost:3000/cau-hoi/${question.MaCauHoi}/with-answers`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) throw new Error('Lưu thất bại!');
-      setMessage('Lưu thành công!');
+      if (question) {
+        // Update existing question
+        const mappedAnswers = answers.map((a, idx) => ({
+          MaCauTraLoi: question.answers?.[idx]?.MaCauTraLoi || undefined,
+          MaCauHoi: question.MaCauHoi,
+          NoiDung: a.text,
+          ThuTu: idx + 1,
+          LaDapAn: a.correct,
+          HoanVi: false
+        }));
+
+        // Create a copy of the question without the answers property
+        const { answers: _, ...questionWithoutAnswers } = question;
+
+        const payload = {
+          question: {
+            ...questionWithoutAnswers,
+            NoiDung: content,
+          },
+          answers: mappedAnswers
+        };
+
+        const res = await fetch(`http://localhost:3000/cau-hoi/${question.MaCauHoi}/with-answers`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error('Lưu thất bại!');
+        setMessage('Lưu thành công!');
+        setTimeout(() => {
+          navigate('/questions');
+        }, 1200);
+      } else {
+        // Create new question
+        // First, check if we have all required fields
+        if (!content) {
+          setErrorMsg('Vui lòng nhập nội dung câu hỏi!');
+          setSaving(false);
+          return;
+        }
+
+        if (!frame) {
+          setErrorMsg('Vui lòng chọn khoa!');
+          setSaving(false);
+          return;
+        }
+
+        if (!knowledgeUnit) {
+          setErrorMsg('Vui lòng chọn môn học!');
+          setSaving(false);
+          return;
+        }
+
+        // Check if at least one answer is marked as correct
+        if (!answers.some(a => a.correct)) {
+          setErrorMsg('Vui lòng chọn ít nhất một đáp án đúng!');
+          setSaving(false);
+          return;
+        }
+
+        const mappedAnswers = answers.map((a, idx) => ({
+          NoiDung: a.text,
+          ThuTu: idx + 1,
+          LaDapAn: a.correct,
+          HoanVi: false
+        }));
+
+        const payload = {
+          question: {
+            MaPhan: frame, // Using frame as MaPhan for now
+            MaSoCauHoi: Math.floor(Math.random() * 9000) + 1000, // Random number between 1000-9999
+            NoiDung: content,
+            HoanVi: !fixedOrder, // Invert fixedOrder for HoanVi
+            CapDo: parseInt(level) || 1,
+            SoCauHoiCon: 0,
+            MaCLO: knowledgeUnit // Using knowledgeUnit as MaCLO for now
+          },
+          answers: mappedAnswers
+        };
+
+        const res = await fetch('http://localhost:3000/cau-hoi/with-answers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error('Tạo câu hỏi thất bại!');
+        setMessage('Tạo câu hỏi thành công!');
+        setTimeout(() => {
+          navigate('/questions');
+        }, 1200);
+      }
+    } catch (err) {
+      setErrorMsg('Lưu thất bại!');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveAndAdd = async () => {
+    setSaving(true);
+    setMessage(null);
+    setErrorMsg(null);
+
+    try {
+      if (question) {
+        // Update existing question
+        const mappedAnswers = answers.map((a, idx) => ({
+          MaCauTraLoi: question.answers?.[idx]?.MaCauTraLoi || undefined,
+          MaCauHoi: question.MaCauHoi,
+          NoiDung: a.text,
+          ThuTu: idx + 1,
+          LaDapAn: a.correct,
+          HoanVi: false
+        }));
+
+        // Create a copy of the question without the answers property
+        const { answers: _, ...questionWithoutAnswers } = question;
+
+        const payload = {
+          question: {
+            ...questionWithoutAnswers,
+            NoiDung: content,
+          },
+          answers: mappedAnswers
+        };
+
+        const res = await fetch(`http://localhost:3000/cau-hoi/${question.MaCauHoi}/with-answers`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error('Lưu thất bại!');
+        setMessage('Lưu thành công!');
+      } else {
+        // Create new question
+        // First, check if we have all required fields
+        if (!content) {
+          setErrorMsg('Vui lòng nhập nội dung câu hỏi!');
+          setSaving(false);
+          return;
+        }
+
+        if (!frame) {
+          setErrorMsg('Vui lòng chọn khoa!');
+          setSaving(false);
+          return;
+        }
+
+        if (!knowledgeUnit) {
+          setErrorMsg('Vui lòng chọn môn học!');
+          setSaving(false);
+          return;
+        }
+
+        // Check if at least one answer is marked as correct
+        if (!answers.some(a => a.correct)) {
+          setErrorMsg('Vui lòng chọn ít nhất một đáp án đúng!');
+          setSaving(false);
+          return;
+        }
+
+        const mappedAnswers = answers.map((a, idx) => ({
+          NoiDung: a.text,
+          ThuTu: idx + 1,
+          LaDapAn: a.correct,
+          HoanVi: false
+        }));
+
+        const payload = {
+          question: {
+            MaPhan: frame, // Using frame as MaPhan for now
+            MaSoCauHoi: Math.floor(Math.random() * 9000) + 1000, // Random number between 1000-9999
+            NoiDung: content,
+            HoanVi: !fixedOrder, // Invert fixedOrder for HoanVi
+            CapDo: parseInt(level) || 1,
+            SoCauHoiCon: 0,
+            MaCLO: knowledgeUnit // Using knowledgeUnit as MaCLO for now
+          },
+          answers: mappedAnswers
+        };
+
+        const res = await fetch('http://localhost:3000/cau-hoi/with-answers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error('Tạo câu hỏi thất bại!');
+        setMessage('Tạo câu hỏi thành công!');
+      }
+
+      // Always redirect to create page for "Save & Add"
       setTimeout(() => {
-        navigate('/questions');
+        navigate('/questions/create');
       }, 1200);
     } catch (err) {
       setErrorMsg('Lưu thất bại!');
@@ -297,6 +470,8 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
 
             <Button
               className="bg-blue-500 hover:bg-blue-600 text-white rounded-lg px-3 py-2 font-semibold text-sm shadow-md"
+              onClick={handleSaveAndAdd}
+              disabled={saving}
             >
               Lưu & Thêm
             </Button>
