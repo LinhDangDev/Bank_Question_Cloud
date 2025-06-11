@@ -10,6 +10,8 @@ import EssayQuestion from './EssayQuestion';
 import ImageQuestion from './ImageQuestion';
 import AudioQuestion from './AudioQuestion';
 import GroupQuestion from './GroupQuestion';
+import { ChevronLeft } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 
 interface Answer {
   MaCauTraLoi: string;
@@ -71,15 +73,29 @@ const EditQuestion = () => {
   }, [id]);
 
   if (id === 'new' && !type) {
-    return <div className="p-8 text-red-500 font-semibold">Không xác định được loại câu hỏi!</div>;
+    return (
+      <div className="p-8 bg-red-50 text-red-500 font-semibold rounded-lg border border-red-200 shadow-sm">
+        Không xác định được loại câu hỏi!
+      </div>
+    );
   }
 
   if (loading) {
-    return <div className="p-8 text-gray-500 font-semibold">Đang tải câu hỏi...</div>;
+    return (
+      <div className="p-8 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        <span className="ml-3 text-gray-500 font-semibold">Đang tải câu hỏi...</span>
+      </div>
+    );
   }
 
   if (id !== 'new' && error) {
-    return <div className="p-8 text-red-500 font-semibold">{error}</div>;
+    return (
+      <div className="p-8 bg-red-50 text-red-500 font-semibold rounded-lg border border-red-200 shadow-sm flex items-center">
+        <AlertTriangle className="w-5 h-5 mr-2" />
+        {error}
+      </div>
+    );
   }
 
   // Render form động theo loại
@@ -110,13 +126,15 @@ const EditQuestion = () => {
   };
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-full px-4 py-6">
       <div className="flex items-center gap-2 mb-6">
         {id === 'new' && (
-          <Button variant="outline" className="flex items-center gap-2 px-0" onClick={() => navigate('/questions/create')}>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-            </svg>
+          <Button
+            variant="outline"
+            className="flex items-center justify-center h-9 w-9 p-0 rounded-full"
+            onClick={() => navigate('/questions/create')}
+          >
+            <ChevronLeft className="w-5 h-5" />
           </Button>
         )}
         <h2 className={cx("text-2xl font-bold", styles.isDark ? 'text-gray-200' : '')}>
