@@ -13,8 +13,22 @@ export class CauHoiController {
     @Get()
     @ApiOperation({ summary: 'Get all questions with pagination' })
     @ApiResponse({ status: 200, description: 'Return all questions with pagination' })
-    async findAll(@Query() paginationDto: PaginationDto) {
-        return await this.cauHoiService.findAll(paginationDto);
+    async findAll(
+        @Query() paginationDto: PaginationDto,
+        @Query('includeAnswers') includeAnswers?: boolean,
+        @Query('answersPage') answersPage?: number,
+        @Query('answersLimit') answersLimit?: number,
+    ) {
+        const answersPagination = answersPage || answersLimit ? {
+            page: answersPage || 1,
+            limit: answersLimit || 10
+        } : undefined;
+
+        return await this.cauHoiService.findAll(
+            paginationDto,
+            includeAnswers,
+            answersPagination
+        );
     }
 
     @Get(':id')
@@ -84,7 +98,7 @@ export class CauHoiController {
     @ApiResponse({ status: 201, description: 'The question has been successfully created' })
     @ApiBody({ type: CreateCauHoiDto })
     async create(@Body() createCauHoiDto: CreateCauHoiDto): Promise<CauHoi> {
-        return await this.cauHoiService.createCauHoi(createCauHoiDto);
+        return await this.cauHoiService.create(createCauHoiDto);
     }
 
     @Post('with-answers')
@@ -105,7 +119,7 @@ export class CauHoiController {
         @Param('id') id: string,
         @Body() updateCauHoiDto: UpdateCauHoiDto,
     ): Promise<CauHoi> {
-        return await this.cauHoiService.updateCauHoi(id, updateCauHoiDto);
+        return await this.cauHoiService.update(id, updateCauHoiDto);
     }
 
     @Put(':id/with-answers')

@@ -1,13 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, In } from 'typeorm';
+import { Cache } from 'cache-manager';
 import { BaseService } from '../../common/base.service';
 import { CauHoi } from '../../entities/cau-hoi.entity';
 import { CreateCauHoiDto, UpdateCauHoiDto, CreateQuestionWithAnswersDto, UpdateQuestionWithAnswersDto } from '../../dto';
 import { PaginationDto } from '../../dto/pagination.dto';
 import { PAGINATION_CONSTANTS } from '../../constants/pagination.constants';
 import { CauTraLoi } from '../../entities/cau-tra-loi.entity';
-import { In } from 'typeorm';
 
 @Injectable()
 export class CauHoiService extends BaseService<CauHoi> {
@@ -15,13 +16,29 @@ export class CauHoiService extends BaseService<CauHoi> {
         @InjectRepository(CauHoi)
         private readonly cauHoiRepository: Repository<CauHoi>,
         private readonly dataSource: DataSource,
+        @Inject(CACHE_MANAGER) private cacheManager: Cache,
     ) {
         super(cauHoiRepository, 'MaCauHoi');
     }
 
-    async findAll(paginationDto: PaginationDto) {
+    async findAll(
+        paginationDto: PaginationDto,
+        includeAnswers: boolean = false,
+        answersPagination?: PaginationDto
+    ): Promise<{ items: any[]; meta: any }> {
         const { page = PAGINATION_CONSTANTS.DEFAULT_PAGE, limit = PAGINATION_CONSTANTS.DEFAULT_LIMIT } = paginationDto;
-        const [items, total] = await this.cauHoiRepository.findAndCount({
+
+        // Generate cache key
+        const cacheKey = `questions:${page}:${limit}:${includeAnswers}:${answersPagination ? JSON.stringify(answersPagination) : 'all'}`;
+
+        // Try to get from cache first
+        const cachedData = await this.cacheManager.get(cacheKey);
+        if (cachedData) {
+            return cachedData as any;
+        }
+
+        // Get questions with pagination
+        const [questions, total] = await this.cauHoiRepository.findAndCount({
             skip: (page - 1) * limit,
             take: limit,
             order: {
@@ -29,7 +46,61 @@ export class CauHoiService extends BaseService<CauHoi> {
             }
         });
 
-        return {
+        let items: any[] = questions;
+
+        if (includeAnswers) {
+            const questionIds = questions.map(q => q.MaCauHoi);
+            const answersRepo = this.dataSource.getRepository(CauTraLoi);
+            let answersMap: Record<string, any> = {};
+
+            if (!answersPagination) {
+                // Get all answers for these questions (no pagination)
+                const answers = await answersRepo.find({
+                    where: { MaCauHoi: In(questionIds) },
+                    order: { ThuTu: 'ASC' },
+                });
+                answersMap = answers.reduce((map, answer) => {
+                    if (!map[answer.MaCauHoi]) map[answer.MaCauHoi] = [];
+                    map[answer.MaCauHoi].push(answer);
+                    return map;
+                }, {});
+                items = questions.map(question => ({
+                    ...question,
+                    answers: answersMap[question.MaCauHoi] || []
+                }));
+            } else {
+                // Get paginated answers for each question
+                const answersPromises = questionIds.map(async (questionId) => {
+                    const { page: ansPage = 1, limit: ansLimit = 10 } = answersPagination;
+                    const [answers, totalAnswers] = await answersRepo.findAndCount({
+                        where: { MaCauHoi: questionId },
+                        order: { ThuTu: 'ASC' },
+                        skip: (ansPage - 1) * ansLimit,
+                        take: ansLimit
+                    });
+                    return { questionId, answers, totalAnswers };
+                });
+                const answersResults = await Promise.all(answersPromises);
+                answersMap = answersResults.reduce((map, result) => {
+                    map[result.questionId] = {
+                        items: result.answers,
+                        meta: {
+                            total: result.totalAnswers,
+                            page: answersPagination?.page || 1,
+                            limit: answersPagination?.limit || 10,
+                            totalPages: Math.ceil(result.totalAnswers / (answersPagination?.limit || 10))
+                        }
+                    };
+                    return map;
+                }, {});
+                items = questions.map(question => ({
+                    ...question,
+                    answers: answersMap[question.MaCauHoi] || { items: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0 } }
+                }));
+            }
+        }
+
+        const result = {
             items,
             meta: {
                 total,
@@ -39,6 +110,22 @@ export class CauHoiService extends BaseService<CauHoi> {
                 availableLimits: PAGINATION_CONSTANTS.AVAILABLE_LIMITS
             }
         };
+
+        // Cache the result
+        await this.cacheManager.set(cacheKey, result, 300); // Cache for 5 minutes
+
+        return result;
+    }
+
+    // Add method to clear cache when data changes
+    private async clearQuestionsCache() {
+        // cache-manager does not support key pattern deletion by default, so you may need to use a custom store for production
+        // For in-memory, you can use keys() if available
+        if (typeof (this.cacheManager as any).store.keys === 'function') {
+            const keys: string[] = await (this.cacheManager as any).store.keys();
+            const questionKeys = keys.filter(key => key.startsWith('questions:'));
+            await Promise.all(questionKeys.map(key => this.cacheManager.del(key)));
+        }
     }
 
     async findOne(id: string): Promise<CauHoi> {
@@ -128,12 +215,10 @@ export class CauHoiService extends BaseService<CauHoi> {
         };
     }
 
-    async createCauHoi(createCauHoiDto: CreateCauHoiDto): Promise<CauHoi> {
-        const cauHoi = this.cauHoiRepository.create({
-            ...createCauHoiDto,
-            NgayTao: new Date(),
-        });
-        return await this.cauHoiRepository.save(cauHoi);
+    async create(createCauHoiDto: CreateCauHoiDto): Promise<CauHoi> {
+        const result = await super.create(createCauHoiDto);
+        await this.clearQuestionsCache();
+        return result;
     }
 
     async createQuestionWithAnswers(dto: CreateQuestionWithAnswersDto): Promise<{ question: CauHoi, answers: CauTraLoi[] }> {
@@ -169,18 +254,15 @@ export class CauHoiService extends BaseService<CauHoi> {
         }
     }
 
-    async updateCauHoi(id: string, updateCauHoiDto: UpdateCauHoiDto): Promise<CauHoi> {
-        await this.findOne(id);
-        await this.cauHoiRepository.update(id, {
-            ...updateCauHoiDto,
-            NgaySua: new Date(),
-        });
-        return await this.findOne(id);
+    async update(id: string, updateCauHoiDto: UpdateCauHoiDto): Promise<CauHoi> {
+        const result = await super.update(id, updateCauHoiDto);
+        await this.clearQuestionsCache();
+        return result;
     }
 
     async delete(id: string): Promise<void> {
-        const cauHoi = await this.findOne(id);
-        await this.cauHoiRepository.remove(cauHoi);
+        await super.delete(id);
+        await this.clearQuestionsCache();
     }
 
     async softDeleteCauHoi(id: string): Promise<void> {

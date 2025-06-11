@@ -7,6 +7,16 @@ import { useState, useEffect, useRef } from 'react'
 import 'katex/dist/katex.min.css'
 import katex from 'katex'
 
+// Define the Answer interface based on the API response
+interface Answer {
+  MaCauTraLoi: string;
+  MaCauHoi: string;
+  NoiDung: string;
+  ThuTu: number;
+  LaDapAn: boolean;
+  HoanVi: boolean;
+}
+
 // Define the Question interface based on the API response
 interface Question {
   MaCauHoi: string;
@@ -24,6 +34,7 @@ interface Question {
   NgayTao: string;
   NgaySua: string;
   MaCLO: string;
+  answers: Answer[];
 }
 
 interface ApiResponse {
@@ -81,7 +92,7 @@ const Questions = () => {
     const fetchQuestions = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`http://localhost:3000/cau-hoi?page=${page}&limit=${limit}`);
+        const response = await fetch(`http://localhost:3000/cau-hoi?page=${page}&limit=${limit}&includeAnswers=true`);
 
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);
@@ -400,6 +411,34 @@ const Questions = () => {
                   <div className="font-semibold text-base mb-2">
                     <div dangerouslySetInnerHTML={{ __html: renderLatex(q.NoiDung) }} />
                   </div>
+
+                  {q.answers && q.answers.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                      {q.answers.map((answer, idx) => (
+                        <div
+                          key={answer.MaCauTraLoi}
+                          className={cx(
+                            "flex items-start gap-2 p-2 rounded",
+                            answer.LaDapAn
+                              ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
+                              : "bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700"
+                          )}
+                        >
+                          <span className={cx(
+                            "flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-sm font-medium",
+                            answer.LaDapAn
+                              ? "bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-300"
+                              : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                          )}>
+                            {String.fromCharCode(65 + answer.ThuTu - 1)}
+                          </span>
+                          <div className="flex-1">
+                            <div dangerouslySetInnerHTML={{ __html: renderLatex(answer.NoiDung) }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {q.SoCauHoiCon > 0 && (
                     <Button
