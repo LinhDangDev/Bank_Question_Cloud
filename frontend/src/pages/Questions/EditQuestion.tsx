@@ -1,5 +1,5 @@
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { useMemo } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useThemeStyles, cx } from '../../utils/theme';
@@ -11,80 +11,32 @@ import ImageQuestion from './ImageQuestion';
 import AudioQuestion from './AudioQuestion';
 import GroupQuestion from './GroupQuestion';
 
-// Dữ liệu mẫu giống Questions.tsx (nên sau này sẽ lấy từ API hoặc context)
-const sampleQuestions = [
-  {
-    id: 760633,
-    content: "Câu hỏi này là gì\n1. dfsf",
-    answers: [
-      { label: 'A', text: 'fdsfs', correct: true },
-      { label: 'B', text: 'sfsd' },
-      { label: 'C', text: 'sdf' },
-      { label: 'D', text: 'sdf' },
-    ],
-    type: 'Biết',
-    status: 'Đã xoá',
-    createdBy: 'Light Hunter',
-    createdAt: '28/11/2024 21:53:36',
-    code: 760632,
-  },
-  {
-    id: 760631,
-    content: "Đánh giá tác động của mạng xã hội đối với giới trẻ hiện nay.",
-    type: 'Vận dụng cao',
-    status: 'Hoạt động',
-    createdBy: 'Light Hunter',
-    createdAt: '28/11/2024 15:21:33',
-    code: 760631,
-  },
-  {
-    id: 760630,
-    content: "Vận dụng kiến thức về điện từ, giải thích cách hoạt động của một chiếc máy biến áp.",
-    type: 'Vận dụng',
-    status: 'Hoạt động',
-    createdBy: 'Light Hunter',
-    createdAt: '28/11/2024 15:21:33',
-    code: 760630,
-  },
-  {
-    id: 760629,
-    content: "Giải thích nguyên nhân gây ra hiện tượng hiệu ứng nhà kính.",
-    type: 'Hiểu',
-    status: 'Hoạt động',
-    createdBy: 'Light Hunter',
-    createdAt: '28/11/2024 15:21:33',
-    code: 760629,
-  },
-  {
-    id: 760613,
-    content: "Nguyên nhân chính nào dẫn đến sự sụp đổ của Đế quốc La Mã?",
-    answers: [
-      { label: 'A', text: 'Sự trỗi dậy của Đế quốc Ottoman' },
-      { label: 'B', text: 'Sự suy thoái kinh tế và bất ổn chính trị', correct: true },
-      { label: 'C', text: 'Các cuộc xâm lược của người Viking' },
-      { label: 'D', text: 'Sự lan rộng của Kitô giáo' },
-    ],
-    type: 'Hiểu',
-    status: 'Hoạt động',
-    createdBy: 'Light Hunter',
-    createdAt: '28/11/2024 15:21:32',
-    code: 760613,
-  },
-];
+interface Answer {
+  MaCauTraLoi: string;
+  MaCauHoi: string;
+  NoiDung: string;
+  ThuTu: number;
+  LaDapAn: boolean;
+  HoanVi: boolean;
+}
 
 interface Question {
-  id: number;
-  content: string;
-  answers?: Array<{
-    label: string;
-    text: string;
-    correct?: boolean;
-  }>;
-  type: string;
-  status: string;
-  createdBy: string;
-  createdAt: string;
-  code: number;
+  MaCauHoi: string;
+  MaPhan: string;
+  MaSoCauHoi: number;
+  NoiDung: string;
+  HoanVi: boolean;
+  CapDo: number;
+  SoCauHoiCon: number;
+  DoPhanCachCauHoi: number | null;
+  MaCauHoiCha: string | null;
+  XoaTamCauHoi: boolean;
+  SoLanDuocThi: number;
+  SoLanDung: number;
+  NgayTao: string;
+  NgaySua: string;
+  MaCLO: string;
+  answers: Answer[];
 }
 
 const EditQuestion = () => {
@@ -92,29 +44,46 @@ const EditQuestion = () => {
   const [searchParams] = useSearchParams();
   const styles = useThemeStyles();
   const navigate = useNavigate();
+  const [question, setQuestion] = useState<Question | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Nếu là tạo mới, lấy type từ query param
   const type = searchParams.get('type');
 
-  // Nếu là chỉnh sửa, lấy dữ liệu mẫu (cũ)
-  const question = useMemo(() =>
-    sampleQuestions.find(q => String(q.id) === String(id)) as Question | undefined,
-    [id]
-  );
+  useEffect(() => {
+    if (id && id !== 'new') {
+      setLoading(true);
+      fetch(`http://localhost:3000/cau-hoi/${id}/with-answers`)
+        .then(res => {
+          if (!res.ok) throw new Error('Không tìm thấy câu hỏi!');
+          return res.json();
+        })
+        .then(data => {
+          setQuestion({ ...data.question, answers: data.answers });
+          setLoading(false);
+        })
+        .catch(err => {
+          setError('Không tìm thấy câu hỏi!');
+          setLoading(false);
+        });
+    }
+  }, [id]);
 
-  // Nếu là tạo mới mà không có type, báo lỗi
   if (id === 'new' && !type) {
     return <div className="p-8 text-red-500 font-semibold">Không xác định được loại câu hỏi!</div>;
   }
 
-  // Nếu là chỉnh sửa mà không tìm thấy câu hỏi
-  if (id !== 'new' && !question) {
-    return <div className="p-8 text-red-500 font-semibold">Không tìm thấy câu hỏi!</div>;
+  if (loading) {
+    return <div className="p-8 text-gray-500 font-semibold">Đang tải câu hỏi...</div>;
+  }
+
+  if (id !== 'new' && error) {
+    return <div className="p-8 text-red-500 font-semibold">{error}</div>;
   }
 
   // Render form động theo loại
   const renderForm = () => {
-    // Nếu là tạo mới
     if (id === 'new') {
       switch (type) {
         case 'single-choice':
@@ -135,20 +104,9 @@ const EditQuestion = () => {
           return <div className="p-8 text-red-500 font-semibold">Loại câu hỏi không hỗ trợ!</div>;
       }
     }
-
-    // Nếu là chỉnh sửa, render form tương ứng với loại câu hỏi
     if (!question) return null;
-
-    switch (question.type) {
-      case 'Biết':
-      case 'Hiểu':
-        return question.answers ? <SingleChoiceQuestion /> : <EssayQuestion />;
-      case 'Vận dụng':
-      case 'Vận dụng cao':
-        return <EssayQuestion />;
-      default:
-        return <div className="p-8 text-red-500 font-semibold">Loại câu hỏi không hỗ trợ!</div>;
-    }
+    // Pass question data to the form component (to be implemented)
+    return <SingleChoiceQuestion question={question} />;
   };
 
   return (
