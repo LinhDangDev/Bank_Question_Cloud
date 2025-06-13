@@ -10,22 +10,13 @@ export class CLO {
     TenCLO: string;
 
     @Column({ type: 'nvarchar', length: 'max', nullable: true })
-    NoiDung: string;
+    MoTa: string;
 
-    @Column({ type: 'datetime' })
-    NgayTao: Date;
+    @Column()
+    ThuTu: number;
 
-    @Column({ type: 'datetime', nullable: true })
-    NgayCapNhat: Date;
-
-    @Column({ type: 'nvarchar', length: 50, nullable: true })
-    TrangThai: string;
-
-    @Column({ type: 'nvarchar', length: 50, nullable: true })
-    NguoiTao: string;
-
-    @Column({ type: 'nvarchar', length: 50, nullable: true })
-    NguoiCapNhat: string;
+    @Column({ nullable: true })
+    XoaTamCLO: boolean;
 
     @OneToMany(() => CauHoi, cauHoi => cauHoi.CLO)
     CauHois: CauHoi[];
