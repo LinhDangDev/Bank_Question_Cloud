@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useThemeStyles, cx } from '../../utils/theme';
-import { Eye, Plus, Trash2, Info, X, Save, ArrowLeft, CheckCircle } from 'lucide-react';
+import { Eye, Plus, Trash2, Info, X, Save, ArrowLeft, CheckCircle, Building2, BookOpen, Layers, Target } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { Editor } from '@tinymce/tinymce-react';
 import ReactQuill from 'react-quill';
@@ -45,6 +45,11 @@ interface AnswerForm {
   correct: boolean;
 }
 
+interface Khoa { MaKhoa: string; TenKhoa: string; }
+interface MonHoc { MaMonHoc: string; TenMonHoc: string; }
+interface Phan { MaPhan: string; TenPhan: string; }
+interface CLO { MaCLO: string; TenCLO: string; }
+
 interface SingleChoiceQuestionProps {
   question?: {
     MaCauHoi: string;
@@ -80,6 +85,14 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [khoaList, setKhoaList] = useState<Khoa[]>([]);
+  const [monHocList, setMonHocList] = useState<MonHoc[]>([]);
+  const [phanList, setPhanList] = useState<Phan[]>([]);
+  const [cloList, setCloList] = useState<CLO[]>([]);
+  const [maKhoa, setMaKhoa] = useState('');
+  const [maMonHoc, setMaMonHoc] = useState('');
+  const [maPhan, setMaPhan] = useState('');
+  const [maCLO, setMaCLO] = useState('');
 
   const handleAnswerChange = (idx: number, value: string) => {
     setAnswers(ans => ans.map((a, i) => (i === idx ? { ...a, text: value } : a)));
@@ -102,6 +115,53 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
       window.MathJax.typesetPromise && window.MathJax.typesetPromise();
     }
   }, [showPreview, content, answers, explanation]);
+
+  useEffect(() => {
+    fetch('http://localhost:3000/khoa')
+      .then(res => res.json())
+      .then(data => setKhoaList(data));
+  }, []);
+
+  useEffect(() => {
+    if (question) {
+      // Lấy MaPhan, MaCLO từ question
+      // Cần fetch ngược lại MaMonHoc, MaKhoa từ API nếu chưa có
+      const fetchAllDropdowns = async () => {
+        // 1. Fetch Phan để lấy MaMonHoc
+        let phan: any = null;
+        if ((question as any).MaPhan) {
+          const resPhan = await fetch(`http://localhost:3000/phan/${(question as any).MaPhan}`);
+          if (resPhan.ok) phan = await resPhan.json();
+        }
+        // 2. Fetch MonHoc để lấy MaKhoa
+        let monHoc: any = null;
+        if (phan && phan.MaMonHoc) {
+          const resMon = await fetch(`http://localhost:3000/mon-hoc/${phan.MaMonHoc}`);
+          if (resMon.ok) monHoc = await resMon.json();
+        }
+        // 3. Set state cho các trường
+        if (monHoc && monHoc.MaKhoa) setMaKhoa(monHoc.MaKhoa);
+        if (phan && phan.MaMonHoc) setMaMonHoc(phan.MaMonHoc);
+        if ((question as any).MaPhan) setMaPhan((question as any).MaPhan);
+        if ((question as any).MaCLO) setMaCLO((question as any).MaCLO);
+
+        // 4. Fetch danh sách các dropdown
+        if (monHoc && monHoc.MaKhoa) {
+          const resMonList = await fetch(`http://localhost:3000/mon-hoc/khoa/${monHoc.MaKhoa}`);
+          if (resMonList.ok) setMonHocList(await resMonList.json());
+        }
+        if (phan && phan.MaMonHoc) {
+          const resPhanList = await fetch(`http://localhost:3000/phan/mon-hoc/${phan.MaMonHoc}`);
+          if (resPhanList.ok) setPhanList(await resPhanList.json());
+        }
+        if ((question as any).MaPhan) {
+          const resCloList = await fetch(`http://localhost:3000/clo?phan=${(question as any).MaPhan}`);
+          if (resCloList.ok) setCloList(await resCloList.json());
+        }
+      };
+      fetchAllDropdowns();
+    }
+  }, [question]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -143,59 +203,60 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
           navigate('/questions');
         }, 1200);
       } else {
-        // Create new question
-        // First, check if we have all required fields
+        // Validate các trường bắt buộc
+        if (!maKhoa) {
+          setErrorMsg('Vui lòng chọn Khoa!');
+          setSaving(false);
+          return;
+        }
+        if (!maMonHoc) {
+          setErrorMsg('Vui lòng chọn Môn học!');
+          setSaving(false);
+          return;
+        }
+        if (!maPhan) {
+          setErrorMsg('Vui lòng chọn Phần!');
+          setSaving(false);
+          return;
+        }
+        if (!maCLO) {
+          setErrorMsg('Vui lòng chọn CLO!');
+          setSaving(false);
+          return;
+        }
         if (!content) {
           setErrorMsg('Vui lòng nhập nội dung câu hỏi!');
           setSaving(false);
           return;
         }
-
-        if (!frame) {
-          setErrorMsg('Vui lòng chọn khoa!');
-          setSaving(false);
-          return;
-        }
-
-        if (!knowledgeUnit) {
-          setErrorMsg('Vui lòng chọn môn học!');
-          setSaving(false);
-          return;
-        }
-
-        // Check if at least one answer is marked as correct
         if (!answers.some(a => a.correct)) {
           setErrorMsg('Vui lòng chọn ít nhất một đáp án đúng!');
           setSaving(false);
           return;
         }
-
         const mappedAnswers = answers.map((a, idx) => ({
           NoiDung: a.text,
           ThuTu: idx + 1,
           LaDapAn: a.correct,
           HoanVi: false
         }));
-
         const payload = {
           question: {
-            MaPhan: frame, // Using frame as MaPhan for now
-            MaSoCauHoi: Math.floor(Math.random() * 9000) + 1000, // Random number between 1000-9999
+            MaPhan: maPhan,
+            MaSoCauHoi: Math.floor(Math.random() * 9000) + 1000,
             NoiDung: content,
-            HoanVi: !fixedOrder, // Invert fixedOrder for HoanVi
+            HoanVi: !fixedOrder,
             CapDo: parseInt(level) || 1,
             SoCauHoiCon: 0,
-            MaCLO: knowledgeUnit // Using knowledgeUnit as MaCLO for now
+            MaCLO: maCLO
           },
           answers: mappedAnswers
         };
-
         const res = await fetch('http://localhost:3000/cau-hoi/with-answers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-
         if (!res.ok) throw new Error('Tạo câu hỏi thất bại!');
         setMessage('Tạo câu hỏi thành công!');
         setTimeout(() => {
@@ -246,59 +307,60 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
         if (!res.ok) throw new Error('Lưu thất bại!');
         setMessage('Lưu thành công!');
       } else {
-        // Create new question
-        // First, check if we have all required fields
+        // Validate các trường bắt buộc
+        if (!maKhoa) {
+          setErrorMsg('Vui lòng chọn Khoa!');
+          setSaving(false);
+          return;
+        }
+        if (!maMonHoc) {
+          setErrorMsg('Vui lòng chọn Môn học!');
+          setSaving(false);
+          return;
+        }
+        if (!maPhan) {
+          setErrorMsg('Vui lòng chọn Phần!');
+          setSaving(false);
+          return;
+        }
+        if (!maCLO) {
+          setErrorMsg('Vui lòng chọn CLO!');
+          setSaving(false);
+          return;
+        }
         if (!content) {
           setErrorMsg('Vui lòng nhập nội dung câu hỏi!');
           setSaving(false);
           return;
         }
-
-        if (!frame) {
-          setErrorMsg('Vui lòng chọn khoa!');
-          setSaving(false);
-          return;
-        }
-
-        if (!knowledgeUnit) {
-          setErrorMsg('Vui lòng chọn môn học!');
-          setSaving(false);
-          return;
-        }
-
-        // Check if at least one answer is marked as correct
         if (!answers.some(a => a.correct)) {
           setErrorMsg('Vui lòng chọn ít nhất một đáp án đúng!');
           setSaving(false);
           return;
         }
-
         const mappedAnswers = answers.map((a, idx) => ({
           NoiDung: a.text,
           ThuTu: idx + 1,
           LaDapAn: a.correct,
           HoanVi: false
         }));
-
         const payload = {
           question: {
-            MaPhan: frame, // Using frame as MaPhan for now
-            MaSoCauHoi: Math.floor(Math.random() * 9000) + 1000, // Random number between 1000-9999
+            MaPhan: maPhan,
+            MaSoCauHoi: Math.floor(Math.random() * 9000) + 1000,
             NoiDung: content,
-            HoanVi: !fixedOrder, // Invert fixedOrder for HoanVi
+            HoanVi: !fixedOrder,
             CapDo: parseInt(level) || 1,
             SoCauHoiCon: 0,
-            MaCLO: knowledgeUnit // Using knowledgeUnit as MaCLO for now
+            MaCLO: maCLO
           },
           answers: mappedAnswers
         };
-
         const res = await fetch('http://localhost:3000/cau-hoi/with-answers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-
         if (!res.ok) throw new Error('Tạo câu hỏi thất bại!');
         setMessage('Tạo câu hỏi thành công!');
       }
@@ -547,74 +609,82 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
 
             <div className="space-y-3">
               <div>
-                <label className="block text-sm mb-1 text-left text-gray-700 font-medium">Khoa <span className="text-red-500">*</span></label>
+                <label className="block text-sm mb-1 text-left text-gray-700 font-medium flex items-center gap-1">
+                  <Building2 className="w-4 h-4 text-blue-500" /> Khoa <span className="text-red-500">*</span>
+                </label>
                 <div className="relative">
                   <select
-                    value={frame}
-                    onChange={e => setFrame(e.target.value)}
+                    value={maKhoa}
+                    onChange={e => setMaKhoa(e.target.value)}
                     className="w-full appearance-none rounded-lg border border-blue-100 p-2 pl-3 pr-10 text-sm h-10 focus:border-blue-400 focus:ring focus:ring-blue-200 focus:ring-opacity-50 bg-white cursor-pointer"
                   >
-                    <option value="" disabled>Chọn bộ đề</option>
-                    <option value="khoa-cntt">Khoa Công nghệ thông tin</option>
-                    <option value="khoa-kinh-te">Khoa Kinh tế</option>
-                    <option value="khoa-ngoai-ngu">Khoa Ngoại ngữ</option>
+                    <option value="" disabled>Chọn khoa</option>
+                    {khoaList.map(khoa => (
+                      <option key={khoa.MaKhoa} value={khoa.MaKhoa}>{khoa.TenKhoa}</option>
+                    ))}
                   </select>
                   <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
                     <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   </span>
                 </div>
               </div>
-
               <div>
-                <label className="block text-sm mb-1 text-left text-gray-700 font-medium">Môn học <span className="text-red-500">*</span></label>
+                <label className="block text-sm mb-1 text-left text-gray-700 font-medium flex items-center gap-1">
+                  <BookOpen className="w-4 h-4 text-green-500" /> Môn học <span className="text-red-500">*</span>
+                </label>
                 <div className="relative">
                   <select
-                    value={knowledgeUnit}
-                    onChange={e => setKnowledgeUnit(e.target.value)}
+                    value={maMonHoc}
+                    onChange={e => setMaMonHoc(e.target.value)}
                     className="w-full appearance-none rounded-lg border border-blue-100 p-2 pl-3 pr-10 text-sm h-10 focus:border-blue-400 focus:ring focus:ring-blue-200 focus:ring-opacity-50 bg-white cursor-pointer"
+                    disabled={!maKhoa}
                   >
                     <option value="" disabled>Chọn môn học</option>
-                    <option value="lap-trinh-web">Lập trình Web</option>
-                    <option value="co-so-du-lieu">Cơ sở dữ liệu</option>
-                    <option value="toan-roi-rac">Toán rời rạc</option>
+                    {monHocList.map(mon => (
+                      <option key={mon.MaMonHoc} value={mon.MaMonHoc}>{mon.TenMonHoc}</option>
+                    ))}
                   </select>
                   <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
                     <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   </span>
                 </div>
               </div>
-
               <div>
-                <label className="block text-sm mb-1 text-left text-gray-700 font-medium">Phần <span className="text-red-500">*</span></label>
+                <label className="block text-sm mb-1 text-left text-gray-700 font-medium flex items-center gap-1">
+                  <Layers className="w-4 h-4 text-purple-500" /> Phần <span className="text-red-500">*</span>
+                </label>
                 <div className="relative">
                   <select
-                    value={knowledgeUnit}
-                    onChange={e => setKnowledgeUnit(e.target.value)}
+                    value={maPhan}
+                    onChange={e => setMaPhan(e.target.value)}
                     className="w-full appearance-none rounded-lg border border-blue-100 p-2 pl-3 pr-10 text-sm h-10 focus:border-blue-400 focus:ring focus:ring-blue-200 focus:ring-opacity-50 bg-white cursor-pointer"
+                    disabled={!maMonHoc}
                   >
                     <option value="" disabled>Chọn phần</option>
-                    <option value="chuong-1">Chương 1</option>
-                    <option value="chuong-2">Chương 2</option>
-                    <option value="chuong-3">Chương 3</option>
+                    {phanList.map(phan => (
+                      <option key={phan.MaPhan} value={phan.MaPhan}>{phan.TenPhan}</option>
+                    ))}
                   </select>
                   <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
                     <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   </span>
                 </div>
               </div>
-
               <div>
-                <label className="block text-sm mb-1 text-left text-gray-700 font-medium">Mức độ CLO <span className="text-red-500">*</span></label>
+                <label className="block text-sm mb-1 text-left text-gray-700 font-medium flex items-center gap-1">
+                  <Target className="w-4 h-4 text-amber-500" /> CLO <span className="text-red-500">*</span>
+                </label>
                 <div className="relative">
                   <select
-                    value={level}
-                    onChange={e => setLevel(e.target.value)}
+                    value={maCLO}
+                    onChange={e => setMaCLO(e.target.value)}
                     className="w-full appearance-none rounded-lg border border-blue-100 p-2 pl-3 pr-10 text-sm h-10 focus:border-blue-400 focus:ring focus:ring-blue-200 focus:ring-opacity-50 bg-white cursor-pointer"
+                    disabled={!maPhan}
                   >
-                    <option value="" disabled>Chọn mức độ</option>
-                    <option value="1">Mức độ 1</option>
-                    <option value="2">Mức độ 2</option>
-                    <option value="3">Mức độ 3</option>
+                    <option value="" disabled>Chọn CLO</option>
+                    {cloList.map(clo => (
+                      <option key={clo.MaCLO} value={clo.MaCLO}>{clo.TenCLO}</option>
+                    ))}
                   </select>
                   <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
                     <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>

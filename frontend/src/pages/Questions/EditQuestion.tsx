@@ -10,7 +10,7 @@ import EssayQuestion from './EssayQuestion';
 import ImageQuestion from './ImageQuestion';
 import AudioQuestion from './AudioQuestion';
 import GroupQuestion from './GroupQuestion';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Building2, BookOpen, Layers, Target } from 'lucide-react';
 import { AlertTriangle } from 'lucide-react';
 
 interface Answer {
@@ -41,12 +41,43 @@ interface Question {
   answers: Answer[];
 }
 
+interface QuestionDetails {
+  question: Question;
+  khoa: {
+    MaKhoa: string;
+    TenKhoa: string;
+    XoaTamKhoa: boolean;
+  };
+  monHoc: {
+    MaMonHoc: string;
+    MaKhoa: string;
+    MaSoMonHoc: string;
+    TenMonHoc: string;
+    XoaTamMonHoc: boolean;
+  };
+  phan: {
+    MaPhan: string;
+    MaMonHoc: string;
+    TenPhan: string;
+    ThuTu: number;
+    SoLuongCauHoi: number;
+    XoaTamPhan: boolean;
+  };
+  clo: {
+    MaCLO: string;
+    TenCLO: string;
+    ThuTu: number;
+    XoaTamCLO: boolean;
+  };
+}
+
 const EditQuestion = () => {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const styles = useThemeStyles();
   const navigate = useNavigate();
   const [question, setQuestion] = useState<Question | null>(null);
+  const [questionDetails, setQuestionDetails] = useState<QuestionDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,13 +87,18 @@ const EditQuestion = () => {
   useEffect(() => {
     if (id && id !== 'new') {
       setLoading(true);
-      fetch(`http://localhost:3000/cau-hoi/${id}/with-answers`)
-        .then(res => {
-          if (!res.ok) throw new Error('Không tìm thấy câu hỏi!');
-          return res.json();
-        })
-        .then(data => {
-          setQuestion({ ...data.question, answers: data.answers });
+      Promise.all([
+        fetch(`http://localhost:3000/cau-hoi/${id}/with-answers`),
+        fetch(`http://localhost:3000/cau-hoi/${id}/full-details`)
+      ])
+        .then(async ([answersRes, detailsRes]) => {
+          if (!answersRes.ok || !detailsRes.ok) throw new Error('Không tìm thấy câu hỏi!');
+          const [answersData, detailsData] = await Promise.all([
+            answersRes.json(),
+            detailsRes.json()
+          ]);
+          setQuestion({ ...answersData.question, answers: answersData.answers });
+          setQuestionDetails(detailsData);
           setLoading(false);
         })
         .catch(err => {
@@ -121,7 +157,6 @@ const EditQuestion = () => {
       }
     }
     if (!question) return null;
-    // Pass question data to the form component (to be implemented)
     return <SingleChoiceQuestion question={question} />;
   };
 
@@ -141,6 +176,7 @@ const EditQuestion = () => {
           {id === 'new' ? 'Tạo câu hỏi mới' : 'Chỉnh sửa câu hỏi'}
         </h2>
       </div>
+
       <div>
         {renderForm()}
       </div>
