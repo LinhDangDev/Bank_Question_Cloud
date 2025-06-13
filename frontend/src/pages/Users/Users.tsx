@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Search, Filter, Plus, Edit, Trash2, UserCheck, UserX } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import PageContainer from '../../components/ui/PageContainer'
-import Card from '@/components/ui/Card'
+import { Card } from '@/components/ui/Card'
 import { useThemeStyles, cx } from '../../utils/theme'
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"

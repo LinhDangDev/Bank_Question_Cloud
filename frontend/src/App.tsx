@@ -6,6 +6,8 @@ import Questions from './pages/Questions/Questions'
 import CreateQuestion from './pages/Questions/CreateQuestion'
 import UploadQuestions from './pages/Questions/UploadQuestions'
 import Faculty from './pages/Subject/Faculty'
+import SubjectList from './pages/Subject/SubjectList'
+import ChapterList from './pages/Subject/ChapterList'
 import PDF from './pages/Tool/PDF'
 import Search from './pages/Home/Search'
 import Exams from './pages/Subject/Exams'
@@ -32,6 +34,9 @@ function App() {
             <Route path="dashboard" element={<Home />} />
             <Route path="search" element={<Search />} />
             <Route path="departments" element={<Faculty />} />
+            <Route path="subject/:maKhoa/subjects" element={<SubjectList />} />
+            <Route path="subject/:maKhoa/subject/:maMonHoc/chapters" element={<ChapterList />} />
+            <Route path="subject/:maKhoa/subject/:maMonHoc/chapter/:maPhan/questions" element={<Questions />} />
             <Route path="exams" element={<Exams />} />
 
             {/* Questions routes */}

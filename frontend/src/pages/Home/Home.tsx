@@ -1,5 +1,5 @@
 import PageContainer from '../../components/ui/PageContainer';
-import Card from '@/components/ui/Card';
+import { Card } from "@/components/ui/Card"
 import { useThemeStyles } from '../../utils/theme';
 
 const Home = () => {

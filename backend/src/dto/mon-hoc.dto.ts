@@ -1,21 +1,40 @@
-import { IsBoolean, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsUUID } from 'class-validator';
 
 export class CreateMonHocDto {
-    @IsUUID()
-    MaKhoa: string;
+    @IsString()
+    @IsNotEmpty()
+    TenMonHoc: string;
 
     @IsString()
+    @IsNotEmpty()
     MaSoMonHoc: string;
 
-    @IsString()
-    TenMonHoc: string;
+    @IsUUID()
+    @IsNotEmpty()
+    MaKhoa: string;
 
     @IsBoolean()
     @IsOptional()
     XoaTamMonHoc?: boolean;
 }
 
-export class UpdateMonHocDto extends CreateMonHocDto { }
+export class UpdateMonHocDto {
+    @IsString()
+    @IsOptional()
+    TenMonHoc?: string;
+
+    @IsString()
+    @IsOptional()
+    MaSoMonHoc?: string;
+
+    @IsUUID()
+    @IsOptional()
+    MaKhoa?: string;
+
+    @IsBoolean()
+    @IsOptional()
+    XoaTamMonHoc?: boolean;
+}
 
 export class MonHocResponseDto {
     @IsUUID()

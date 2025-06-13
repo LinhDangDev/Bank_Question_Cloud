@@ -1,58 +1,334 @@
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Search, Plus } from 'lucide-react'
-import PageContainer from "../../components/ui/PageContainer"
-import Card from '@/components/ui/Card'
-import { useThemeStyles, cx } from "../../utils/theme"
+import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { toast } from 'react-hot-toast'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Badge } from '@/components/ui/badge'
+import { Search, Plus, ArrowLeft, Trash2, RefreshCw } from 'lucide-react'
+import PageContainer from '@/components/ui/PageContainer'
+import axios from 'axios'
+import {
+    Box,
+    IconButton,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
+    Tooltip,
+    useTheme,
+    TextField,
+    Typography,
+    Paper,
+} from '@mui/material'
+import {
+    Add as AddIcon,
+    Edit as EditIcon,
+    Delete as DeleteIcon,
+    Restore as RestoreIcon,
+} from '@mui/icons-material'
+
+interface Faculty {
+    MaKhoa: string
+    TenKhoa: string
+    XoaTamKhoa: boolean
+    NgayTao: string
+    NgaySua: string
+}
 
 const Faculty = () => {
-  const styles = useThemeStyles();
+    const navigate = useNavigate()
+    const theme = useTheme()
+    const [faculties, setFaculties] = useState<Faculty[]>([])
+    const [searchQuery, setSearchQuery] = useState('')
+    const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+    const [newFacultyName, setNewFacultyName] = useState('')
+    const [editingFaculty, setEditingFaculty] = useState<Faculty | null>(null)
+    const [editFacultyName, setEditFacultyName] = useState('')
+    const [isLoading, setIsLoading] = useState(false)
 
-  return (
-    <PageContainer className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Danh sách khoa</h1>
-        <Button className="bg-blue-500 hover:bg-blue-600">
-          <Plus className="w-4 h-4 mr-2" />
-          Thêm khoa
-        </Button>
-      </div>
+    const fetchFaculties = async () => {
+        try {
+            setIsLoading(true)
+            const response = await axios.get('http://localhost:3000/khoa')
+            setFaculties(Array.isArray(response.data) ? response.data : [])
+        } catch (error) {
+            toast.error('Failed to fetch faculties')
+            setFaculties([])
+            console.error('Error fetching faculties:', error)
+        } finally {
+            setIsLoading(false)
+        }
+    }
 
-      <div className="flex gap-4 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400 z-10" />
-          <Input
-            placeholder="Tìm kiếm khoa..."
-            className={styles.searchInput}
-          />
-        </div>
-      </div>
+    useEffect(() => {
+        fetchFaculties()
+    }, [])
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[
-          { id: 1, name: 'Khoa Công nghệ thông tin', subjects: 12, teachers: 45 },
-          { id: 2, name: 'Khoa Kinh tế', subjects: 15, teachers: 38 },
-          { id: 3, name: 'Khoa Ngoại ngữ', subjects: 8, teachers: 32 },
-          { id: 4, name: 'Khoa Điện - Điện tử', subjects: 10, teachers: 28 },
-          { id: 5, name: 'Khoa Quản trị kinh doanh', subjects: 14, teachers: 42 },
-          { id: 6, name: 'Khoa Du lịch', subjects: 9, teachers: 25 },
-        ].map((faculty) => (
-          <Card key={faculty.id}>
-            <h3 className="text-lg font-semibold mb-4">{faculty.name}</h3>
-            <div className={cx("space-y-2 text-sm", styles.textMuted)}>
-              <p>Số môn học: {faculty.subjects}</p>
-              <p>Số giảng viên: {faculty.teachers}</p>
+    const handleCreateFaculty = async () => {
+        if (!newFacultyName.trim()) {
+            toast.error('Faculty name cannot be empty')
+            return
+        }
+
+        try {
+            const response = await axios.post('http://localhost:3000/khoa', {
+                TenKhoa: newFacultyName.trim()
+            })
+
+            if (response.data.message === 'Khoa đã được khôi phục') {
+                toast.success('Faculty restored successfully')
+            } else {
+                toast.success('Faculty created successfully')
+            }
+
+            setIsCreateDialogOpen(false)
+            setNewFacultyName('')
+            fetchFaculties()
+        } catch (error: any) {
+            if (error.response?.status === 409) {
+                toast.error('Faculty name already exists')
+            } else {
+                toast.error('Failed to create faculty')
+            }
+            console.error('Error creating faculty:', error)
+        }
+    }
+
+    const handleUpdateFaculty = async () => {
+        if (!editingFaculty || !editFacultyName.trim()) {
+            toast.error('Faculty name cannot be empty')
+            return
+        }
+
+        try {
+            await axios.patch(`http://localhost:3000/khoa/${editingFaculty.MaKhoa}`, {
+                TenKhoa: editFacultyName.trim()
+            })
+
+            toast.success('Faculty updated successfully')
+            setIsEditDialogOpen(false)
+            setEditingFaculty(null)
+            setEditFacultyName('')
+            fetchFaculties()
+        } catch (error: any) {
+            if (error.response?.status === 409) {
+                toast.error('Faculty name already exists')
+            } else {
+                toast.error('Failed to update faculty')
+            }
+            console.error('Error updating faculty:', error)
+        }
+    }
+
+    const handleDeleteFaculty = async (faculty: Faculty) => {
+        try {
+            await axios.patch(`http://localhost:3000/khoa/${faculty.MaKhoa}/soft-delete`)
+            toast.success('Faculty deleted successfully')
+            fetchFaculties()
+        } catch (error: any) {
+            if (error.response?.status === 400) {
+                toast.error('Faculty is already deleted')
+            } else {
+                toast.error('Failed to delete faculty')
+            }
+            console.error('Error deleting faculty:', error)
+        }
+    }
+
+    const handleRestoreFaculty = async (faculty: Faculty) => {
+        try {
+            await axios.patch(`http://localhost:3000/khoa/${faculty.MaKhoa}/restore`)
+            toast.success('Faculty restored successfully')
+            fetchFaculties()
+        } catch (error: any) {
+            if (error.response?.status === 400) {
+                toast.error('Faculty is not deleted')
+            } else {
+                toast.error('Failed to restore faculty')
+            }
+            console.error('Error restoring faculty:', error)
+        }
+    }
+
+    const openEditDialog = (faculty: Faculty) => {
+        setEditingFaculty(faculty)
+        setEditFacultyName(faculty.TenKhoa)
+        setIsEditDialogOpen(true)
+    }
+
+    const filteredFaculties = faculties.filter(faculty =>
+        faculty.TenKhoa.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+
+    const totalFaculties = faculties.length
+    const activeFaculties = faculties.filter(f => !f.XoaTamKhoa).length
+    const deletedFaculties = faculties.filter(f => f.XoaTamKhoa).length
+
+    return (
+        <PageContainer className="p-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+                <div className="flex gap-4">
+                    <Button variant="outline" onClick={() => navigate('/')}>
+                        <ArrowLeft className="w-4 h-4 mr-2" />
+                        Quay lại
+                    </Button>
+                    <h1 className="text-2xl font-bold">Quản lý Khoa</h1>
+                </div>
+                <Button onClick={() => setIsCreateDialogOpen(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Thêm Khoa
+                </Button>
             </div>
-            <div className="mt-4 flex gap-2">
-              <Button variant="outline" size="sm" className={styles.outlineButton}>Chi tiết</Button>
-              <Button variant="outline" size="sm" className={styles.outlineButton}>Sửa</Button>
-              <Button variant="outline" size="sm" className={styles.dangerOutlineButton}>Xóa</Button>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Tổng số Khoa</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{totalFaculties}</div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Khoa đang hoạt động</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-green-600">{activeFaculties}</div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Khoa đã xóa</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-red-600">{deletedFaculties}</div>
+                    </CardContent>
+                </Card>
             </div>
-          </Card>
-        ))}
-      </div>
-    </PageContainer>
-  )
+
+            <div className="flex items-center gap-4 mb-6">
+                <div className="relative flex-1">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Tìm kiếm khoa..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-8"
+                    />
+                </div>
+                <Button variant="outline" onClick={fetchFaculties} disabled={isLoading}>
+                    <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                    Làm mới
+                </Button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredFaculties.map((faculty) => (
+                    <Card key={faculty.MaKhoa} className={faculty.XoaTamKhoa ? 'opacity-50' : ''}>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-lg font-medium">{faculty.TenKhoa}</CardTitle>
+                            <Badge variant={faculty.XoaTamKhoa ? 'destructive' : 'default'}>
+                                {faculty.XoaTamKhoa ? 'Đã xóa' : 'Đang hoạt động'}
+                            </Badge>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-sm text-muted-foreground">
+                                <p>Ngày tạo: {new Date(faculty.NgayTao).toLocaleDateString('vi-VN')}</p>
+                                <p>Ngày sửa: {new Date(faculty.NgaySua).toLocaleDateString('vi-VN')}</p>
+                            </div>
+                            <div className="flex justify-end gap-2 mt-4">
+                                {!faculty.XoaTamKhoa && (
+                                    <>
+                                        <Tooltip title="Edit">
+                                            <IconButton
+                                                onClick={() => openEditDialog(faculty)}
+                                                size="small"
+                                            >
+                                                <EditIcon />
+                                            </IconButton>
+                                        </Tooltip>
+                                        <Tooltip title="Delete">
+                                            <IconButton
+                                                onClick={() => handleDeleteFaculty(faculty)}
+                                                size="small"
+                                                color="error"
+                                            >
+                                                <DeleteIcon />
+                                            </IconButton>
+                                        </Tooltip>
+                                    </>
+                                )}
+                                {faculty.XoaTamKhoa && (
+                                    <Tooltip title="Restore">
+                                        <IconButton
+                                            onClick={() => handleRestoreFaculty(faculty)}
+                                            size="small"
+                                            color="primary"
+                                        >
+                                            <RestoreIcon />
+                                        </IconButton>
+                                    </Tooltip>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
+
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Thêm Khoa Mới</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <label htmlFor="name" className="text-sm font-medium">
+                                Tên Khoa
+                            </label>
+                            <Input
+                                id="name"
+                                value={newFacultyName}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewFacultyName(e.target.value)}
+                                placeholder="Nhập tên khoa..."
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="secondary" onClick={() => setIsCreateDialogOpen(false)}>Cancel</Button>
+                        <Button variant="primary" onClick={handleCreateFaculty}>
+                            Create
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                <DialogHeader>
+                    <DialogTitle>Edit Faculty</DialogTitle>
+                </DialogHeader>
+                <DialogContent>
+                    <Input
+                        autoFocus
+                        value={editFacultyName}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditFacultyName(e.target.value)}
+                        placeholder="Faculty Name"
+                    />
+                </DialogContent>
+                <DialogFooter>
+                    <Button variant="secondary" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+                    <Button variant="primary" onClick={handleUpdateFaculty}>
+                        Update
+                    </Button>
+                </DialogFooter>
+            </Dialog>
+        </PageContainer>
+    )
 }
 
 export default Faculty

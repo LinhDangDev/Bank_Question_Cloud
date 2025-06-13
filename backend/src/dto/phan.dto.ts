@@ -1,20 +1,24 @@
-import { IsBoolean, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsUUID, IsNumber } from 'class-validator';
 
 export class CreatePhanDto {
-    @IsUUID()
-    MaMonHoc: string;
-
     @IsString()
+    @IsNotEmpty()
     TenPhan: string;
+
+    @IsUUID()
+    @IsNotEmpty()
+    MaMonHoc: string;
 
     @IsString()
     @IsOptional()
     NoiDung?: string;
 
     @IsNumber()
+    @IsNotEmpty()
     ThuTu: number;
 
     @IsNumber()
+    @IsNotEmpty()
     SoLuongCauHoi: number;
 
     @IsUUID()
@@ -30,10 +34,47 @@ export class CreatePhanDto {
     XoaTamPhan?: boolean;
 
     @IsBoolean()
-    LaCauHoiNhom: boolean;
+    @IsOptional()
+    LaCauHoiNhom?: boolean;
 }
 
-export class UpdatePhanDto extends CreatePhanDto { }
+export class UpdatePhanDto {
+    @IsString()
+    @IsOptional()
+    TenPhan?: string;
+
+    @IsUUID()
+    @IsOptional()
+    MaMonHoc?: string;
+
+    @IsString()
+    @IsOptional()
+    NoiDung?: string;
+
+    @IsNumber()
+    @IsOptional()
+    ThuTu?: number;
+
+    @IsNumber()
+    @IsOptional()
+    SoLuongCauHoi?: number;
+
+    @IsUUID()
+    @IsOptional()
+    MaPhanCha?: string;
+
+    @IsNumber()
+    @IsOptional()
+    MaSoPhan?: number;
+
+    @IsBoolean()
+    @IsOptional()
+    XoaTamPhan?: boolean;
+
+    @IsBoolean()
+    @IsOptional()
+    LaCauHoiNhom?: boolean;
+}
 
 export class PhanResponseDto {
     @IsUUID()

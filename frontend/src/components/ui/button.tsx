@@ -2,7 +2,7 @@ import React, { ButtonHTMLAttributes } from 'react';
 import { useThemeStyles, cx } from '../../utils/theme';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'danger';
+  variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'destructive';
   size?: 'sm' | 'md' | 'lg';
   fullWidth?: boolean;
   isLoading?: boolean;
@@ -41,7 +41,8 @@ export const Button: React.FC<ButtonProps> = ({
     outline: styles.isDark
       ? "bg-transparent border border-gray-600 text-gray-300 hover:bg-gray-800"
       : "bg-transparent border border-gray-300 text-gray-700 hover:bg-gray-50",
-    danger: "bg-red-600 hover:bg-red-700 text-white"
+    danger: "bg-red-600 hover:bg-red-700 text-white",
+    destructive: "bg-red-600 hover:bg-red-700 text-white border-transparent"
   };
 
   // Disabled styles
