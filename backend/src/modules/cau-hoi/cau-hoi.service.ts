@@ -368,4 +368,32 @@ export class CauHoiService extends BaseService<CauHoi> {
             }
         };
     }
+
+    async findOneWithFullDetails(id: string) {
+        const cauHoi = await this.cauHoiRepository.findOne({
+            where: { MaCauHoi: id },
+            relations: ['Phan', 'Phan.MonHoc', 'Phan.MonHoc.Khoa', 'CLO']
+        });
+
+        if (!cauHoi) {
+            throw new NotFoundException(`CauHoi with ID ${id} not found`);
+        }
+
+        // Lấy danh sách câu trả lời
+        const answers = await this.dataSource
+            .getRepository(CauTraLoi)
+            .find({
+                where: { MaCauHoi: id },
+                order: { ThuTu: 'ASC' },
+            });
+
+        return {
+            question: cauHoi,
+            answers: answers,
+            khoa: cauHoi.Phan?.MonHoc?.Khoa,
+            monHoc: cauHoi.Phan?.MonHoc,
+            phan: cauHoi.Phan,
+            clo: cauHoi.CLO
+        };
+    }
 }

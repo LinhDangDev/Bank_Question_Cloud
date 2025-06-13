@@ -11,6 +11,9 @@ import { DeThiModule } from './modules/de-thi/de-thi.module';
 import { ChiTietDeThiModule } from './modules/chi-tiet-de-thi/chi-tiet-de-thi.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { SkipAuthMiddleware } from './middleware/skip-auth.middleware';
+import { MonHocModule } from './modules/mon-hoc/mon-hoc.module';
+import { PhanModule } from './modules/phan/phan.module';
+import { CLOModule } from './modules/clo/clo.module';
 
 
 @Module({
@@ -20,6 +23,9 @@ import { SkipAuthMiddleware } from './middleware/skip-auth.middleware';
         }),
         TypeOrmModule.forRoot(typeOrmConfig),
         KhoaModule,
+        MonHocModule,
+        PhanModule,
+        CLOModule,
         CauHoiModule,
         CauTraLoiModule,
         DeThiModule,

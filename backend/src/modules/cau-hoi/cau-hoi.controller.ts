@@ -49,6 +49,15 @@ export class CauHoiController {
         return await this.cauHoiService.findOneWithAnswers(id);
     }
 
+    @Get(':id/full-details')
+    @ApiOperation({ summary: 'Get a question with full details including faculty, subject, section, and CLO' })
+    @ApiResponse({ status: 200, description: 'Return a question with full details' })
+    @ApiResponse({ status: 404, description: 'Question not found' })
+    @ApiParam({ name: 'id', description: 'Question ID' })
+    async findOneWithFullDetails(@Param('id') id: string) {
+        return await this.cauHoiService.findOneWithFullDetails(id);
+    }
+
     @Get('phan/:maPhan')
     @ApiOperation({ summary: 'Get questions by section ID' })
     @ApiResponse({ status: 200, description: 'Return questions by section ID' })
