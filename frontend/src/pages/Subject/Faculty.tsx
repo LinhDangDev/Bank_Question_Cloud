@@ -249,7 +249,8 @@ const Faculty = () => {
                     >
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-lg font-medium">{faculty.TenKhoa}</CardTitle>
-                            <Badge variant={faculty.XoaTamKhoa ? 'destructive' : 'default'}>
+                            <Badge variant={faculty.XoaTamKhoa ? 'destructive' : 'default'}
+                                className={!faculty.XoaTamKhoa ? 'bg-green-400 hover:bg-green-600' : ''}>
                                 {faculty.XoaTamKhoa ? 'Đã xóa' : 'Đang hoạt động'}
                             </Badge>
                         </CardHeader>

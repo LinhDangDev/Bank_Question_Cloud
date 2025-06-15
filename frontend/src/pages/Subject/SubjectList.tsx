@@ -204,7 +204,8 @@ const SubjectList = () => {
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-lg font-medium">{subject.TenMonHoc}</CardTitle>
-              <Badge variant={subject.XoaTamMonHoc ? 'destructive' : 'default'}>
+              <Badge variant={subject.XoaTamMonHoc ? 'destructive' : 'default'}
+                className={!subject.XoaTamMonHoc ? 'bg-blue-500 hover:bg-blue-600' : ''}>
                 {subject.XoaTamMonHoc ? 'Đã xóa' : 'Đang hoạt động'}
               </Badge>
             </CardHeader>
