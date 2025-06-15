@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Khoa } from '../../entities/khoa.entity';
 import { CreateKhoaDto, UpdateKhoaDto } from '../../dto/khoa.dto';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class KhoaService {
@@ -46,7 +47,11 @@ export class KhoaService {
             throw new ConflictException(`Khoa with name ${khoa.TenKhoa} already exists`);
         }
 
-        const newKhoa = this.khoaRepository.create(khoa);
+        const newKhoa = this.khoaRepository.create({
+            ...khoa,
+            MaKhoa: uuidv4(),
+            XoaTamKhoa: false
+        });
         return this.khoaRepository.save(newKhoa);
     }
 

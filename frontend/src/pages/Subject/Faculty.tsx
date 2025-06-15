@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/badge'
-import { Search, Plus, ArrowLeft, Trash2, RefreshCw } from 'lucide-react'
+import { Search, Plus, ArrowLeft, Trash2, RefreshCw, BookOpen } from 'lucide-react'
 import PageContainer from '@/components/ui/PageContainer'
 import axios from 'axios'
 import {
@@ -29,6 +29,7 @@ import {
     Edit as EditIcon,
     Delete as DeleteIcon,
     Restore as RestoreIcon,
+    MenuBook as MenuBookIcon
 } from '@mui/icons-material'
 
 interface Faculty {
@@ -37,6 +38,7 @@ interface Faculty {
     XoaTamKhoa: boolean
     NgayTao: string
     NgaySua: string
+    MoTa?: string
 }
 
 const Faculty = () => {
@@ -50,6 +52,8 @@ const Faculty = () => {
     const [editingFaculty, setEditingFaculty] = useState<Faculty | null>(null)
     const [editFacultyName, setEditFacultyName] = useState('')
     const [isLoading, setIsLoading] = useState(false)
+    const [facultyDescription, setFacultyDescription] = useState('')
+    const [editFacultyDescription, setEditFacultyDescription] = useState('')
 
     const fetchFaculties = async () => {
         try {
@@ -77,7 +81,8 @@ const Faculty = () => {
 
         try {
             const response = await axios.post('http://localhost:3000/khoa', {
-                TenKhoa: newFacultyName.trim()
+                TenKhoa: newFacultyName.trim(),
+                MoTa: facultyDescription.trim()
             })
 
             if (response.data.message === 'Khoa đã được khôi phục') {
@@ -88,6 +93,7 @@ const Faculty = () => {
 
             setIsCreateDialogOpen(false)
             setNewFacultyName('')
+            setFacultyDescription('')
             fetchFaculties()
         } catch (error: any) {
             if (error.response?.status === 409) {
@@ -107,13 +113,15 @@ const Faculty = () => {
 
         try {
             await axios.patch(`http://localhost:3000/khoa/${editingFaculty.MaKhoa}`, {
-                TenKhoa: editFacultyName.trim()
+                TenKhoa: editFacultyName.trim(),
+                MoTa: editFacultyDescription.trim()
             })
 
             toast.success('Faculty updated successfully')
             setIsEditDialogOpen(false)
             setEditingFaculty(null)
             setEditFacultyName('')
+            setEditFacultyDescription('')
             fetchFaculties()
         } catch (error: any) {
             if (error.response?.status === 409) {
@@ -158,7 +166,12 @@ const Faculty = () => {
     const openEditDialog = (faculty: Faculty) => {
         setEditingFaculty(faculty)
         setEditFacultyName(faculty.TenKhoa)
+        setEditFacultyDescription(faculty.MoTa || '')
         setIsEditDialogOpen(true)
+    }
+
+    const viewSubjects = (faculty: Faculty) => {
+        navigate(`/subjects/${faculty.MaKhoa}`)
     }
 
     const filteredFaculties = faculties.filter(faculty =>
@@ -230,7 +243,10 @@ const Faculty = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredFaculties.map((faculty) => (
-                    <Card key={faculty.MaKhoa} className={faculty.XoaTamKhoa ? 'opacity-50' : ''}>
+                    <Card
+                        key={faculty.MaKhoa}
+                        className={`${faculty.XoaTamKhoa ? 'opacity-50' : ''} hover:shadow-lg transition-shadow`}
+                    >
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-lg font-medium">{faculty.TenKhoa}</CardTitle>
                             <Badge variant={faculty.XoaTamKhoa ? 'destructive' : 'default'}>
@@ -238,14 +254,24 @@ const Faculty = () => {
                             </Badge>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-sm text-muted-foreground">
+                            <div className="text-sm text-muted-foreground mb-4">
+                                {faculty.MoTa && <p className="mb-2">{faculty.MoTa}</p>}
                                 <p>Ngày tạo: {new Date(faculty.NgayTao).toLocaleDateString('vi-VN')}</p>
                                 <p>Ngày sửa: {new Date(faculty.NgaySua).toLocaleDateString('vi-VN')}</p>
                             </div>
                             <div className="flex justify-end gap-2 mt-4">
                                 {!faculty.XoaTamKhoa && (
                                     <>
-                                        <Tooltip title="Edit">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex items-center"
+                                            onClick={() => viewSubjects(faculty)}
+                                        >
+                                            <MenuBookIcon className="w-4 h-4 mr-2" />
+                                            Xem môn học
+                                        </Button>
+                                        <Tooltip title="Chỉnh sửa">
                                             <IconButton
                                                 onClick={() => openEditDialog(faculty)}
                                                 size="small"
@@ -253,7 +279,7 @@ const Faculty = () => {
                                                 <EditIcon />
                                             </IconButton>
                                         </Tooltip>
-                                        <Tooltip title="Delete">
+                                        <Tooltip title="Xóa">
                                             <IconButton
                                                 onClick={() => handleDeleteFaculty(faculty)}
                                                 size="small"
@@ -265,7 +291,7 @@ const Faculty = () => {
                                     </>
                                 )}
                                 {faculty.XoaTamKhoa && (
-                                    <Tooltip title="Restore">
+                                    <Tooltip title="Khôi phục">
                                         <IconButton
                                             onClick={() => handleRestoreFaculty(faculty)}
                                             size="small"
@@ -298,34 +324,63 @@ const Faculty = () => {
                                 placeholder="Nhập tên khoa..."
                             />
                         </div>
+                        <div className="space-y-2">
+                            <label htmlFor="description" className="text-sm font-medium">
+                                Mô tả
+                            </label>
+                            <Input
+                                id="description"
+                                value={facultyDescription}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFacultyDescription(e.target.value)}
+                                placeholder="Nhập mô tả khoa..."
+                            />
+                        </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="secondary" onClick={() => setIsCreateDialogOpen(false)}>Cancel</Button>
+                        <Button variant="secondary" onClick={() => setIsCreateDialogOpen(false)}>Hủy</Button>
                         <Button variant="primary" onClick={handleCreateFaculty}>
-                            Create
+                            Tạo mới
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                <DialogHeader>
-                    <DialogTitle>Edit Faculty</DialogTitle>
-                </DialogHeader>
                 <DialogContent>
-                    <Input
-                        autoFocus
-                        value={editFacultyName}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditFacultyName(e.target.value)}
-                        placeholder="Faculty Name"
-                    />
+                    <DialogHeader>
+                        <DialogTitle>Chỉnh sửa Khoa</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <label htmlFor="editName" className="text-sm font-medium">
+                                Tên Khoa
+                            </label>
+                            <Input
+                                id="editName"
+                                value={editFacultyName}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditFacultyName(e.target.value)}
+                                placeholder="Nhập tên khoa..."
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label htmlFor="editDescription" className="text-sm font-medium">
+                                Mô tả
+                            </label>
+                            <Input
+                                id="editDescription"
+                                value={editFacultyDescription}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditFacultyDescription(e.target.value)}
+                                placeholder="Nhập mô tả khoa..."
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="secondary" onClick={() => setIsEditDialogOpen(false)}>Hủy</Button>
+                        <Button variant="primary" onClick={handleUpdateFaculty}>
+                            Cập nhật
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
-                <DialogFooter>
-                    <Button variant="secondary" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
-                    <Button variant="primary" onClick={handleUpdateFaculty}>
-                        Update
-                    </Button>
-                </DialogFooter>
             </Dialog>
         </PageContainer>
     )

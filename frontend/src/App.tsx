@@ -3,6 +3,7 @@ import Layout from './components/layout/Layout'
 import Home from './pages/Home/Home'
 import SignIn from './pages/Auth/SignIn'
 import Questions from './pages/Questions/Questions'
+import ChapterQuestions from './pages/Questions/ChapterQuestions'
 import CreateQuestion from './pages/Questions/CreateQuestion'
 import UploadQuestions from './pages/Questions/UploadQuestions'
 import Faculty from './pages/Subject/Faculty'
@@ -33,10 +34,10 @@ function App() {
             <Route index element={<Home />} />
             <Route path="dashboard" element={<Home />} />
             <Route path="search" element={<Search />} />
-            <Route path="departments" element={<Faculty />} />
-            <Route path="subject/:maKhoa/subjects" element={<SubjectList />} />
-            <Route path="subject/:maKhoa/subject/:maMonHoc/chapters" element={<ChapterList />} />
-            <Route path="subject/:maKhoa/subject/:maMonHoc/chapter/:maPhan/questions" element={<Questions />} />
+            <Route path="faculty" element={<Faculty />} />
+            <Route path="subjects/:maKhoa" element={<SubjectList />} />
+            <Route path="chapters/:maMonHoc" element={<ChapterList />} />
+            <Route path="questions/:maPhan" element={<ChapterQuestions />} />
             <Route path="exams" element={<Exams />} />
 
             {/* Questions routes */}
@@ -45,6 +46,7 @@ function App() {
               <Route path="create" element={<CreateQuestion />} />
               <Route path="upload" element={<UploadQuestions />} />
               <Route path="edit/:id" element={<EditQuestion />} />
+              <Route path="view/:id" element={<EditQuestion />} />
             </Route>
 
             {/* Keep backward compatibility with old routes */}

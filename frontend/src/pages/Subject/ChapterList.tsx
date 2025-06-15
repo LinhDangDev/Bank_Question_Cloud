@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/badge'
-import { Search, Plus, ArrowLeft, Trash2, RefreshCw } from 'lucide-react'
+import { Search, Plus, ArrowLeft, Trash2, RefreshCw, BookOpen } from 'lucide-react'
 import PageContainer from '@/components/ui/PageContainer'
+import axios from 'axios'
 
 interface Chapter {
   MaPhan: string
@@ -27,10 +28,20 @@ interface Chapter {
   }
 }
 
+interface Subject {
+  MaMonHoc: string
+  TenMonHoc: string
+  MaKhoa: string
+  Khoa: {
+    TenKhoa: string
+  }
+}
+
 const ChapterList = () => {
   const navigate = useNavigate()
   const { maMonHoc } = useParams()
   const [chapters, setChapters] = useState<Chapter[]>([])
+  const [subject, setSubject] = useState<Subject | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [newChapterName, setNewChapterName] = useState('')
@@ -38,22 +49,35 @@ const ChapterList = () => {
   const [newChapterQuestionCount, setNewChapterQuestionCount] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
+  const fetchSubject = async () => {
+    try {
+      const response = await axios.get(`http://localhost:3000/mon-hoc/${maMonHoc}`)
+      setSubject(response.data)
+    } catch (error) {
+      toast.error('Không thể tải thông tin môn học')
+      console.error('Error fetching subject:', error)
+    }
+  }
+
   const fetchChapters = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch(`http://localhost:3000/phan/mon-hoc/${maMonHoc}`)
-      if (!response.ok) throw new Error('Không thể tải danh sách chương')
-      const data = await response.json()
-      setChapters(data)
+      const response = await axios.get(`http://localhost:3000/phan/mon-hoc/${maMonHoc}`)
+      setChapters(Array.isArray(response.data) ? response.data : [])
     } catch (error) {
       toast.error('Không thể tải danh sách chương')
+      setChapters([])
+      console.error('Error fetching chapters:', error)
     } finally {
       setIsLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchChapters()
+    if (maMonHoc) {
+      fetchSubject()
+      fetchChapters()
+    }
   }, [maMonHoc])
 
   const handleCreateChapter = async () => {
@@ -63,21 +87,13 @@ const ChapterList = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:3000/phan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          TenPhan: newChapterName.trim(),
-          ThuTu: parseInt(newChapterOrder),
-          SoLuongCauHoi: parseInt(newChapterQuestionCount),
-          MaMonHoc: maMonHoc
-        })
+      const response = await axios.post('http://localhost:3000/phan', {
+        TenPhan: newChapterName.trim(),
+        ThuTu: parseInt(newChapterOrder),
+        SoLuongCauHoi: parseInt(newChapterQuestionCount),
+        MaMonHoc: maMonHoc,
+        LaCauHoiNhom: false
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Không thể tạo chương mới')
-      }
 
       toast.success('Tạo chương mới thành công')
       setIsCreateDialogOpen(false)
@@ -86,7 +102,8 @@ const ChapterList = () => {
       setNewChapterQuestionCount('')
       fetchChapters()
     } catch (error: any) {
-      toast.error(error.message || 'Không thể tạo chương mới')
+      toast.error(error.response?.data?.message || 'Không thể tạo chương mới')
+      console.error('Error creating chapter:', error)
     }
   }
 
@@ -94,40 +111,28 @@ const ChapterList = () => {
     if (!confirm('Bạn có chắc chắn muốn xóa chương này?')) return
 
     try {
-      const response = await fetch(`http://localhost:3000/phan/${maPhan}/soft-delete`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' }
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Không thể xóa chương')
-      }
-
+      await axios.patch(`http://localhost:3000/phan/${maPhan}/soft-delete`)
       toast.success('Xóa chương thành công')
       fetchChapters()
     } catch (error: any) {
-      toast.error(error.message || 'Không thể xóa chương')
+      toast.error(error.response?.data?.message || 'Không thể xóa chương')
+      console.error('Error deleting chapter:', error)
     }
   }
 
   const handleRestoreChapter = async (maPhan: string) => {
     try {
-      const response = await fetch(`http://localhost:3000/phan/${maPhan}/restore`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' }
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Không thể khôi phục chương')
-      }
-
+      await axios.patch(`http://localhost:3000/phan/${maPhan}/restore`)
       toast.success('Khôi phục chương thành công')
       fetchChapters()
     } catch (error: any) {
-      toast.error(error.message || 'Không thể khôi phục chương')
+      toast.error(error.response?.data?.message || 'Không thể khôi phục chương')
+      console.error('Error restoring chapter:', error)
     }
+  }
+
+  const viewQuestions = (maPhan: string) => {
+    navigate(`/questions/${maPhan}`)
   }
 
   const filteredChapters = chapters.filter(chapter =>
@@ -142,11 +147,14 @@ const ChapterList = () => {
     <PageContainer className="p-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div className="flex gap-4">
-          <Button variant="outline" onClick={() => navigate('/subjects')}>
+          <Button variant="outline" onClick={() => navigate(`/subjects/${subject?.MaKhoa || ''}`)}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Quay lại
           </Button>
-          <h1 className="text-2xl font-bold">Quản lý Chương</h1>
+          <h1 className="text-2xl font-bold">
+            Chương - {subject?.TenMonHoc || 'Đang tải...'}
+            {subject?.Khoa && <span className="text-lg font-normal text-gray-500 ml-2">({subject.Khoa.TenKhoa})</span>}
+          </h1>
         </div>
         <Button onClick={() => setIsCreateDialogOpen(true)}>
           <Plus className="w-4 h-4 mr-2" />
@@ -199,7 +207,10 @@ const ChapterList = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredChapters.map((chapter) => (
-          <Card key={chapter.MaPhan} className={chapter.XoaTamPhan ? 'opacity-50' : ''}>
+          <Card
+            key={chapter.MaPhan}
+            className={`${chapter.XoaTamPhan ? 'opacity-50' : ''} hover:shadow-lg transition-shadow`}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-lg font-medium">{chapter.TenPhan}</CardTitle>
               <Badge variant={chapter.XoaTamPhan ? 'destructive' : 'default'}>
@@ -210,22 +221,36 @@ const ChapterList = () => {
               <div className="text-sm text-muted-foreground">
                 <p>Thứ tự: {chapter.ThuTu}</p>
                 <p>Số lượng câu hỏi: {chapter.SoLuongCauHoi}</p>
-                <p>Môn học: {chapter.MonHoc?.TenMonHoc}</p>
-                <p>Khoa: {chapter.MonHoc?.Khoa?.TenKhoa}</p>
+                <p>Môn học: {chapter.MonHoc?.TenMonHoc || subject?.TenMonHoc}</p>
+                <p>Khoa: {chapter.MonHoc?.Khoa?.TenKhoa || subject?.Khoa?.TenKhoa}</p>
                 <p>Ngày tạo: {new Date(chapter.NgayTao).toLocaleDateString('vi-VN')}</p>
                 <p>Ngày sửa: {new Date(chapter.NgaySua).toLocaleDateString('vi-VN')}</p>
               </div>
               <div className="flex justify-end gap-2 mt-4">
                 {chapter.XoaTamPhan ? (
-                  <Button variant="outline" size="sm" onClick={() => handleRestoreChapter(chapter.MaPhan)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRestoreChapter(chapter.MaPhan)}
+                  >
                     Khôi phục
                   </Button>
                 ) : (
                   <>
-                    <Button variant="outline" size="sm" onClick={() => navigate(`/questions/${chapter.MaPhan}`)}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center"
+                      onClick={() => viewQuestions(chapter.MaPhan)}
+                    >
+                      <BookOpen className="w-4 h-4 mr-2" />
                       Xem câu hỏi
                     </Button>
-                    <Button variant="destructive" size="sm" onClick={() => handleDeleteChapter(chapter.MaPhan)}>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDeleteChapter(chapter.MaPhan)}
+                    >
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </>

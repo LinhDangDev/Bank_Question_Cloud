@@ -105,7 +105,7 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
           </h2>
           <div className="space-y-1">
             <Link
-              to="/departments"
+              to="/faculty"
               className={`flex items-center px-2 py-2 text-sm rounded-lg ${
                 !isExpanded ? 'justify-center' : ''
               } ${isDark

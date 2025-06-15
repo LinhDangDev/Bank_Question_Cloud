@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/badge'
-import { Search, Plus, ArrowLeft, Trash2, RefreshCw } from 'lucide-react'
+import { Search, Plus, ArrowLeft, Trash2, RefreshCw, BookOpen } from 'lucide-react'
 import PageContainer from '@/components/ui/PageContainer'
+import axios from 'axios'
 
 interface Subject {
   MaMonHoc: string
@@ -22,32 +23,51 @@ interface Subject {
   }
 }
 
+interface Faculty {
+  MaKhoa: string
+  TenKhoa: string
+}
+
 const SubjectList = () => {
   const navigate = useNavigate()
   const { maKhoa } = useParams()
   const [subjects, setSubjects] = useState<Subject[]>([])
+  const [faculty, setFaculty] = useState<Faculty | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [newSubjectName, setNewSubjectName] = useState('')
   const [newSubjectCode, setNewSubjectCode] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
+  const fetchFaculty = async () => {
+    try {
+      const response = await axios.get(`http://localhost:3000/khoa/${maKhoa}`)
+      setFaculty(response.data)
+    } catch (error) {
+      toast.error('Không thể tải thông tin khoa')
+      console.error('Error fetching faculty:', error)
+    }
+  }
+
   const fetchSubjects = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch(`http://localhost:3000/mon-hoc/khoa/${maKhoa}`)
-      if (!response.ok) throw new Error('Không thể tải danh sách môn học')
-      const data = await response.json()
-      setSubjects(data)
+      const response = await axios.get(`http://localhost:3000/mon-hoc/khoa/${maKhoa}`)
+      setSubjects(Array.isArray(response.data) ? response.data : [])
     } catch (error) {
       toast.error('Không thể tải danh sách môn học')
+      setSubjects([])
+      console.error('Error fetching subjects:', error)
     } finally {
       setIsLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchSubjects()
+    if (maKhoa) {
+      fetchFaculty()
+      fetchSubjects()
+    }
   }, [maKhoa])
 
   const handleCreateSubject = async () => {
@@ -57,20 +77,11 @@ const SubjectList = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:3000/mon-hoc', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          TenMonHoc: newSubjectName.trim(),
-          MaSoMonHoc: newSubjectCode.trim(),
-          MaKhoa: maKhoa
-        })
+      const response = await axios.post('http://localhost:3000/mon-hoc', {
+        TenMonHoc: newSubjectName.trim(),
+        MaSoMonHoc: newSubjectCode.trim(),
+        MaKhoa: maKhoa
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Không thể tạo môn học mới')
-      }
 
       toast.success('Tạo môn học mới thành công')
       setIsCreateDialogOpen(false)
@@ -78,7 +89,12 @@ const SubjectList = () => {
       setNewSubjectCode('')
       fetchSubjects()
     } catch (error: any) {
-      toast.error(error.message || 'Không thể tạo môn học mới')
+      if (error.response?.status === 409) {
+        toast.error('Môn học với tên hoặc mã số này đã tồn tại')
+      } else {
+        toast.error(error.response?.data?.message || 'Không thể tạo môn học mới')
+      }
+      console.error('Error creating subject:', error)
     }
   }
 
@@ -86,40 +102,28 @@ const SubjectList = () => {
     if (!confirm('Bạn có chắc chắn muốn xóa môn học này?')) return
 
     try {
-      const response = await fetch(`http://localhost:3000/mon-hoc/${maMonHoc}/soft-delete`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' }
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Không thể xóa môn học')
-      }
-
+      await axios.patch(`http://localhost:3000/mon-hoc/${maMonHoc}/soft-delete`)
       toast.success('Xóa môn học thành công')
       fetchSubjects()
     } catch (error: any) {
-      toast.error(error.message || 'Không thể xóa môn học')
+      toast.error(error.response?.data?.message || 'Không thể xóa môn học')
+      console.error('Error deleting subject:', error)
     }
   }
 
   const handleRestoreSubject = async (maMonHoc: string) => {
     try {
-      const response = await fetch(`http://localhost:3000/mon-hoc/${maMonHoc}/restore`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' }
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Không thể khôi phục môn học')
-      }
-
+      await axios.patch(`http://localhost:3000/mon-hoc/${maMonHoc}/restore`)
       toast.success('Khôi phục môn học thành công')
       fetchSubjects()
     } catch (error: any) {
-      toast.error(error.message || 'Không thể khôi phục môn học')
+      toast.error(error.response?.data?.message || 'Không thể khôi phục môn học')
+      console.error('Error restoring subject:', error)
     }
+  }
+
+  const viewChapters = (maMonHoc: string) => {
+    navigate(`/chapters/${maMonHoc}`)
   }
 
   const filteredSubjects = subjects.filter(subject =>
@@ -139,7 +143,9 @@ const SubjectList = () => {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Quay lại
           </Button>
-          <h1 className="text-2xl font-bold">Quản lý Môn Học</h1>
+          <h1 className="text-2xl font-bold">
+            Môn học - {faculty?.TenKhoa || 'Đang tải...'}
+          </h1>
         </div>
         <Button onClick={() => setIsCreateDialogOpen(true)}>
           <Plus className="w-4 h-4 mr-2" />
@@ -192,7 +198,10 @@ const SubjectList = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredSubjects.map((subject) => (
-          <Card key={subject.MaMonHoc} className={subject.XoaTamMonHoc ? 'opacity-50' : ''}>
+          <Card
+            key={subject.MaMonHoc}
+            className={`${subject.XoaTamMonHoc ? 'opacity-50' : ''} hover:shadow-lg transition-shadow`}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-lg font-medium">{subject.TenMonHoc}</CardTitle>
               <Badge variant={subject.XoaTamMonHoc ? 'destructive' : 'default'}>
@@ -202,21 +211,35 @@ const SubjectList = () => {
             <CardContent>
               <div className="text-sm text-muted-foreground">
                 <p>Mã môn học: {subject.MaSoMonHoc}</p>
-                <p>Khoa: {subject.Khoa?.TenKhoa}</p>
+                <p>Khoa: {subject.Khoa?.TenKhoa || faculty?.TenKhoa}</p>
                 <p>Ngày tạo: {new Date(subject.NgayTao).toLocaleDateString('vi-VN')}</p>
                 <p>Ngày sửa: {new Date(subject.NgaySua).toLocaleDateString('vi-VN')}</p>
               </div>
               <div className="flex justify-end gap-2 mt-4">
                 {subject.XoaTamMonHoc ? (
-                  <Button variant="outline" size="sm" onClick={() => handleRestoreSubject(subject.MaMonHoc)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRestoreSubject(subject.MaMonHoc)}
+                  >
                     Khôi phục
                   </Button>
                 ) : (
                   <>
-                    <Button variant="outline" size="sm" onClick={() => navigate(`/chapters/${subject.MaMonHoc}`)}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center"
+                      onClick={() => viewChapters(subject.MaMonHoc)}
+                    >
+                      <BookOpen className="w-4 h-4 mr-2" />
                       Xem chương
                     </Button>
-                    <Button variant="destructive" size="sm" onClick={() => handleDeleteSubject(subject.MaMonHoc)}>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDeleteSubject(subject.MaMonHoc)}
+                    >
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </>
