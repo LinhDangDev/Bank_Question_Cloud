@@ -278,21 +278,6 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
                 Rút trích đề thi
               </span>
             </Link>
-            <Link
-              to="/analytics"
-              className={`flex items-center px-2 py-2 text-sm rounded-lg ${
-                !isExpanded ? 'justify-center' : ''
-              } ${isDark
-                ? 'hover:bg-gray-700'
-                : 'hover:bg-gray-100'
-              }`}
-              aria-label="Phân tích thống kê"
-            >
-              <BarChart className="w-5 h-5" />
-              <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
-                Phân tích thống kê
-              </span>
-            </Link>
           </div>
         </div>
 

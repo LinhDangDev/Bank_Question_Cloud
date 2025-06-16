@@ -15,7 +15,6 @@ import Exams from './pages/Subject/Exams'
 import Users from './pages/Users/Users'
 import AddUser from './pages/Users/AddUser'
 import Extract from './pages/Tool/Extract'
-import Analytics from './pages/Tool/Analytics'
 import Help from './pages/Support/Help'
 import Feedback from './pages/Support/Feedback'
 import Settings from './pages/Settings/Settings'
@@ -58,7 +57,6 @@ function App() {
             <Route path="add-user" element={<AddUser />} />
             <Route path="pdf" element={<PDF />} />
             <Route path="extract" element={<Extract />} />
-            <Route path="analytics" element={<Analytics />} />
             <Route path="help" element={<Help />} />
             <Route path="feedback" element={<Feedback />} />
             <Route path="settings" element={<Settings />} />
