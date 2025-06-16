@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Search, Plus, ArrowLeft, Trash2, RefreshCw, BookOpen } from 'lucide-react'
 import PageContainer from '@/components/ui/PageContainer'
 import axios from 'axios'
+import { API_BASE_URL } from '@/config'
 
 interface Subject {
   MaMonHoc: string
@@ -41,7 +42,7 @@ const SubjectList = () => {
 
   const fetchFaculty = async () => {
     try {
-      const response = await axios.get(`http://localhost:3000/khoa/${maKhoa}`)
+      const response = await axios.get(`${API_BASE_URL}/khoa/${maKhoa}`)
       setFaculty(response.data)
     } catch (error) {
       toast.error('Không thể tải thông tin khoa')
@@ -52,7 +53,7 @@ const SubjectList = () => {
   const fetchSubjects = async () => {
     try {
       setIsLoading(true)
-      const response = await axios.get(`http://localhost:3000/mon-hoc/khoa/${maKhoa}`)
+      const response = await axios.get(`${API_BASE_URL}/mon-hoc/khoa/${maKhoa}`)
       setSubjects(Array.isArray(response.data) ? response.data : [])
     } catch (error) {
       toast.error('Không thể tải danh sách môn học')
@@ -77,7 +78,7 @@ const SubjectList = () => {
     }
 
     try {
-      const response = await axios.post('http://localhost:3000/mon-hoc', {
+      const response = await axios.post(`${API_BASE_URL}/mon-hoc`, {
         TenMonHoc: newSubjectName.trim(),
         MaSoMonHoc: newSubjectCode.trim(),
         MaKhoa: maKhoa
@@ -102,7 +103,7 @@ const SubjectList = () => {
     if (!confirm('Bạn có chắc chắn muốn xóa môn học này?')) return
 
     try {
-      await axios.patch(`http://localhost:3000/mon-hoc/${maMonHoc}/soft-delete`)
+      await axios.patch(`${API_BASE_URL}/mon-hoc/${maMonHoc}/soft-delete`)
       toast.success('Xóa môn học thành công')
       fetchSubjects()
     } catch (error: any) {
@@ -113,7 +114,7 @@ const SubjectList = () => {
 
   const handleRestoreSubject = async (maMonHoc: string) => {
     try {
-      await axios.patch(`http://localhost:3000/mon-hoc/${maMonHoc}/restore`)
+      await axios.patch(`${API_BASE_URL}/mon-hoc/${maMonHoc}/restore`)
       toast.success('Khôi phục môn học thành công')
       fetchSubjects()
     } catch (error: any) {
@@ -253,7 +254,7 @@ const SubjectList = () => {
                       Xem chương
                     </Button>
                     <Button
-                      variant="destructive"
+                      variant="danger"
                       size="sm"
                       onClick={() => handleDeleteSubject(subject.MaMonHoc)}
                     >

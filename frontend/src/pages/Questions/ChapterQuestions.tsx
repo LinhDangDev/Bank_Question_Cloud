@@ -3,13 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { Badge } from '@/components/ui/badge'
-import { Search, Plus, ArrowLeft, RefreshCw, Eye, Edit, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+// import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+// import { Badge } from '@/components/ui/badge'
+import { Search, Plus, ArrowLeft, RefreshCw, Eye, Edit, Trash2 } from 'lucide-react'
 import PageContainer from '@/components/ui/PageContainer'
 import axios from 'axios'
 import 'katex/dist/katex.min.css'
 import katex from 'katex'
+import { API_BASE_URL } from '@/config'
 
 interface Answer {
   MaCauTraLoi: string;
@@ -91,7 +92,7 @@ const ChapterQuestions = () => {
 
   const fetchChapter = async () => {
     try {
-      const response = await axios.get(`http://localhost:3000/phan/${maPhan}`)
+      const response = await axios.get(`${API_BASE_URL}/phan/${maPhan}`)
       setChapter(response.data)
     } catch (error) {
       toast.error('Không thể tải thông tin chương')
@@ -102,7 +103,7 @@ const ChapterQuestions = () => {
   const fetchQuestions = async () => {
     try {
       setIsLoading(true)
-      const response = await axios.get(`http://localhost:3000/cau-hoi/phan/${maPhan}/with-answers`)
+      const response = await axios.get(`${API_BASE_URL}/cau-hoi/phan/${maPhan}/with-answers`)
       console.log('API Response:', response.data)
       setQuestions(Array.isArray(response.data.items) ? response.data.items : [])
     } catch (error) {
@@ -127,7 +128,6 @@ const ChapterQuestions = () => {
 
     try {
       // Handle LaTeX with HTML style attributes (like colored math)
-      // Example: \sqrt{a^2" style="color:#cc0000">\sqrt{a^2 + b^2}
       const styledLatexRegex = /(\\[a-zA-Z]+\{[^}]*\})"?\s*style="([^"]+)">(\\[a-zA-Z]+\{[^}]*\})/g;
       let processedContent = content.replace(styledLatexRegex, (match, formula1, style, formula2) => {
         try {
@@ -159,7 +159,6 @@ const ChapterQuestions = () => {
       });
 
       // Handle LaTeX with HTML style attributes but without closing tag
-      // Example: \sqrt{d^2" style="color:#cc0000"
       const singleStyledLatexRegex = /(\\[a-zA-Z]+\{[^}]*\})"?\s*style="([^"]+)"/g;
       processedContent = processedContent.replace(singleStyledLatexRegex, (match, formula, style) => {
         try {
@@ -324,7 +323,7 @@ const ChapterQuestions = () => {
     if (!confirm('Bạn có chắc chắn muốn xóa câu hỏi này?')) return;
 
     try {
-      await axios.patch(`http://localhost:3000/cau-hoi/${maCauHoi}/soft-delete`);
+      await axios.patch(`${API_BASE_URL}/cau-hoi/${maCauHoi}/soft-delete`);
       toast.success('Xóa câu hỏi thành công');
       fetchQuestions();
     } catch (error) {

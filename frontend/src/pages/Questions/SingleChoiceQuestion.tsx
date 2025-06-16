@@ -8,6 +8,7 @@ import { Editor } from '@tinymce/tinymce-react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { API_BASE_URL } from '@/config';
 
 // @ts-ignore
 declare global {
@@ -123,7 +124,7 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
 
   // Fetch CLO list from backend
   useEffect(() => {
-    fetch('http://localhost:3000/clo')
+    fetch(`${API_BASE_URL}/clo`)
       .then(res => res.json())
       .then(data => setCloList(data))
       .catch(err => console.error("Error fetching CLO list:", err));
@@ -140,21 +141,21 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
       // Fetch chapter info to get monHoc and khoa
       const fetchChapterInfo = async () => {
         try {
-          const response = await fetch(`http://localhost:3000/phan/${maPhanParam}`);
+          const response = await fetch(`${API_BASE_URL}/phan/${maPhanParam}`);
           if (response.ok) {
             const chapter = await response.json();
             if (chapter.MaMonHoc) {
               setMaMonHoc(chapter.MaMonHoc);
 
               // Fetch subject info to get khoa
-              const subjectResponse = await fetch(`http://localhost:3000/mon-hoc/${chapter.MaMonHoc}`);
+              const subjectResponse = await fetch(`${API_BASE_URL}/mon-hoc/${chapter.MaMonHoc}`);
               if (subjectResponse.ok) {
                 const subject = await subjectResponse.json();
                 if (subject.MaKhoa) {
                   setMaKhoa(subject.MaKhoa);
 
                   // Now that we have maKhoa, fetch the monHoc list
-                  const monHocResponse = await fetch(`http://localhost:3000/mon-hoc/khoa/${subject.MaKhoa}`);
+                  const monHocResponse = await fetch(`${API_BASE_URL}/mon-hoc/khoa/${subject.MaKhoa}`);
                   if (monHocResponse.ok) {
                     setMonHocList(await monHocResponse.json());
                   }
@@ -162,7 +163,7 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
               }
 
               // Fetch phan list for this monHoc
-              const phanResponse = await fetch(`http://localhost:3000/phan/mon-hoc/${chapter.MaMonHoc}`);
+              const phanResponse = await fetch(`${API_BASE_URL}/phan/mon-hoc/${chapter.MaMonHoc}`);
               if (phanResponse.ok) {
                 setPhanList(await phanResponse.json());
               }
@@ -179,7 +180,7 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
 
   // Load khoa list always
   useEffect(() => {
-    fetch('http://localhost:3000/khoa')
+    fetch(`${API_BASE_URL}/khoa`)
       .then(res => res.json())
       .then(data => setKhoaList(data))
       .catch(err => console.error("Error loading khoa list:", err));
@@ -188,7 +189,7 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
   // Load monHoc list when khoa changes
   useEffect(() => {
     if (maKhoa) {
-      fetch(`http://localhost:3000/mon-hoc/khoa/${maKhoa}`)
+      fetch(`${API_BASE_URL}/mon-hoc/khoa/${maKhoa}`)
         .then(res => res.json())
         .then(data => setMonHocList(data))
         .catch(err => console.error("Error loading mon hoc list:", err));
@@ -201,7 +202,7 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
   // Load phan list when monHoc changes
   useEffect(() => {
     if (maMonHoc) {
-      fetch(`http://localhost:3000/phan/mon-hoc/${maMonHoc}`)
+      fetch(`${API_BASE_URL}/phan/mon-hoc/${maMonHoc}`)
         .then(res => res.json())
         .then(data => setPhanList(data))
         .catch(err => console.error("Error loading phan list:", err));
@@ -224,14 +225,14 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
   // Fetch audio files for the question if editing
   useEffect(() => {
     if (question?.MaCauHoi) {
-      fetch(`http://localhost:3000/files/question/${question.MaCauHoi}`)
+      fetch(`${API_BASE_URL}/files/question/${question.MaCauHoi}`)
         .then(res => res.json())
         .then(data => {
           // Get the first audio file if it exists
           const audioFiles = data.filter((file: {LoaiFile: number; TenFile: string}) => file.LoaiFile === 1);
           if (audioFiles.length > 0) {
             // Set the URL for the audio player
-            setAudioUrl(`http://localhost:3000/${audioFiles[0].TenFile}`);
+            setAudioUrl(`${API_BASE_URL}/${audioFiles[0].TenFile}`);
           }
         })
         .catch(err => console.error("Error fetching audio files:", err));
@@ -279,7 +280,7 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
     }
 
     try {
-      const response = await fetch('http://localhost:3000/files/upload', {
+      const response = await fetch(`${API_BASE_URL}/files/upload`, {
         method: 'POST',
         body: formData,
       });
@@ -337,7 +338,7 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
           answers: mappedAnswers
         };
 
-        const res = await fetch(`http://localhost:3000/cau-hoi/${question.MaCauHoi}/with-answers`, {
+        const res = await fetch(`${API_BASE_URL}/cau-hoi/${question.MaCauHoi}/with-answers`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -429,7 +430,7 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
 
         console.log("Sending payload:", JSON.stringify(payload, null, 2));
 
-        const res = await fetch('http://localhost:3000/cau-hoi/with-answers', {
+        const res = await fetch(`${API_BASE_URL}/cau-hoi/with-answers`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -450,7 +451,7 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
           formData.append('file', audioFile);
           formData.append('maCauHoi', createdQuestion.question.MaCauHoi);
 
-          const uploadRes = await fetch('http://localhost:3000/files/upload', {
+          const uploadRes = await fetch(`${API_BASE_URL}/files/upload`, {
             method: 'POST',
             body: formData,
           });
@@ -514,7 +515,7 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
           answers: mappedAnswers
         };
 
-        const res = await fetch(`http://localhost:3000/cau-hoi/${question.MaCauHoi}/with-answers`, {
+        const res = await fetch(`${API_BASE_URL}/cau-hoi/${question.MaCauHoi}/with-answers`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -588,7 +589,7 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
 
         console.log("Sending payload:", JSON.stringify(payload, null, 2));
 
-        const res = await fetch('http://localhost:3000/cau-hoi/with-answers', {
+        const res = await fetch(`${API_BASE_URL}/cau-hoi/with-answers`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)

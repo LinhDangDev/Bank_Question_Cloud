@@ -31,6 +31,7 @@ import {
     Restore as RestoreIcon,
     MenuBook as MenuBookIcon
 } from '@mui/icons-material'
+import { API_BASE_URL } from '@/config'
 
 interface Faculty {
     MaKhoa: string
@@ -58,7 +59,7 @@ const Faculty = () => {
     const fetchFaculties = async () => {
         try {
             setIsLoading(true)
-            const response = await axios.get('http://localhost:3000/khoa')
+            const response = await axios.get(`${API_BASE_URL}/khoa`)
             setFaculties(Array.isArray(response.data) ? response.data : [])
         } catch (error) {
             toast.error('Failed to fetch faculties')
@@ -80,7 +81,7 @@ const Faculty = () => {
         }
 
         try {
-            const response = await axios.post('http://localhost:3000/khoa', {
+            const response = await axios.post(`${API_BASE_URL}/khoa`, {
                 TenKhoa: newFacultyName.trim(),
                 MoTa: facultyDescription.trim()
             })
@@ -112,7 +113,7 @@ const Faculty = () => {
         }
 
         try {
-            await axios.patch(`http://localhost:3000/khoa/${editingFaculty.MaKhoa}`, {
+            await axios.patch(`${API_BASE_URL}/khoa/${editingFaculty.MaKhoa}`, {
                 TenKhoa: editFacultyName.trim(),
                 MoTa: editFacultyDescription.trim()
             })
@@ -135,7 +136,7 @@ const Faculty = () => {
 
     const handleDeleteFaculty = async (faculty: Faculty) => {
         try {
-            await axios.patch(`http://localhost:3000/khoa/${faculty.MaKhoa}/soft-delete`)
+            await axios.patch(`${API_BASE_URL}/khoa/${faculty.MaKhoa}/soft-delete`)
             toast.success('Faculty deleted successfully')
             fetchFaculties()
         } catch (error: any) {
@@ -150,7 +151,7 @@ const Faculty = () => {
 
     const handleRestoreFaculty = async (faculty: Faculty) => {
         try {
-            await axios.patch(`http://localhost:3000/khoa/${faculty.MaKhoa}/restore`)
+            await axios.patch(`${API_BASE_URL}/khoa/${faculty.MaKhoa}/restore`)
             toast.success('Faculty restored successfully')
             fetchFaculties()
         } catch (error: any) {

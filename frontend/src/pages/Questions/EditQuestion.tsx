@@ -1,8 +1,8 @@
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { useMemo, useEffect, useState } from 'react';
+import {  useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { useThemeStyles, cx } from '../../utils/theme';
+// import { Input } from '@/components/ui/input';
+import { useThemeStyles } from '../../utils/theme';
 import SingleChoiceQuestion from './SingleChoiceQuestion';
 import MultiChoiceQuestion from './MultiChoiceQuestion';
 import FillBlankQuestion from './FillBlankQuestion';
@@ -10,8 +10,9 @@ import EssayQuestion from './EssayQuestion';
 import ImageQuestion from './ImageQuestion';
 import AudioQuestion from './AudioQuestion';
 import GroupQuestion from './GroupQuestion';
-import { ChevronLeft, Building2, BookOpen, Layers, Target } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { AlertTriangle } from 'lucide-react';
+import { API_BASE_URL } from '@/config';
 
 interface Answer {
   MaCauTraLoi: string;
@@ -90,7 +91,7 @@ const EditQuestion = () => {
       setLoading(true);
 
       // Use a single endpoint to get full details to reduce chance of errors
-      fetch(`http://localhost:3000/cau-hoi/${id}/full-details`)
+      fetch(`${API_BASE_URL}/cau-hoi/${id}/full-details`)
         .then(async (response) => {
           if (!response.ok) throw new Error('Không tìm thấy câu hỏi!');
 

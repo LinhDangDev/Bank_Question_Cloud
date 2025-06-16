@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Search, Plus, ArrowLeft, Trash2, RefreshCw, BookOpen } from 'lucide-react'
 import PageContainer from '@/components/ui/PageContainer'
 import axios from 'axios'
+import { API_BASE_URL } from '@/config'
 
 interface Chapter {
   MaPhan: string
@@ -51,7 +52,7 @@ const ChapterList = () => {
 
   const fetchSubject = async () => {
     try {
-      const response = await axios.get(`http://localhost:3000/mon-hoc/${maMonHoc}`)
+      const response = await axios.get(`${API_BASE_URL}/mon-hoc/${maMonHoc}`)
       setSubject(response.data)
     } catch (error) {
       toast.error('Không thể tải thông tin môn học')
@@ -62,7 +63,7 @@ const ChapterList = () => {
   const fetchChapters = async () => {
     try {
       setIsLoading(true)
-      const response = await axios.get(`http://localhost:3000/phan/mon-hoc/${maMonHoc}`)
+      const response = await axios.get(`${API_BASE_URL}/phan/mon-hoc/${maMonHoc}`)
       setChapters(Array.isArray(response.data) ? response.data : [])
     } catch (error) {
       toast.error('Không thể tải danh sách chương')
@@ -87,7 +88,7 @@ const ChapterList = () => {
     }
 
     try {
-      const response = await axios.post('http://localhost:3000/phan', {
+      const response = await axios.post(`${API_BASE_URL}/phan`, {
         TenPhan: newChapterName.trim(),
         ThuTu: parseInt(newChapterOrder),
         SoLuongCauHoi: parseInt(newChapterQuestionCount),
@@ -111,7 +112,7 @@ const ChapterList = () => {
     if (!confirm('Bạn có chắc chắn muốn xóa chương này?')) return
 
     try {
-      await axios.patch(`http://localhost:3000/phan/${maPhan}/soft-delete`)
+      await axios.patch(`${API_BASE_URL}/phan/${maPhan}/soft-delete`)
       toast.success('Xóa chương thành công')
       fetchChapters()
     } catch (error: any) {
@@ -122,7 +123,7 @@ const ChapterList = () => {
 
   const handleRestoreChapter = async (maPhan: string) => {
     try {
-      await axios.patch(`http://localhost:3000/phan/${maPhan}/restore`)
+      await axios.patch(`${API_BASE_URL}/phan/${maPhan}/restore`)
       toast.success('Khôi phục chương thành công')
       fetchChapters()
     } catch (error: any) {
@@ -264,7 +265,7 @@ const ChapterList = () => {
                       Xem câu hỏi
                     </Button>
                     <Button
-                      variant="destructive"
+                      variant="danger"
                       size="sm"
                       onClick={() => handleDeleteChapter(chapter.MaPhan)}
                     >

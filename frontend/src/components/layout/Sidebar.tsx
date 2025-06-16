@@ -9,8 +9,6 @@ import {
   Upload,
   FileText,
   Download,
-  BarChart,
-  HelpCircle,
   Settings,
   MessageSquare,
   BookOpen,

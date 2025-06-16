@@ -19,6 +19,7 @@ import { YeuCauRutTrichModule } from './modules/yeu-cau-rut-trich/yeu-cau-rut-tr
 import { QueueModule } from './modules/queue/queue.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import { FilesModule } from './modules/files/files.module';
+import { QuestionsImportModule } from './modules/questions-import/questions-import.module';
 
 
 @Module({
@@ -49,6 +50,7 @@ import { FilesModule } from './modules/files/files.module';
         YeuCauRutTrichModule,
         QueueModule,
         FilesModule,
+        QuestionsImportModule,
     ],
     controllers: [AppController],
     providers: [AppService],

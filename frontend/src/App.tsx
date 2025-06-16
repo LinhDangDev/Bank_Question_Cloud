@@ -6,6 +6,7 @@ import Questions from './pages/Questions/Questions'
 import ChapterQuestions from './pages/Questions/ChapterQuestions'
 import CreateQuestion from './pages/Questions/CreateQuestion'
 import UploadQuestions from './pages/Questions/UploadQuestions'
+import QuestionUploadPage from './pages/Questions/QuestionUploadPage'
 import Faculty from './pages/Subject/Faculty'
 import SubjectList from './pages/Subject/SubjectList'
 import ChapterList from './pages/Subject/ChapterList'
@@ -21,11 +22,25 @@ import Settings from './pages/Settings/Settings'
 import NotFound from './pages/NotFound'
 import EditQuestion from './pages/Questions/EditQuestion'
 import { ThemeProvider } from './context/ThemeContext'
+import { ToastContainer } from 'react-toastify'
+import 'react-toastify/dist/ReactToastify.css'
 import 'katex/dist/katex.min.css'
 
 function App() {
   return (
     <ThemeProvider>
+      <ToastContainer
+        position="bottom-right"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="colored"
+      />
       <Router>
         <Routes>
           <Route path="/signin" element={<SignIn />} />
@@ -43,7 +58,8 @@ function App() {
             <Route path="questions">
               <Route index element={<Questions />} />
               <Route path="create" element={<CreateQuestion />} />
-              <Route path="upload" element={<UploadQuestions />} />
+              <Route path="upload" element={<QuestionUploadPage />} />
+              <Route path="upload-old" element={<UploadQuestions />} />
               <Route path="edit/:id" element={<EditQuestion />} />
               <Route path="view/:id" element={<EditQuestion />} />
             </Route>
@@ -51,7 +67,7 @@ function App() {
             {/* Keep backward compatibility with old routes */}
             <Route path="create-question" element={<CreateQuestion />} />
             <Route path="upload-questions" element={<UploadQuestions />} />
-            <Route path="questions/:maPhan" element={<ChapterQuestions />} /> {/* Keep for backward compatibility */}
+            <Route path="questions/:maPhan" element={<ChapterQuestions />} />
 
             <Route path="users" element={<Users />} />
             <Route path="add-user" element={<AddUser />} />

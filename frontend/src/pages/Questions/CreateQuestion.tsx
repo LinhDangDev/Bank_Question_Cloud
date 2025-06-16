@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+// import { Input } from "@/components/ui/input"
+// import { Label } from "@/components/ui/label"
 import PageContainer from "../../components/ui/PageContainer"
 import { useThemeStyles, cx } from "../../utils/theme"
 import { File, Upload, ChevronRight, Edit, Check, X, Trash } from "lucide-react"
@@ -242,10 +242,8 @@ const QuestionUploader = ({ onNextStep, onCancel }: QuestionUploaderProps) => {
             <Button
               disabled={!uploadSuccess || questions.length === 0}
               onClick={() => onNextStep(questions.filter(q => q.selected))}
-              className={cx(
-                styles.primaryButton,
-                "flex items-center gap-1"
-              )}
+              variant="primary"
+              className="flex items-center gap-1"
             >
               Tiến hành
               <ChevronRight className="h-4 w-4" />
@@ -519,10 +517,8 @@ const CreateQuestion = () => {
                 Tổng số: {uploadedQuestions.length} câu hỏi
               </span>
               <Button
-                className={cx(
-                  styles.primaryButton,
-                  "flex items-center gap-1"
-                )}
+                variant="primary"
+                className="flex items-center gap-1"
               >
                 <Check className="h-4 w-4" />
                 Lưu vào hệ thống
@@ -540,17 +536,7 @@ const CreateQuestion = () => {
         "max-w-8xl mx-auto",
         styles.isDark ? 'bg-white-900' : 'bg-white'
       )}>
-        <div className={cx(
-          "border-b mb-7 pb-5",
-          styles.isDark ? 'border-gray-800' : 'border-gray-200'
-        )}>
-          <h1 className={cx(
-            "text-2xl font-bold",
-            styles.isDark ? 'text-gray-100' : 'text-gray-900'
-          )}>
-            Tạo câu hỏi mới
-          </h1>
-        </div>
+
 
         <div className={cx(
           "p-6 rounded-lg",

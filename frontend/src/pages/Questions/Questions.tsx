@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import 'katex/dist/katex.min.css'
 import katex from 'katex'
+import { API_BASE_URL } from '@/config'
 
 // Define the Answer interface based on the API response
 interface Answer {
@@ -98,7 +99,7 @@ const Questions = () => {
     const fetchQuestions = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`http://localhost:3000/cau-hoi?page=${page}&limit=${limit}&includeAnswers=true`);
+        const response = await fetch(`${API_BASE_URL}/cau-hoi?page=${page}&limit=${limit}&includeAnswers=true`);
 
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);
@@ -150,7 +151,6 @@ const Questions = () => {
   const renderLatex = (content: string) => {
     try {
       // Handle LaTeX with HTML style attributes (like colored math)
-      // Example: \sqrt{a^2" style="color:#cc0000">\sqrt{a^2 + b^2}
       const styledLatexRegex = /(\\[a-zA-Z]+\{[^}]*\})"?\s*style="([^"]+)">(\\[a-zA-Z]+\{[^}]*\})/g;
       let processedContent = content.replace(styledLatexRegex, (match, formula1, style, formula2) => {
         try {
@@ -182,7 +182,6 @@ const Questions = () => {
       });
 
       // Handle LaTeX with HTML style attributes but without closing tag
-      // Example: \sqrt{d^2" style="color:#cc0000"
       const singleStyledLatexRegex = /(\\[a-zA-Z]+\{[^}]*\})"?\s*style="([^"]+)"/g;
       processedContent = processedContent.replace(singleStyledLatexRegex, (match, formula, style) => {
         try {
@@ -353,7 +352,7 @@ const Questions = () => {
       <div className="flex justify-between items-center mb-6">
         <h1 className={cx("text-2xl font-bold", styles.isDark ? 'text-gray-200' : '')}>Danh sách câu hỏi</h1>
         <Button
-          className={styles.primaryButton}
+          variant="primary"
           onClick={() => navigate('/questions/create')}
         >
           <Plus className="w-4 h-4 mr-2" />
