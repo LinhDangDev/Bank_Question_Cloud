@@ -19,6 +19,8 @@ interface ParsedQuestion {
         type: string; // audio, image
         path: string;
     }>;
+    groupId?: string; // For grouped questions
+    inGroup?: boolean; // Flag to indicate this is part of a group
 }
 
 @Injectable()
@@ -40,14 +42,44 @@ export class DocxParserService {
         try {
             this.logger.log(`Parsing DOCX file: ${filePath}`);
 
-            // Extract HTML content from DOCX
-            const { value: htmlContent } = await mammoth.convertToHtml({ path: filePath });
+            // Check if file exists
+            if (!fs.existsSync(filePath)) {
+                this.logger.error(`File not found: ${filePath}`);
+                throw new Error(`File not found: ${filePath}`);
+            }
 
-            // Process HTML to extract questions
-            const questions = this.extractQuestionsFromHtml(htmlContent);
+            // Use mammoth options to preserve underlines for correct answers
+            // and italic for non-randomized options
+            const options = {
+                styleMap: [
+                    "u => u",
+                    "i => i",
+                    "b => b",
+                    "sup => sup",
+                    "sub => sub"
+                ]
+            };
 
-            this.logger.log(`Successfully parsed ${questions.length} questions from DOCX file`);
-            return questions;
+            try {
+                // Extract text content from DOCX (not HTML to better handle the custom tags)
+                const { value: textContent } = await mammoth.extractRawText({ path: filePath });
+
+                if (!textContent || textContent.trim().length === 0) {
+                    this.logger.error(`Empty or invalid DOCX content in file: ${filePath}`);
+                    throw new Error(`Empty or invalid DOCX content`);
+                }
+
+                this.logger.log(`Successfully extracted ${textContent.length} characters of text from DOCX`);
+
+                // Process text to extract questions
+                const questions = this.extractQuestionsFromText(textContent);
+
+                this.logger.log(`Successfully parsed ${questions.length} questions from DOCX file`);
+                return questions;
+            } catch (mammothError) {
+                this.logger.error(`Error extracting text from DOCX: ${mammothError.message}`, mammothError.stack);
+                throw new Error(`Failed to extract text from DOCX: ${mammothError.message}`);
+            }
         } catch (error) {
             this.logger.error(`Error parsing DOCX file: ${error.message}`, error.stack);
             throw new Error(`Failed to parse DOCX file: ${error.message}`);
@@ -59,16 +91,39 @@ export class DocxParserService {
      */
     async processUploadedFile(file: MulterFile): Promise<{ questions: ParsedQuestion[], filePath: string }> {
         try {
-            // Check if file and buffer exist
-            if (!file || !file.buffer) {
+            this.logger.log(`Processing uploaded file: ${file?.originalname || 'unknown'}`);
+
+            // Check if file exists
+            if (!file) {
+                this.logger.error('File object is missing');
                 throw new Error("Invalid file or missing buffer");
             }
 
+            // Check if buffer exists
+            if (!file.buffer || file.buffer.length === 0) {
+                this.logger.error(`File buffer is missing or empty for file: ${file.originalname}`);
+                throw new Error("Invalid file or missing buffer");
+            }
+
+            // Check file type
+            const ext = path.extname(file.originalname).toLowerCase();
+            if (ext !== '.docx') {
+                this.logger.error(`Invalid file type: ${ext}. Only .docx files are supported`);
+                throw new Error(`Invalid file type: ${ext}. Only .docx files are supported`);
+            }
+
+            this.logger.log(`File validation passed for ${file.originalname} (${file.size} bytes)`);
+
             // Generate unique filename
             const fileId = uuidv4();
-            const ext = path.extname(file.originalname);
             const filename = `${fileId}${ext}`;
             const uploadPath = path.join(this.uploadsDir, filename);
+
+            // Ensure directory exists
+            if (!fs.existsSync(this.uploadsDir)) {
+                this.logger.log(`Creating uploads directory: ${this.uploadsDir}`);
+                fs.mkdirSync(this.uploadsDir, { recursive: true });
+            }
 
             // Save file to disk
             fs.writeFileSync(uploadPath, file.buffer);
@@ -76,6 +131,7 @@ export class DocxParserService {
 
             // Parse the file
             const questions = await this.parseDocxToQuestions(uploadPath);
+            this.logger.log(`Successfully parsed ${questions.length} questions from file`);
 
             return {
                 questions,
@@ -88,92 +144,202 @@ export class DocxParserService {
     }
 
     /**
-     * Extract questions from HTML content
-     * This is a simplified implementation - you will need to enhance based on your specific document format
+     * Extract questions from raw text content
      */
-    private extractQuestionsFromHtml(html: string): ParsedQuestion[] {
+    private extractQuestionsFromText(text: string): ParsedQuestion[] {
         const questions: ParsedQuestion[] = [];
 
         try {
-            // Xử lý đặc biệt cho các phần LaTeX
-            html = this.preprocessLatex(html);
+            // Extract and process single questions
+            const singleQuestions = this.parseSingleQuestions(text);
+            questions.push(...singleQuestions);
 
-            // Tách nội dung theo ký hiệu [<br>]
-            const questionBlocks = html.split('[<br>]');
-
-            for (const block of questionBlocks) {
-                if (!block.trim()) continue;
-
-                // Phân tích các câu hỏi và các câu trả lời
-                const question = this.parseQuestionBlock(block);
-                if (question) {
-                    questions.push(question);
-                }
-            }
-
-            // Xử lý các câu hỏi nhóm
-            questions.push(...this.parseGroupQuestions(html));
+            // Extract and process group questions
+            const groupQuestions = this.parseGroupQuestions(text);
+            questions.push(...groupQuestions);
 
             return questions;
         } catch (error) {
-            this.logger.error(`Error extracting questions from HTML: ${error.message}`, error.stack);
+            this.logger.error(`Error extracting questions from text: ${error.message}`, error.stack);
             return [];
         }
     }
 
     /**
-     * Tiền xử lý nội dung LaTeX trong HTML
+     * Parse single questions (not in a group)
      */
-    private preprocessLatex(html: string): string {
-        // Giữ nguyên các công thức LaTeX
-        return html.replace(/<span class="latex">(.*?)<\/span>/g, (match, formula) => {
-            return `$$${formula}$$`;
-        });
+    private parseSingleQuestions(text: string): ParsedQuestion[] {
+        const questions: ParsedQuestion[] = [];
+
+        // Match all question blocks that are not inside [<sg>]...[</sg>]
+        // We need to be careful to not capture group questions
+
+        // First, let's remove all group questions from the text
+        let processedText = text;
+        const groupBlocks = text.match(/\[\<sg\>\].*?\[\<\/sg\>\]/gs);
+
+        if (groupBlocks) {
+            for (const block of groupBlocks) {
+                processedText = processedText.replace(block, '');
+            }
+        }
+
+        // Now extract single questions
+        const questionBlocks = processedText.split(/\[\<br\>\]/g);
+
+        for (const block of questionBlocks) {
+            if (!block.trim()) continue;
+
+            const question = this.parseQuestionBlock(block);
+            if (question) {
+                questions.push(question);
+            }
+        }
+
+        return questions;
     }
 
     /**
-     * Phân tích một khối câu hỏi
+     * Parse group questions [<sg>]...[</sg>]
+     */
+    private parseGroupQuestions(text: string): ParsedQuestion[] {
+        const questions: ParsedQuestion[] = [];
+
+        try {
+            // Find all group blocks
+            const groupRegex = /\[\<sg\>\](.*?)\[\<\/sg\>\]/gs;
+            const groupMatches = text.matchAll(groupRegex);
+
+            for (const groupMatch of Array.from(groupMatches)) {
+                const groupContent = groupMatch[1];
+                const groupId = uuidv4(); // Generate a unique ID for this group
+
+                // Extract the common content (before [<egc>])
+                const commonContentMatch = groupContent.match(/(.*?)\[\<egc\>\]/s);
+                if (!commonContentMatch) continue;
+
+                const commonContent = commonContentMatch[1].trim();
+
+                // Extract audio file path if present
+                let audioPath: string | null = null;
+                const audioMatch = commonContent.match(/<audio>(.*?)<\/audio>/);
+                if (audioMatch) {
+                    audioPath = audioMatch[1].trim();
+                }
+
+                // Extract sub-questions
+                const subQuestionsContent = groupContent.substring(groupContent.indexOf('[<egc>]') + 8);
+                const subQuestionBlocks = subQuestionsContent.split(/\[\<br\>\]/g);
+
+                for (const block of subQuestionBlocks) {
+                    if (!block.trim()) continue;
+
+                    // Extract the question number
+                    const numberMatch = block.match(/\(\<(\d+)\>\)/);
+                    if (!numberMatch) continue;
+
+                    const questionNumber = numberMatch[1];
+
+                    // Parse the question block
+                    const question = this.parseQuestionBlock(block);
+
+                    if (question) {
+                        // Add common content and group information
+                        question.content = `${commonContent}\n\n${question.content}`;
+                        question.inGroup = true;
+                        question.groupId = groupId;
+
+                        // Add audio file if present
+                        if (audioPath) {
+                            question.files = question.files || [];
+                            question.files.push({
+                                type: 'audio',
+                                path: audioPath
+                            });
+                        }
+
+                        questions.push(question);
+                    }
+                }
+            }
+
+            return questions;
+        } catch (error) {
+            this.logger.error(`Error parsing group questions: ${error.message}`, error.stack);
+            return [];
+        }
+    }
+
+    /**
+     * Parse a single question block
      */
     private parseQuestionBlock(block: string): ParsedQuestion | null {
         try {
-            // Tìm nội dung câu hỏi - giả sử nội dung câu hỏi là từ đầu đến dòng đầu tiên bắt đầu bằng "A."
-            const questionContentMatch = block.match(/^(.*?)(?=<p>A\.|$)/s);
-            if (!questionContentMatch) return null;
+            // Clean up the block
+            let cleanBlock = block.trim();
 
-            let content = questionContentMatch[1].trim();
+            // Extract CLO information
+            let cloInfo = '';
+            const cloMatch = cleanBlock.match(/\(CLO\d+\)/);
+            if (cloMatch) {
+                cloInfo = cloMatch[0];
+                cleanBlock = cleanBlock.replace(cloMatch[0], '').trim();
+            }
 
-            // Xóa tiền tố CLO nếu có
-            content = content.replace(/\(CLO\d+\)\s*/, '');
+            // Extract question content (everything before the first option)
+            const parts = cleanBlock.split(/\n[A-D]\./);
+            if (parts.length < 2) return null;
 
-            // Xác định loại câu hỏi
+            let content = parts[0].trim();
+
+            // Add CLO info back if needed
+            if (cloInfo) {
+                content = `${cloInfo} ${content}`;
+            }
+
+            // Determine question type
             let type = 'single-choice';
             if (content.includes('___') || content.includes('...')) {
                 type = 'fill-blank';
+            } else if (content.match(/\{\<\d+\>\}/)) {
+                type = 'group-question';
             }
 
-            // Tìm các câu trả lời
+            // Process LaTeX in content
+            content = this.processLatex(content);
+
+            // Extract answers
             const answers: Array<{ content: string, isCorrect: boolean, order: number }> = [];
-            const answerMatches = block.matchAll(/<p>([A-D])\.?\s*(.*?)(?=<p>[A-D]\.|<p>\(|$)/gs);
+            const optionLines = cleanBlock.match(/[A-D]\.\s*.*(?:\n(?!\n|[A-D]\.).*)*/g);
 
-            for (const match of answerMatches) {
-                const letter = match[1];
-                let answerContent = match[2].trim();
+            if (optionLines) {
+                for (let i = 0; i < optionLines.length; i++) {
+                    const line = optionLines[i].trim();
+                    const letter = line[0];
+                    let answerContent = line.substring(2).trim();
 
-                // Kiểm tra đáp án đúng (gạch chân hoặc đánh dấu)
-                const isCorrect = answerContent.includes('<u>') || answerContent.includes('<strong>') || answerContent.includes('*');
+                    // Check if this is the correct answer (underlined)
+                    const isCorrect = line.includes('__') || answerContent.includes('*');
 
-                // Làm sạch nội dung
-                answerContent = answerContent
-                    .replace(/<u>(.*?)<\/u>/g, '$1')
-                    .replace(/<strong>(.*?)<\/strong>/g, '$1')
-                    .replace(/\*/g, '')
-                    .trim();
+                    // Check if this option should not be randomized (italic)
+                    const noRandomize = line.match(/[A-D]\._/) || answerContent.match(/^_/);
 
-                answers.push({
-                    content: answerContent,
-                    isCorrect,
-                    order: letter.charCodeAt(0) - 'A'.charCodeAt(0)
-                });
+                    // Clean up the content
+                    answerContent = answerContent
+                        .replace(/\*/g, '')  // Remove asterisks
+                        .replace(/__/g, '')  // Remove underlines
+                        .replace(/^_/, '')   // Remove italic marker
+                        .trim();
+
+                    // Process LaTeX
+                    answerContent = this.processLatex(answerContent);
+
+                    answers.push({
+                        content: answerContent,
+                        isCorrect,
+                        order: letter.charCodeAt(0) - 'A'.charCodeAt(0)
+                    });
+                }
             }
 
             return {
@@ -182,52 +348,19 @@ export class DocxParserService {
                 answers
             };
         } catch (error) {
-            this.logger.error(`Error parsing question block: ${error.message}`);
+            this.logger.error(`Error parsing question block: ${error.message}`, error.stack);
             return null;
         }
     }
 
     /**
-     * Phân tích câu hỏi nhóm
+     * Process LaTeX formulas in text
+     * Replaces $...$ with proper LaTeX format
      */
-    private parseGroupQuestions(html: string): ParsedQuestion[] {
-        const questions: ParsedQuestion[] = [];
-
-        try {
-            // Tìm tất cả các nhóm câu hỏi [<sg>]...[</sg>]
-            const groupMatches = html.matchAll(/\[<sg>\](.*?)\[<\/sg>\]/gs);
-
-            for (const groupMatch of groupMatches) {
-                const groupContent = groupMatch[1];
-
-                // Tìm nội dung chung của nhóm
-                const commonContentMatch = groupContent.match(/(.*?)\[<egc>\]/s);
-                if (!commonContentMatch) continue;
-
-                const commonContent = commonContentMatch[1].trim();
-
-                // Tìm các câu hỏi con trong nhóm
-                const subQuestionMatches = groupContent.matchAll(/\(<(\d+)>\)(.*?)(?=\(<\d+>\)|$)/gs);
-
-                for (const subQuestionMatch of subQuestionMatches) {
-                    const number = subQuestionMatch[1];
-                    const subQuestionContent = subQuestionMatch[2];
-
-                    // Xử lý tương tự như câu hỏi đơn
-                    const question = this.parseQuestionBlock(subQuestionContent);
-
-                    if (question) {
-                        // Thêm nội dung chung vào nội dung câu hỏi
-                        question.content = `${commonContent}\n\nQuestion ${number}: ${question.content}`;
-                        questions.push(question);
-                    }
-                }
-            }
-
-            return questions;
-        } catch (error) {
-            this.logger.error(`Error parsing group questions: ${error.message}`);
-            return [];
-        }
+    private processLatex(text: string): string {
+        // Look for inline LaTeX formulas ($...$)
+        return text.replace(/\$(.+?)\$/g, (match, formula) => {
+            return `$${formula}$`;  // Keep the dollar signs for the frontend to process
+        });
     }
 }

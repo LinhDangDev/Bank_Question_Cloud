@@ -4,11 +4,20 @@ import { ApiTags, ApiConsumes, ApiOperation, ApiBody } from '@nestjs/swagger';
 import { QuestionsImportService } from './questions-import.service';
 import { PaginationDto } from '../../dto/pagination.dto';
 import { MulterFile } from '../../interfaces/multer-file.interface';
+import { diskStorage } from 'multer';
+import * as path from 'path';
+import * as fs from 'fs';
 
 @ApiTags('questions-import')
 @Controller('questions-import')
 export class QuestionsImportController {
-    constructor(private readonly questionsImportService: QuestionsImportService) { }
+    constructor(private readonly questionsImportService: QuestionsImportService) {
+        // Ensure uploads directory exists
+        const uploadsDir = path.join(process.cwd(), 'uploads', 'temp');
+        if (!fs.existsSync(uploadsDir)) {
+            fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+    }
 
     @Post('upload')
     @ApiOperation({ summary: 'Upload and parse Word document with questions' })
@@ -28,12 +37,38 @@ export class QuestionsImportController {
             },
         },
     })
-    @UseInterceptors(FileInterceptor('file'))
+    @UseInterceptors(FileInterceptor('file', {
+        storage: diskStorage({
+            destination: (req, file, cb) => {
+                const uploadPath = path.join(process.cwd(), 'uploads', 'temp');
+                cb(null, uploadPath);
+            },
+            filename: (req, file, cb) => {
+                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+                const ext = path.extname(file.originalname);
+                cb(null, `${uniqueSuffix}${ext}`);
+            },
+        }),
+    }))
     async uploadFile(
-        @UploadedFile() file: MulterFile,
+        @UploadedFile() file: Express.Multer.File,
         @Body('maPhan') maPhan?: string,
     ) {
-        return this.questionsImportService.parseAndSaveQuestions(file, maPhan);
+        if (!file) {
+            throw new Error('No file uploaded');
+        }
+
+        // Convert Express.Multer.File to our MulterFile interface
+        const multerFile: MulterFile = {
+            fieldname: file.fieldname,
+            originalname: file.originalname,
+            encoding: file.encoding,
+            mimetype: file.mimetype,
+            buffer: fs.readFileSync(file.path), // Read file from disk to get buffer
+            size: file.size
+        };
+
+        return this.questionsImportService.parseAndSaveQuestions(multerFile, maPhan);
     }
 
     @Get('preview/:fileId')

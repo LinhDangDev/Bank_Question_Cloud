@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { ChevronLeft, Upload as UploadIcon, FileText, Database, File, X } from 'lucide-react';
 import { Modal } from '../../components/Modal/Modal';
-
+import axios from 'axios';
+import KaTeX from 'katex';
+import 'katex/dist/katex.min.css';
+import { API_BASE_URL } from '@/config';
 // Component để hiển thị code với syntax highlighting
 const CodeBlock = ({ children }: { children: string }) => {
   // Xử lý syntax highlighting cho các ký hiệu đặc biệt
@@ -29,10 +32,84 @@ const UploadQuestions = () => {
   const [subjectId, setSubjectId] = useState('');
   const [chapterId, setChapterId] = useState('');
   const [showStats, setShowStats] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Handle file upload for different types
   const handleFileUpload = (fileType: string) => {
-    console.log(`Uploading ${fileType} file`);
-    // Implementation for file upload
+    if (fileType === 'word') {
+      fileInputRef.current?.click();
+    } else {
+      console.log(`Uploading ${fileType} file`);
+      // Implementation for other file types
+    }
+  };
+
+  // Handle the actual file selection
+  const handleFileSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.name.toLowerCase().endsWith('.docx')) {
+      setError('Chỉ hỗ trợ tệp tin .docx');
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    const maxSize = 20 * 1024 * 1024; // 20MB
+    if (file.size > maxSize) {
+      setError(`Kích thước tệp tin quá lớn. Tối đa ${maxSize / (1024 * 1024)}MB`);
+      return;
+    }
+
+    // Create FormData to send the file
+    const formData = new FormData();
+    formData.append('file', file);
+
+    // Add the chapter ID if selected
+    if (chapterId) {
+      formData.append('maPhan', chapterId);
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Send the file to backend for processing
+      const response = await axios.post(`${API_BASE_URL}/questions-import/upload`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      // Process the parsed questions
+      if (response.data && response.data.fileId) {
+        // Fetch the preview of parsed questions
+        const previewResponse = await axios.get(`${API_BASE_URL}/questions-import/preview/${response.data.fileId}`);
+        if (previewResponse.data && Array.isArray(previewResponse.data.items)) {
+          setSelectedQuestions(previewResponse.data.items);
+
+          if (previewResponse.data.items.length === 0) {
+            setError('Không tìm thấy câu hỏi nào trong tệp tin');
+          }
+        } else {
+          setError('Invalid response format from server');
+        }
+      } else {
+        setError('Invalid response format from server');
+      }
+    } catch (err: any) {
+      console.error('Error uploading file:', err);
+      setError(err.response?.data?.message || 'Error processing file. Please check format and try again.');
+    } finally {
+      setIsLoading(false);
+      // Reset the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
   const showGuide = (type: 'word' | 'excel' | 'backup' | 'package') => {
@@ -49,13 +126,61 @@ const UploadQuestions = () => {
       alert('Chưa có câu hỏi nào được chọn');
       return;
     }
-    console.log('Saving questions', {
-      facultyId,
-      subjectId,
-      chapterId,
-      questions: selectedQuestions,
+
+    setIsLoading(true);
+    setError(null);
+
+        // We need to get the fileId from the response we got earlier
+    // For simplicity, assuming the first question contains the fileId
+    const fileId = selectedQuestions[0]?.fileId;
+
+    if (!fileId) {
+      setError('Missing file information. Please upload again.');
+      setIsLoading(false);
+      return;
+    }
+
+    // Get the IDs of all selected questions
+    const questionIds = selectedQuestions.map(q => q.id);
+
+    axios.post(`${API_BASE_URL}/questions-import/save`, {
+      fileId,
+      questionIds,
+      maPhan: chapterId // Using chapterId as maPhan
+    })
+    .then(response => {
+      alert('Lưu câu hỏi thành công!');
+      // Optionally clear questions or redirect
+      // setSelectedQuestions([]);
+    })
+    .catch(err => {
+      console.error('Error saving questions:', err);
+      setError('Lỗi khi lưu câu hỏi. Vui lòng thử lại.');
+    })
+    .finally(() => {
+      setIsLoading(false);
     });
-    // Implementation for saving questions
+  };
+
+  // Function to render LaTeX in question content
+  const renderContent = (content: string) => {
+    // Check if content contains LaTeX (enclosed in $ signs)
+    if (content.includes('$')) {
+      const parts = content.split(/(\$.*?\$)/g);
+      return parts.map((part, index) => {
+        if (part.startsWith('$') && part.endsWith('$')) {
+          try {
+            const latex = part.slice(1, -1);
+            const html = KaTeX.renderToString(latex, { throwOnError: false });
+            return <span key={index} dangerouslySetInnerHTML={{ __html: html }} />;
+          } catch (e) {
+            return <span key={index}>{part}</span>;
+          }
+        }
+        return <span key={index}>{part}</span>;
+      });
+    }
+    return content;
   };
 
   // Renders appropriate guide content based on type
@@ -277,6 +402,15 @@ D. All are correct.
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto px-2 sm:px-4 md:px-6">
+      {/* Hidden file input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept=".docx"
+        style={{ display: 'none' }}
+        onChange={handleFileSelected}
+      />
+
       {/* Header */}
       <div className="flex items-center gap-2 text-base sm:text-lg font-medium">
         <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -401,6 +535,20 @@ D. All are correct.
             </div>
           </div>
         </div>
+
+        {/* Loading and Error states */}
+        {isLoading && (
+          <div className="text-center p-2">
+            <div className="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500"></div>
+            <span className="ml-2 text-xs sm:text-sm">Đang xử lý...</span>
+          </div>
+        )}
+
+        {error && (
+          <div className="bg-red-100 text-red-700 p-2 rounded-md text-xs sm:text-sm">
+            {error}
+          </div>
+        )}
       </div>
 
       {/* Step 2 */}
@@ -470,10 +618,10 @@ D. All are correct.
                   <td className="p-1 sm:p-2 text-xs sm:text-sm">{index + 1}</td>
                   <td className="p-1 sm:p-2 text-xs sm:text-sm">
                     <div className="space-y-1 sm:space-y-2">
-                      <div>{question.content}</div>
+                      <div>{renderContent(question.content)}</div>
                       <div className="pl-3 sm:pl-4 space-y-0.5 sm:space-y-1">
                         {question.options?.map((option: any, i: number) => (
-                          <div key={i}>{option}</div>
+                          <div key={i}>{renderContent(option)}</div>
                         ))}
                       </div>
                     </div>
@@ -549,14 +697,15 @@ D. All are correct.
       <div className="fixed bottom-4 right-4 z-20">
         <button
           onClick={handleSaveQuestions}
-          className="bg-green-500 hover:bg-green-600 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg flex items-center gap-1 sm:gap-2 text-xs sm:text-sm"
+          className={`bg-green-500 hover:bg-green-600 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg flex items-center gap-1 sm:gap-2 text-xs sm:text-sm ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+          disabled={isLoading}
         >
           <UploadIcon className="h-3 w-3 sm:h-5 sm:w-5" />
-          Save
+          {isLoading ? 'Saving...' : 'Save'}
         </button>
       </div>
 
-      {/* Replace the old modal with the new Modal component */}
+      {/* Modal */}
       <Modal
         isOpen={showGuideModal}
         onClose={() => setShowGuideModal(false)}
