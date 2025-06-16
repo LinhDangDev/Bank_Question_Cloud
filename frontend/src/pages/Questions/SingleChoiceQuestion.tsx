@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useThemeStyles, cx } from '../../utils/theme';
-import { Eye, Plus, Trash2, Info, X, Save, ArrowLeft, CheckCircle, Building2, BookOpen, Layers, Target } from 'lucide-react';
+import { Eye, Plus, Trash2, Info, X, Save, ArrowLeft, CheckCircle, Building2, BookOpen, Layers, Target, Upload, Music } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { Editor } from '@tinymce/tinymce-react';
 import ReactQuill from 'react-quill';
@@ -52,15 +52,36 @@ interface CLO { MaCLO: string; TenCLO: string; }
 
 interface SingleChoiceQuestionProps {
   question?: {
-    MaCauHoi: string;
-    NoiDung: string;
-    answers: Array<{
+    MaCauHoi?: string;
+    NoiDung?: string;
+    MaPhan?: string;
+    MaCLO?: string;
+    CapDo?: number;
+    HoanVi?: boolean;
+    answers?: Array<{
       MaCauTraLoi: string;
       NoiDung: string;
       ThuTu: number;
       LaDapAn: boolean;
+      HoanVi?: boolean;
     }>;
-    // Add other fields as needed
+    // For displaying details
+    khoa?: {
+      MaKhoa: string;
+      TenKhoa: string;
+    };
+    monHoc?: {
+      MaMonHoc: string;
+      TenMonHoc: string;
+    };
+    phan?: {
+      MaPhan: string;
+      TenPhan: string;
+    };
+    clo?: {
+      MaCLO: string;
+      TenCLO: string;
+    };
   };
 }
 
@@ -70,18 +91,18 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
   const location = useLocation();
   const [content, setContent] = useState(question?.NoiDung || '');
   const [answers, setAnswers] = useState<AnswerForm[]>(
-    question?.answers
-      ? question.answers.map(a => ({ text: a.NoiDung, correct: a.LaDapAn }))
+    question?.answers && question.answers.length > 0
+      ? question.answers.map(a => ({ text: a.NoiDung || '', correct: a.LaDapAn }))
       : defaultAnswers
   );
   const [explanation, setExplanation] = useState('');
   const [layout, setLayout] = useState(1);
-  const [fixedOrder, setFixedOrder] = useState(false);
+  const [fixedOrder, setFixedOrder] = useState(question?.HoanVi === false);
   const [advanced, setAdvanced] = useState(false);
   const [saveLocation, setSaveLocation] = useState('frame');
   const [frame, setFrame] = useState('');
   const [knowledgeUnit, setKnowledgeUnit] = useState('');
-  const [level, setLevel] = useState('');
+  const [level, setLevel] = useState(question?.CapDo?.toString() || '');
   const [showPreview, setShowPreview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -90,11 +111,15 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
   const [monHocList, setMonHocList] = useState<MonHoc[]>([]);
   const [phanList, setPhanList] = useState<Phan[]>([]);
   const [cloList, setCloList] = useState<CLO[]>([]);
-  const [maKhoa, setMaKhoa] = useState('');
-  const [maMonHoc, setMaMonHoc] = useState('');
-  const [maPhan, setMaPhan] = useState('');
-  const [maCLO, setMaCLO] = useState('');
+  const [maKhoa, setMaKhoa] = useState(question?.khoa?.MaKhoa || '');
+  const [maMonHoc, setMaMonHoc] = useState(question?.monHoc?.MaMonHoc || '');
+  const [maPhan, setMaPhan] = useState(question?.MaPhan || '');
+  const [maCLO, setMaCLO] = useState(question?.MaCLO || '');
   const [selectedCLOName, setSelectedCLOName] = useState('');
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [uploadingAudio, setUploadingAudio] = useState(false);
+  const audioInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch CLO list from backend
   useEffect(() => {
@@ -152,32 +177,39 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
     }
   }, [location.search]);
 
-  // Load khoa list if not coming from a chapter
+  // Load khoa list always
   useEffect(() => {
-    if (!maPhan) {
-      fetch('http://localhost:3000/khoa')
-        .then(res => res.json())
-        .then(data => setKhoaList(data));
-    }
-  }, [maPhan]);
+    fetch('http://localhost:3000/khoa')
+      .then(res => res.json())
+      .then(data => setKhoaList(data))
+      .catch(err => console.error("Error loading khoa list:", err));
+  }, []);
 
   // Load monHoc list when khoa changes
   useEffect(() => {
-    if (maKhoa && !monHocList.length) {
+    if (maKhoa) {
       fetch(`http://localhost:3000/mon-hoc/khoa/${maKhoa}`)
         .then(res => res.json())
-        .then(data => setMonHocList(data));
+        .then(data => setMonHocList(data))
+        .catch(err => console.error("Error loading mon hoc list:", err));
+    } else {
+      // Reset monHoc list when khoa is not selected
+      setMonHocList([]);
     }
-  }, [maKhoa, monHocList.length]);
+  }, [maKhoa]);
 
   // Load phan list when monHoc changes
   useEffect(() => {
-    if (maMonHoc && !phanList.length) {
+    if (maMonHoc) {
       fetch(`http://localhost:3000/phan/mon-hoc/${maMonHoc}`)
         .then(res => res.json())
-        .then(data => setPhanList(data));
+        .then(data => setPhanList(data))
+        .catch(err => console.error("Error loading phan list:", err));
+    } else {
+      // Reset phan list when monHoc is not selected
+      setPhanList([]);
     }
-  }, [maMonHoc, phanList.length]);
+  }, [maMonHoc]);
 
   // Update selectedCLOName when maCLO changes
   useEffect(() => {
@@ -188,6 +220,23 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
       }
     }
   }, [maCLO, cloList]);
+
+  // Fetch audio files for the question if editing
+  useEffect(() => {
+    if (question?.MaCauHoi) {
+      fetch(`http://localhost:3000/files/question/${question.MaCauHoi}`)
+        .then(res => res.json())
+        .then(data => {
+          // Get the first audio file if it exists
+          const audioFiles = data.filter((file: {LoaiFile: number; TenFile: string}) => file.LoaiFile === 1);
+          if (audioFiles.length > 0) {
+            // Set the URL for the audio player
+            setAudioUrl(`http://localhost:3000/${audioFiles[0].TenFile}`);
+          }
+        })
+        .catch(err => console.error("Error fetching audio files:", err));
+    }
+  }, [question]);
 
   const handleAnswerChange = (idx: number, value: string) => {
     setAnswers(ans => ans.map((a, i) => (i === idx ? { ...a, text: value } : a)));
@@ -201,6 +250,51 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
   };
   const handleAddAnswer = () => {
     setAnswers(ans => [...ans, { text: '', correct: false }]);
+  };
+
+  const handleAudioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      // Check if it's an audio file
+      if (file.type.startsWith('audio/')) {
+        setAudioFile(file);
+        // Create a preview URL
+        const objectUrl = URL.createObjectURL(file);
+        setAudioUrl(objectUrl);
+      } else {
+        setErrorMsg('Please select an audio file (.mp3, .wav, etc.)');
+      }
+    }
+  };
+
+  const handleAudioUpload = async () => {
+    if (!audioFile) return;
+
+    setUploadingAudio(true);
+    const formData = new FormData();
+    formData.append('file', audioFile);
+
+    if (question?.MaCauHoi) {
+      formData.append('maCauHoi', question.MaCauHoi);
+    }
+
+    try {
+      const response = await fetch('http://localhost:3000/files/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload audio file');
+      }
+
+      setMessage('Audio file uploaded successfully');
+    } catch (error) {
+      console.error('Error uploading audio:', error);
+      setErrorMsg('Failed to upload audio file');
+    } finally {
+      setUploadingAudio(false);
+    }
   };
 
   const answerRows = splitAnswers(answers, 1);
@@ -235,6 +329,10 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
           question: {
             ...questionWithoutAnswers,
             NoiDung: content,
+            MaPhan: maPhan,
+            MaCLO: maCLO,
+            HoanVi: !fixedOrder,
+            CapDo: parseInt(level) || 1
           },
           answers: mappedAnswers
         };
@@ -251,6 +349,11 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
           throw new Error('Lưu thất bại!');
         }
         setMessage('Lưu thành công!');
+
+        // If there's a new audio file, upload it
+        if (audioFile) {
+          await handleAudioUpload();
+        }
 
         // Check if we came from a specific chapter page
         const searchParams = new URLSearchParams(location.search);
@@ -338,6 +441,25 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
           throw new Error('Tạo câu hỏi thất bại!');
         }
 
+        // Get the newly created question ID
+        const createdQuestion = await res.json();
+
+        // If there's an audio file, upload it with the new question ID
+        if (audioFile && createdQuestion.question.MaCauHoi) {
+          const formData = new FormData();
+          formData.append('file', audioFile);
+          formData.append('maCauHoi', createdQuestion.question.MaCauHoi);
+
+          const uploadRes = await fetch('http://localhost:3000/files/upload', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!uploadRes.ok) {
+            console.error("Error uploading audio:", await uploadRes.json());
+          }
+        }
+
         setMessage('Tạo câu hỏi thành công!');
 
         // Check if we came from a specific chapter page
@@ -384,6 +506,10 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
           question: {
             ...questionWithoutAnswers,
             NoiDung: content,
+            MaPhan: maPhan,
+            MaCLO: maCLO,
+            HoanVi: !fixedOrder,
+            CapDo: parseInt(level) || 1
           },
           answers: mappedAnswers
         };
@@ -722,92 +848,101 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
               Thông tin câu hỏi
             </div>
 
+            {/* Always show dropdown menus for all questions */}
             <div className="space-y-3">
-              <div>
-                <label className="block text-sm mb-1 text-left text-gray-700 font-medium flex items-center gap-1">
-                  <Building2 className="w-4 h-4 text-blue-500" /> Khoa <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <select
-                    value={maKhoa}
-                    onChange={e => setMaKhoa(e.target.value)}
-                    className="w-full appearance-none rounded-lg border border-blue-100 p-2 pl-3 pr-10 text-sm h-10 focus:border-blue-400 focus:ring focus:ring-blue-200 focus:ring-opacity-50 bg-white cursor-pointer"
-                  >
-                    <option value="" disabled>Chọn khoa</option>
-                    {khoaList.map(khoa => (
-                      <option key={khoa.MaKhoa} value={khoa.MaKhoa}>{khoa.TenKhoa}</option>
-                    ))}
-                  </select>
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  </span>
+                <div>
+                  <label className="block text-sm mb-1 text-left text-gray-700 font-medium flex items-center gap-1">
+                    <Building2 className="w-4 h-4 text-blue-500" /> Khoa <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative bg-blue-50 rounded-lg p-3">
+                    <select
+                      value={maKhoa}
+                      onChange={e => {
+                        setMaKhoa(e.target.value);
+                        // Reset dependent fields when changing khoa
+                        setMaMonHoc('');
+                        setMaPhan('');
+                      }}
+                      className="w-full appearance-none rounded-lg border border-blue-200 p-2 pl-3 pr-10 text-sm h-10 focus:border-blue-400 focus:ring focus:ring-blue-200 focus:ring-opacity-50 bg-white cursor-pointer"
+                    >
+                      <option value="" disabled>Chọn khoa</option>
+                      {khoaList.map(khoa => (
+                        <option key={khoa.MaKhoa} value={khoa.MaKhoa}>{khoa.TenKhoa}</option>
+                      ))}
+                    </select>
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                      <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm mb-1 text-left text-gray-700 font-medium flex items-center gap-1">
-                  <BookOpen className="w-4 h-4 text-green-500" /> Môn học <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <select
-                    value={maMonHoc}
-                    onChange={e => setMaMonHoc(e.target.value)}
-                    className="w-full appearance-none rounded-lg border border-blue-100 p-2 pl-3 pr-10 text-sm h-10 focus:border-blue-400 focus:ring focus:ring-blue-200 focus:ring-opacity-50 bg-white cursor-pointer"
-                    disabled={!maKhoa}
-                  >
-                    <option value="" disabled>Chọn môn học</option>
-                    {monHocList.map(mon => (
-                      <option key={mon.MaMonHoc} value={mon.MaMonHoc}>{mon.TenMonHoc}</option>
-                    ))}
-                  </select>
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  </span>
+                <div>
+                  <label className="block text-sm mb-1 text-left text-gray-700 font-medium flex items-center gap-1">
+                    <BookOpen className="w-4 h-4 text-green-500" /> Môn học <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative bg-green-50 rounded-lg p-3">
+                    <select
+                      value={maMonHoc}
+                      onChange={e => {
+                        setMaMonHoc(e.target.value);
+                        // Reset dependent field when changing monHoc
+                        setMaPhan('');
+                      }}
+                      className="w-full appearance-none rounded-lg border border-green-200 p-2 pl-3 pr-10 text-sm h-10 focus:border-green-400 focus:ring focus:ring-green-200 focus:ring-opacity-50 bg-white cursor-pointer"
+                      disabled={!maKhoa}
+                    >
+                      <option value="" disabled>Chọn môn học</option>
+                      {monHocList.map(mon => (
+                        <option key={mon.MaMonHoc} value={mon.MaMonHoc}>{mon.TenMonHoc}</option>
+                      ))}
+                    </select>
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                      <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm mb-1 text-left text-gray-700 font-medium flex items-center gap-1">
-                  <Layers className="w-4 h-4 text-purple-500" /> Phần <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <select
-                    value={maPhan}
-                    onChange={e => setMaPhan(e.target.value)}
-                    className="w-full appearance-none rounded-lg border border-blue-100 p-2 pl-3 pr-10 text-sm h-10 focus:border-blue-400 focus:ring focus:ring-blue-200 focus:ring-opacity-50 bg-white cursor-pointer"
-                    disabled={!maMonHoc}
-                  >
-                    <option value="" disabled>Chọn phần</option>
-                    {phanList.map(phan => (
-                      <option key={phan.MaPhan} value={phan.MaPhan}>{phan.TenPhan}</option>
-                    ))}
-                  </select>
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  </span>
+                <div>
+                  <label className="block text-sm mb-1 text-left text-gray-700 font-medium flex items-center gap-1">
+                    <Layers className="w-4 h-4 text-yellow-600" /> Phần <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative bg-yellow-50 rounded-lg p-3">
+                    <select
+                      value={maPhan}
+                      onChange={e => setMaPhan(e.target.value)}
+                      className="w-full appearance-none rounded-lg border border-yellow-200 p-2 pl-3 pr-10 text-sm h-10 focus:border-yellow-400 focus:ring focus:ring-yellow-200 focus:ring-opacity-50 bg-white cursor-pointer"
+                      disabled={!maMonHoc}
+                    >
+                      <option value="" disabled>Chọn phần</option>
+                      {phanList.map(phan => (
+                        <option key={phan.MaPhan} value={phan.MaPhan}>{phan.TenPhan}</option>
+                      ))}
+                    </select>
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                      <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm mb-1 text-left text-gray-700 font-medium flex items-center gap-1">
-                  <Target className="w-4 h-4 text-amber-500" /> CLO <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <select
-                    value={maCLO}
-                    onChange={e => setMaCLO(e.target.value)}
-                    className="w-full appearance-none rounded-lg border border-blue-100 p-2 pl-3 pr-10 text-sm h-10 focus:border-blue-400 focus:ring focus:ring-blue-200 focus:ring-opacity-50 bg-white cursor-pointer"
-                    disabled={!maPhan}
-                  >
-                    <option value="" disabled>Chọn CLO</option>
-                    {cloList.map(clo => (
-                      <option key={clo.MaCLO} value={clo.MaCLO}>{clo.TenCLO}</option>
-                    ))}
-                  </select>
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  </span>
+                <div>
+                  <label className="block text-sm mb-1 text-left text-gray-700 font-medium flex items-center gap-1">
+                    <Target className="w-4 h-4 text-purple-500" /> CLO <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative bg-purple-50 rounded-lg p-3">
+                    <select
+                      value={maCLO}
+                      onChange={e => setMaCLO(e.target.value)}
+                      className="w-full appearance-none rounded-lg border border-purple-200 p-2 pl-3 pr-10 text-sm h-10 focus:border-purple-400 focus:ring focus:ring-purple-200 focus:ring-opacity-50 bg-white cursor-pointer"
+                    >
+                      <option value="" disabled>Chọn CLO</option>
+                      {cloList.map(clo => (
+                        <option key={clo.MaCLO} value={clo.MaCLO}>{clo.TenCLO}</option>
+                      ))}
+                    </select>
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                      <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
         </div>
       </div>
 

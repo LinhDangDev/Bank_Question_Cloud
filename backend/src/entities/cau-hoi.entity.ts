@@ -46,7 +46,7 @@ export class CauHoi {
     @Column({ type: 'datetime', nullable: true })
     NgayTao: Date;
 
-    @Column({ type: 'datetime', nullable: true })
+    @Column({ type: 'datetime', nullable: true, select: false })
     NgaySua: Date;
 
     @Column({ type: 'uuid', nullable: true })

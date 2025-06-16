@@ -18,6 +18,7 @@ import { CLOModule } from './modules/clo/clo.module';
 import { YeuCauRutTrichModule } from './modules/yeu-cau-rut-trich/yeu-cau-rut-trich.module';
 import { QueueModule } from './modules/queue/queue.module';
 import { CacheModule } from '@nestjs/cache-manager';
+import { FilesModule } from './modules/files/files.module';
 
 
 @Module({
@@ -47,6 +48,7 @@ import { CacheModule } from '@nestjs/cache-manager';
         AuthModule,
         YeuCauRutTrichModule,
         QueueModule,
+        FilesModule,
     ],
     controllers: [AppController],
     providers: [AppService],

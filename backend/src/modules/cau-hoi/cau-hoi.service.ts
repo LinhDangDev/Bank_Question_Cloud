@@ -341,7 +341,7 @@ export class CauHoiService extends BaseService<CauHoi> {
         });
     }
 
-    async updateQuestionWithAnswers(id: string, dto: UpdateQuestionWithAnswersDto): Promise<{ question: CauHoi, answers: CauTraLoi[] }> {
+    async updateQuestionWithAnswers(id: string, dto: UpdateQuestionWithAnswersDto): Promise<{ question: any, answers: CauTraLoi[] }> {
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
         await queryRunner.startTransaction();
@@ -350,13 +350,37 @@ export class CauHoiService extends BaseService<CauHoi> {
             // Check if question exists
             const existingQuestion = await this.findOne(id);
 
-            // Update the question
+            // Update the question with only direct column properties
             const questionData = {
                 ...dto.question,
                 NgaySua: new Date(),
             };
-            await queryRunner.manager.update(CauHoi, id, questionData);
-            const updatedQuestion = await queryRunner.manager.findOne(CauHoi, { where: { MaCauHoi: id } });
+
+            // Extract only the properties that are actual columns in the CauHoi entity
+            // Explicitly pick only the properties we need, avoiding relationships
+            const questionDataToUpdate = {
+                MaSoCauHoi: questionData.MaSoCauHoi,
+                NoiDung: questionData.NoiDung,
+                MaPhan: questionData.MaPhan,
+                MaCLO: questionData.MaCLO,
+                CapDo: questionData.CapDo,
+                HoanVi: questionData.HoanVi,
+                SoCauHoiCon: questionData.SoCauHoiCon,
+                DoPhanCachCauHoi: questionData.DoPhanCachCauHoi,
+                MaCauHoiCha: questionData.MaCauHoiCha,
+                XoaTamCauHoi: questionData.XoaTamCauHoi,
+                SoLanDuocThi: questionData.SoLanDuocThi,
+                SoLanDung: questionData.SoLanDung,
+                NgaySua: questionData.NgaySua
+            };
+
+            await queryRunner.manager.update(CauHoi, id, questionDataToUpdate);
+
+            // Fetch the updated question with all its relations
+            const updatedQuestion = await queryRunner.manager.findOne(CauHoi, {
+                where: { MaCauHoi: id },
+                relations: ['Phan', 'Phan.MonHoc', 'Phan.MonHoc.Khoa', 'CLO']
+            });
 
             if (!updatedQuestion) {
                 throw new NotFoundException(`Question with ID ${id} not found after update`);
@@ -373,10 +397,22 @@ export class CauHoiService extends BaseService<CauHoi> {
                     MaCauHoi: id,
                 });
             });
+
             const savedAnswers = await queryRunner.manager.save(answers);
 
             await queryRunner.commitTransaction();
-            return { question: updatedQuestion, answers: savedAnswers };
+
+            // Format the response to include khoa/monHoc/phan/clo information
+            return {
+                question: {
+                    ...updatedQuestion,
+                    khoa: updatedQuestion.Phan?.MonHoc?.Khoa,
+                    monHoc: updatedQuestion.Phan?.MonHoc,
+                    phan: updatedQuestion.Phan,
+                    clo: updatedQuestion.CLO
+                },
+                answers: savedAnswers
+            };
         } catch (error) {
             await queryRunner.rollbackTransaction();
             throw error;

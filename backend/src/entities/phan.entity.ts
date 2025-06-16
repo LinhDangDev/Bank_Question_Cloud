@@ -38,7 +38,7 @@ export class Phan {
     @Column({ type: 'datetime', nullable: true })
     NgayTao: Date;
 
-    @Column({ type: 'datetime', nullable: true })
+    @Column({ type: 'datetime', nullable: true, select: false })
     NgaySua: Date;
 
     @ManyToOne(() => MonHoc, monHoc => monHoc.Phan)

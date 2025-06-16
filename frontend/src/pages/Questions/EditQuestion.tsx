@@ -36,26 +36,27 @@ interface Question {
   SoLanDuocThi: number;
   SoLanDung: number;
   NgayTao: string;
-  NgaySua: string;
+  NgaySua?: string;
   MaCLO: string;
   answers: Answer[];
 }
 
 interface QuestionDetails {
   question: Question;
-  khoa: {
+  answers: Answer[];
+  khoa?: {
     MaKhoa: string;
     TenKhoa: string;
     XoaTamKhoa: boolean;
   };
-  monHoc: {
+  monHoc?: {
     MaMonHoc: string;
     MaKhoa: string;
     MaSoMonHoc: string;
     TenMonHoc: string;
     XoaTamMonHoc: boolean;
   };
-  phan: {
+  phan?: {
     MaPhan: string;
     MaMonHoc: string;
     TenPhan: string;
@@ -63,7 +64,7 @@ interface QuestionDetails {
     SoLuongCauHoi: number;
     XoaTamPhan: boolean;
   };
-  clo: {
+  clo?: {
     MaCLO: string;
     TenCLO: string;
     ThuTu: number;
@@ -87,22 +88,27 @@ const EditQuestion = () => {
   useEffect(() => {
     if (id && id !== 'new') {
       setLoading(true);
-      Promise.all([
-        fetch(`http://localhost:3000/cau-hoi/${id}/with-answers`),
-        fetch(`http://localhost:3000/cau-hoi/${id}/full-details`)
-      ])
-        .then(async ([answersRes, detailsRes]) => {
-          if (!answersRes.ok || !detailsRes.ok) throw new Error('Không tìm thấy câu hỏi!');
-          const [answersData, detailsData] = await Promise.all([
-            answersRes.json(),
-            detailsRes.json()
-          ]);
-          setQuestion({ ...answersData.question, answers: answersData.answers });
+
+      // Use a single endpoint to get full details to reduce chance of errors
+      fetch(`http://localhost:3000/cau-hoi/${id}/full-details`)
+        .then(async (response) => {
+          if (!response.ok) throw new Error('Không tìm thấy câu hỏi!');
+
+          const detailsData = await response.json();
+          console.log('Question details:', detailsData);
+
+          // Make sure we have both question and answers data
+          if (!detailsData.question || !detailsData.answers) {
+            throw new Error('Dữ liệu câu hỏi không đầy đủ');
+          }
+
+          setQuestion(detailsData.question);
           setQuestionDetails(detailsData);
           setLoading(false);
         })
         .catch(err => {
-          setError('Không tìm thấy câu hỏi!');
+          console.error('Error fetching question:', err);
+          setError('Không thể tải thông tin câu hỏi: ' + err.message);
           setLoading(false);
         });
     }
@@ -156,8 +162,20 @@ const EditQuestion = () => {
           return <div className="p-8 text-red-500 font-semibold">Loại câu hỏi không hỗ trợ!</div>;
       }
     }
+
     if (!question) return null;
-    return <SingleChoiceQuestion question={question} />;
+
+    // If we have questionsDetails, pass the complete object to SingleChoiceQuestion
+    return <SingleChoiceQuestion
+      question={questionDetails ? {
+        ...question,
+        answers: questionDetails.answers || [],
+        khoa: questionDetails.khoa,
+        monHoc: questionDetails.monHoc,
+        phan: questionDetails.phan,
+        clo: questionDetails.clo
+      } : question}
+    />;
   };
 
   return (
@@ -172,9 +190,9 @@ const EditQuestion = () => {
             <ChevronLeft className="w-5 h-5" />
           </Button>
         )}
-        <h2 className={cx("text-2xl font-bold", styles.isDark ? 'text-gray-200' : '')}>
+        {/* <h2 className={cx("text-2xl font-bold", styles.isDark ? 'text-gray-200' : '')}>
           {id === 'new' ? 'Tạo câu hỏi mới' : 'Chỉnh sửa câu hỏi'}
-        </h2>
+        </h2> */}
       </div>
 
       <div>
