@@ -59,21 +59,7 @@ const typeColors: Record<string, string> = {
   'CLO 3': 'bg-purple-100 text-purple-700',
   'CLO 4': 'bg-orange-100 text-orange-700',
   'CLO 5': 'bg-yellow-100 text-yellow-700',
-  'CLO 6': 'bg-indigo-100 text-indigo-700',
-  'CLO 7': 'bg-pink-100 text-pink-700',
-  'CLO 8': 'bg-teal-100 text-teal-700',
-  'CLO 9': 'bg-cyan-100 text-cyan-700',
-  'CLO 10': 'bg-lime-100 text-lime-700',
-  'CLO 11': 'bg-sky-100 text-sky-700',
-  'CLO 12': 'bg-amber-100 text-amber-700',
-  'CLO 13': 'bg-violet-100 text-violet-700',
-  'CLO 14': 'bg-fuchsia-100 text-fuchsia-700',
-  'CLO 15': 'bg-emerald-100 text-emerald-700',
-  'CLO 16': 'bg-rose-100 text-rose-700',
-  'CLO 17': 'bg-slate-100 text-slate-700',
-  'CLO 18': 'bg-gray-100 text-gray-700',
-  'CLO 19': 'bg-green-200 text-green-800',
-  'CLO 20': 'bg-blue-200 text-blue-800'
+
 }
 
 const statusColors: Record<string, string> = {
@@ -87,7 +73,7 @@ const Questions = () => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState<number>(2); // Starting with page 2 as per your API URL
+  const [page, setPage] = useState<number>(1); // Starting with page 2 as per your API URL
   const [limit, setLimit] = useState<number>(100);
   const [totalPages, setTotalPages] = useState<number>(1);
   const [totalItems, setTotalItems] = useState<number>(0);

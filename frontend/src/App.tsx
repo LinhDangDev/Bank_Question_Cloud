@@ -6,7 +6,6 @@ import Questions from './pages/Questions/Questions'
 import ChapterQuestions from './pages/Questions/ChapterQuestions'
 import CreateQuestion from './pages/Questions/CreateQuestion'
 import UploadQuestions from './pages/Questions/UploadQuestions'
-import QuestionUploadPage from './pages/Questions/QuestionUploadPage'
 import Faculty from './pages/Subject/Faculty'
 import SubjectList from './pages/Subject/SubjectList'
 import ChapterList from './pages/Subject/ChapterList'
@@ -58,8 +57,7 @@ function App() {
             <Route path="questions">
               <Route index element={<Questions />} />
               <Route path="create" element={<CreateQuestion />} />
-              <Route path="upload" element={<QuestionUploadPage />} />
-              <Route path="upload-old" element={<UploadQuestions />} />
+              <Route path="upload" element={<UploadQuestions />} />
               <Route path="edit/:id" element={<EditQuestion />} />
               <Route path="view/:id" element={<EditQuestion />} />
             </Route>

@@ -109,11 +109,11 @@ const UploadQuestions = () => {
                   <td className="border border-gray-300 px-2 py-1 sm:px-4 sm:py-2 font-mono text-amber-600">[&lt;/sg&gt;]</td>
                   <td className="border border-gray-300 px-2 py-1 sm:px-4 sm:py-2">Ký hiệu kết thúc nhóm</td>
                 </tr>
-                <tr>
+                    <tr>
                   <td className="border border-gray-300 px-2 py-1 sm:px-4 sm:py-2 font-mono text-amber-600">[&lt;egc&gt;]</td>
                   <td className="border border-gray-300 px-2 py-1 sm:px-4 sm:py-2">Ký hiệu kết thúc nội dung của nhóm</td>
                 </tr>
-                <tr className="bg-gray-50">
+                    <tr className="bg-gray-50">
                   <td className="border border-gray-300 px-2 py-1 sm:px-4 sm:py-2 font-mono text-amber-600">[&lt;br&gt;]</td>
                   <td className="border border-gray-300 px-2 py-1 sm:px-4 sm:py-2">Ký hiệu kết thúc một câu hỏi</td>
                 </tr>

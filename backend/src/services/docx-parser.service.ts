@@ -59,6 +59,11 @@ export class DocxParserService {
      */
     async processUploadedFile(file: MulterFile): Promise<{ questions: ParsedQuestion[], filePath: string }> {
         try {
+            // Check if file and buffer exist
+            if (!file || !file.buffer) {
+                throw new Error("Invalid file or missing buffer");
+            }
+
             // Generate unique filename
             const fileId = uuidv4();
             const ext = path.extname(file.originalname);
@@ -90,67 +95,138 @@ export class DocxParserService {
         const questions: ParsedQuestion[] = [];
 
         try {
-            // Split HTML into sections using appropriate delimiters
-            // This is highly dependent on your document structure
-            const sections = html.split('<p><strong>Question');
+            // Xử lý đặc biệt cho các phần LaTeX
+            html = this.preprocessLatex(html);
 
-            // Skip first section if it's empty or contains header info
-            for (let i = 1; i < sections.length; i++) {
-                const section = sections[i];
+            // Tách nội dung theo ký hiệu [<br>]
+            const questionBlocks = html.split('[<br>]');
 
-                // Parse question number and content
-                const questionRegex = /(\d+):<\/strong>(.*?)(?:<p>A\.|<p>Options:|$)/s;
-                const questionMatch = section.match(questionRegex);
+            for (const block of questionBlocks) {
+                if (!block.trim()) continue;
 
-                if (!questionMatch) continue;
-
-                const questionContent = questionMatch[2].trim();
-
-                // Determine question type based on content
-                let questionType = 'single-choice';
-                if (questionContent.includes('___')) {
-                    questionType = 'fill-blank';
+                // Phân tích các câu hỏi và các câu trả lời
+                const question = this.parseQuestionBlock(block);
+                if (question) {
+                    questions.push(question);
                 }
-
-                // Extract answers for multiple choice questions
-                const answers: Array<{
-                    content: string;
-                    isCorrect: boolean;
-                    order: number;
-                }> = [];
-
-                if (questionType === 'single-choice') {
-                    // Find answers with patterns like "A. Answer text"
-                    const answerRegex = /<p>([A-D])\.\s*(.*?)(?=<p>[A-D]\.|<p>|$)/gs;
-                    let answerMatch;
-
-                    while ((answerMatch = answerRegex.exec(section)) !== null) {
-                        const letter = answerMatch[1];
-                        const content = answerMatch[2].trim();
-
-                        // Check if this answer is marked as correct (usually with * or other marker)
-                        // This depends on your document format
-                        const isCorrect = content.includes('*');
-                        const cleanContent = content.replace('*', '').trim();
-
-                        answers.push({
-                            content: cleanContent,
-                            isCorrect,
-                            order: letter.charCodeAt(0) - 'A'.charCodeAt(0)
-                        });
-                    }
-                }
-
-                questions.push({
-                    content: questionContent,
-                    type: questionType,
-                    answers: answers
-                });
             }
+
+            // Xử lý các câu hỏi nhóm
+            questions.push(...this.parseGroupQuestions(html));
 
             return questions;
         } catch (error) {
             this.logger.error(`Error extracting questions from HTML: ${error.message}`, error.stack);
+            return [];
+        }
+    }
+
+    /**
+     * Tiền xử lý nội dung LaTeX trong HTML
+     */
+    private preprocessLatex(html: string): string {
+        // Giữ nguyên các công thức LaTeX
+        return html.replace(/<span class="latex">(.*?)<\/span>/g, (match, formula) => {
+            return `$$${formula}$$`;
+        });
+    }
+
+    /**
+     * Phân tích một khối câu hỏi
+     */
+    private parseQuestionBlock(block: string): ParsedQuestion | null {
+        try {
+            // Tìm nội dung câu hỏi - giả sử nội dung câu hỏi là từ đầu đến dòng đầu tiên bắt đầu bằng "A."
+            const questionContentMatch = block.match(/^(.*?)(?=<p>A\.|$)/s);
+            if (!questionContentMatch) return null;
+
+            let content = questionContentMatch[1].trim();
+
+            // Xóa tiền tố CLO nếu có
+            content = content.replace(/\(CLO\d+\)\s*/, '');
+
+            // Xác định loại câu hỏi
+            let type = 'single-choice';
+            if (content.includes('___') || content.includes('...')) {
+                type = 'fill-blank';
+            }
+
+            // Tìm các câu trả lời
+            const answers: Array<{ content: string, isCorrect: boolean, order: number }> = [];
+            const answerMatches = block.matchAll(/<p>([A-D])\.?\s*(.*?)(?=<p>[A-D]\.|<p>\(|$)/gs);
+
+            for (const match of answerMatches) {
+                const letter = match[1];
+                let answerContent = match[2].trim();
+
+                // Kiểm tra đáp án đúng (gạch chân hoặc đánh dấu)
+                const isCorrect = answerContent.includes('<u>') || answerContent.includes('<strong>') || answerContent.includes('*');
+
+                // Làm sạch nội dung
+                answerContent = answerContent
+                    .replace(/<u>(.*?)<\/u>/g, '$1')
+                    .replace(/<strong>(.*?)<\/strong>/g, '$1')
+                    .replace(/\*/g, '')
+                    .trim();
+
+                answers.push({
+                    content: answerContent,
+                    isCorrect,
+                    order: letter.charCodeAt(0) - 'A'.charCodeAt(0)
+                });
+            }
+
+            return {
+                content,
+                type,
+                answers
+            };
+        } catch (error) {
+            this.logger.error(`Error parsing question block: ${error.message}`);
+            return null;
+        }
+    }
+
+    /**
+     * Phân tích câu hỏi nhóm
+     */
+    private parseGroupQuestions(html: string): ParsedQuestion[] {
+        const questions: ParsedQuestion[] = [];
+
+        try {
+            // Tìm tất cả các nhóm câu hỏi [<sg>]...[</sg>]
+            const groupMatches = html.matchAll(/\[<sg>\](.*?)\[<\/sg>\]/gs);
+
+            for (const groupMatch of groupMatches) {
+                const groupContent = groupMatch[1];
+
+                // Tìm nội dung chung của nhóm
+                const commonContentMatch = groupContent.match(/(.*?)\[<egc>\]/s);
+                if (!commonContentMatch) continue;
+
+                const commonContent = commonContentMatch[1].trim();
+
+                // Tìm các câu hỏi con trong nhóm
+                const subQuestionMatches = groupContent.matchAll(/\(<(\d+)>\)(.*?)(?=\(<\d+>\)|$)/gs);
+
+                for (const subQuestionMatch of subQuestionMatches) {
+                    const number = subQuestionMatch[1];
+                    const subQuestionContent = subQuestionMatch[2];
+
+                    // Xử lý tương tự như câu hỏi đơn
+                    const question = this.parseQuestionBlock(subQuestionContent);
+
+                    if (question) {
+                        // Thêm nội dung chung vào nội dung câu hỏi
+                        question.content = `${commonContent}\n\nQuestion ${number}: ${question.content}`;
+                        questions.push(question);
+                    }
+                }
+            }
+
+            return questions;
+        } catch (error) {
+            this.logger.error(`Error parsing group questions: ${error.message}`);
             return [];
         }
     }
