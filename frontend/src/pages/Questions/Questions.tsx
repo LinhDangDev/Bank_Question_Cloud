@@ -34,6 +34,10 @@ interface Question {
   NgayTao: string;
   NgaySua: string;
   MaCLO: string;
+  cloInfo?: {
+    MaCLO: string;
+    TenCLO: string;
+  };
   answers: Answer[];
 }
 
@@ -49,24 +53,26 @@ interface ApiResponse {
 }
 
 const typeColors: Record<string, string> = {
-  '02CDC541-6931-461A-8751-0843AC45D6DC': 'bg-green-100 text-green-700',
-  '06400160-101B-4314-ACD8-10E4D04FE281': 'bg-blue-100 text-blue-700',
-  'B4871A30-80B8-4258-A82D-08372A2F2D0E': 'bg-purple-100 text-purple-700',
-  '52A8D25D-30F7-4050-839E-6469AAEB460F': 'bg-orange-100 text-orange-700',
-  '56F836D9-F018-4B18-ABE5-49DB7CEAD511': 'bg-yellow-100 text-yellow-700',
-  '0078EDC5-34D7-433E-AC6C-320C4AE9CC78': 'bg-indigo-100 text-indigo-700',
-  '6742EC82-8885-476A-95DA-14C4A8842640': 'bg-pink-100 text-pink-700',
-  '0D6DE122-AC00-43C4-9F02-C5AAFC6C659C': 'bg-teal-100 text-teal-700',
-  '7ED17AE5-B09F-4C3F-AF22-A4C66530C8F1': 'bg-cyan-100 text-cyan-700',
-  '8E1DDF50-9182-4F3E-A648-6D2B35A657C2': 'bg-lime-100 text-lime-700',
-  'E4312199-11B5-4056-AD2F-EFDA7861995D': 'bg-sky-100 text-sky-700',
-  'FEF89752-BBBA-4381-935C-C46B30D8AD14': 'bg-amber-100 text-amber-700',
-  '521261FE-F4EA-4485-9563-3A53FAF81904': 'bg-violet-100 text-violet-700',
-  'F4BB3505-CD52-46DB-A276-C31F4A09A3D0': 'bg-fuchsia-100 text-fuchsia-700',
-  '1D7B0021-7638-412C-BBB8-73E0636E813A': 'bg-emerald-100 text-emerald-700',
-  '33BB05D0-397A-47EF-AEF4-767FEE4C0888': 'bg-rose-100 text-rose-700',
-  '4DD24655-607E-4C98-96F4-64EE0A231C47': 'bg-slate-100 text-slate-700',
-  '68B05918-2ACF-4C77-AA01-3812D229DA24': 'bg-gray-100 text-gray-700'
+  'CLO 1': 'bg-green-100 text-green-700',
+  'CLO 2': 'bg-blue-100 text-blue-700',
+  'CLO 3': 'bg-purple-100 text-purple-700',
+  'CLO 4': 'bg-orange-100 text-orange-700',
+  'CLO 5': 'bg-yellow-100 text-yellow-700',
+  'CLO 6': 'bg-indigo-100 text-indigo-700',
+  'CLO 7': 'bg-pink-100 text-pink-700',
+  'CLO 8': 'bg-teal-100 text-teal-700',
+  'CLO 9': 'bg-cyan-100 text-cyan-700',
+  'CLO 10': 'bg-lime-100 text-lime-700',
+  'CLO 11': 'bg-sky-100 text-sky-700',
+  'CLO 12': 'bg-amber-100 text-amber-700',
+  'CLO 13': 'bg-violet-100 text-violet-700',
+  'CLO 14': 'bg-fuchsia-100 text-fuchsia-700',
+  'CLO 15': 'bg-emerald-100 text-emerald-700',
+  'CLO 16': 'bg-rose-100 text-rose-700',
+  'CLO 17': 'bg-slate-100 text-slate-700',
+  'CLO 18': 'bg-gray-100 text-gray-700',
+  'CLO 19': 'bg-green-200 text-green-800',
+  'CLO 20': 'bg-blue-200 text-blue-800'
 }
 
 const statusColors: Record<string, string> = {
@@ -397,8 +403,8 @@ const Questions = () => {
                     {q.MaCLO && (
                       <span className={cx(
                         "px-2 py-0.5 rounded text-xs font-medium",
-                        typeColors[q.MaCLO] || 'bg-gray-100 text-gray-700'
-                      )}>CLO-{q.MaCLO.substring(0, 6)}</span>
+                        q.cloInfo?.TenCLO ? typeColors[q.cloInfo.TenCLO] || 'bg-gray-100 text-gray-700' : 'bg-gray-100 text-gray-700'
+                      )}>{q.cloInfo?.TenCLO || 'CLO'}</span>
                     )}
                     <span className={cx(
                       "px-2 py-0.5 rounded text-xs font-medium border",

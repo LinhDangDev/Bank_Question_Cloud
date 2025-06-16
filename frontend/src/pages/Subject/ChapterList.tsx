@@ -135,6 +135,22 @@ const ChapterList = () => {
     navigate(`/questions/${maPhan}`)
   }
 
+  // Format date to show both date and time in a user-friendly format
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
+
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Invalid date';
+
+    return date.toLocaleString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   const filteredChapters = chapters.filter(chapter =>
     chapter.TenPhan.toLowerCase().includes(searchQuery.toLowerCase())
   )
@@ -224,8 +240,8 @@ const ChapterList = () => {
                 <p>Số lượng câu hỏi: {chapter.SoLuongCauHoi}</p>
                 <p>Môn học: {chapter.MonHoc?.TenMonHoc || subject?.TenMonHoc}</p>
                 <p>Khoa: {chapter.MonHoc?.Khoa?.TenKhoa || subject?.Khoa?.TenKhoa}</p>
-                <p>Ngày tạo: {new Date(chapter.NgayTao).toLocaleDateString('vi-VN')}</p>
-                <p>Ngày sửa: {new Date(chapter.NgaySua).toLocaleDateString('vi-VN')}</p>
+                <p>Ngày tạo: {formatDate(chapter.NgayTao)}</p>
+                <p>Ngày sửa: {formatDate(chapter.NgaySua)}</p>
               </div>
               <div className="flex justify-end gap-2 mt-4">
                 {chapter.XoaTamPhan ? (

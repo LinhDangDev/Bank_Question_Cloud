@@ -9,6 +9,7 @@ import { CreateCauHoiDto, UpdateCauHoiDto, CreateQuestionWithAnswersDto, UpdateQ
 import { PaginationDto } from '../../dto/pagination.dto';
 import { PAGINATION_CONSTANTS } from '../../constants/pagination.constants';
 import { CauTraLoi } from '../../entities/cau-tra-loi.entity';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class CauHoiService extends BaseService<CauHoi> {
@@ -43,7 +44,8 @@ export class CauHoiService extends BaseService<CauHoi> {
             take: limit,
             order: {
                 NgayTao: 'DESC'
-            }
+            },
+            relations: ['CLO'] // Include CLO relation to get TenCLO
         });
 
         let items: any[] = questions;
@@ -64,10 +66,20 @@ export class CauHoiService extends BaseService<CauHoi> {
                     map[answer.MaCauHoi].push(answer);
                     return map;
                 }, {});
-                items = questions.map(question => ({
-                    ...question,
-                    answers: answersMap[question.MaCauHoi] || []
-                }));
+                items = questions.map(question => {
+                    // Extract CLO information if available
+                    const cloInfo = question.CLO ? {
+                        MaCLO: question.CLO.MaCLO,
+                        TenCLO: question.CLO.TenCLO
+                    } : null;
+
+                    // Return question with CLO info and answers
+                    return {
+                        ...question,
+                        cloInfo, // Add CLO info
+                        answers: answersMap[question.MaCauHoi] || []
+                    };
+                });
             } else {
                 // Get paginated answers for each question
                 const answersPromises = questionIds.map(async (questionId) => {
@@ -93,10 +105,20 @@ export class CauHoiService extends BaseService<CauHoi> {
                     };
                     return map;
                 }, {});
-                items = questions.map(question => ({
-                    ...question,
-                    answers: answersMap[question.MaCauHoi] || { items: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0 } }
-                }));
+                items = questions.map(question => {
+                    // Extract CLO information if available
+                    const cloInfo = question.CLO ? {
+                        MaCLO: question.CLO.MaCLO,
+                        TenCLO: question.CLO.TenCLO
+                    } : null;
+
+                    // Return question with CLO info and answers
+                    return {
+                        ...question,
+                        cloInfo, // Add CLO info
+                        answers: answersMap[question.MaCauHoi] || { items: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0 } }
+                    };
+                });
             }
         }
 
@@ -227,27 +249,68 @@ export class CauHoiService extends BaseService<CauHoi> {
         await queryRunner.startTransaction();
 
         try {
+            console.log('Creating question with answers. Payload:', JSON.stringify(dto, null, 2));
+
             // Create the question
             const questionData = {
                 ...dto.question,
+                MaCauHoi: randomUUID(), // Generate UUID explicitly instead of relying on DEFAULT
                 NgayTao: new Date(),
             };
+
+            // Validate required fields
+            if (!questionData.MaPhan) {
+                throw new Error('MaPhan is required');
+            }
+
+            if (!questionData.MaSoCauHoi) {
+                // Generate a random question number if not provided
+                questionData.MaSoCauHoi = Math.floor(Math.random() * 9000) + 1000;
+            }
+
+            // Set default values for optional fields if not provided
+            if (questionData.XoaTamCauHoi === undefined) {
+                questionData.XoaTamCauHoi = false;
+            }
+
+            if (questionData.SoLanDuocThi === undefined) {
+                questionData.SoLanDuocThi = 0;
+            }
+
+            if (questionData.SoLanDung === undefined) {
+                questionData.SoLanDung = 0;
+            }
+
+            console.log('Creating question with data:', JSON.stringify(questionData, null, 2));
+
             const question = queryRunner.manager.create(CauHoi, questionData);
             const savedQuestion = await queryRunner.manager.save(question);
+
+            console.log('Question created successfully:', savedQuestion.MaCauHoi);
 
             // Create the answers
             const answers = dto.answers.map(answerDto => {
                 return queryRunner.manager.create(CauTraLoi, {
                     ...answerDto,
+                    MaCauTraLoi: randomUUID(), // Generate UUID explicitly for each answer
+                    // Always use the newly created question's ID for the answers
                     MaCauHoi: savedQuestion.MaCauHoi,
                 });
             });
+
+            console.log('Creating answers:', JSON.stringify(answers, null, 2));
+
             const savedAnswers = await queryRunner.manager.save(answers);
+            console.log('Answers created successfully:', savedAnswers.length);
 
             await queryRunner.commitTransaction();
             return { question: savedQuestion, answers: savedAnswers };
         } catch (error) {
             await queryRunner.rollbackTransaction();
+            console.error('Error creating question with answers:', error);
+            if (error instanceof Error) {
+                throw new Error(`Failed to create question: ${error.message}`);
+            }
             throw error;
         } finally {
             await queryRunner.release();
@@ -306,6 +369,7 @@ export class CauHoiService extends BaseService<CauHoi> {
             const answers = dto.answers.map(answerDto => {
                 return queryRunner.manager.create(CauTraLoi, {
                     ...answerDto,
+                    MaCauTraLoi: randomUUID(), // Generate UUID explicitly for each answer
                     MaCauHoi: id,
                 });
             });
@@ -324,14 +388,15 @@ export class CauHoiService extends BaseService<CauHoi> {
     async findByMaPhanWithAnswers(maPhan: string, paginationDto: PaginationDto) {
         const { page = 1, limit = 10 } = paginationDto;
 
-        // Get questions for the section
+        // Get questions for the section with CLO relation
         const [questions, total] = await this.cauHoiRepository.findAndCount({
             where: { MaPhan: maPhan },
             skip: (page - 1) * limit,
             take: limit,
             order: {
                 NgayTao: 'DESC'
-            }
+            },
+            relations: ['CLO'] // Include CLO relation to get TenCLO
         });
 
         // Get all answers for these questions
@@ -352,11 +417,22 @@ export class CauHoiService extends BaseService<CauHoi> {
             return map;
         }, {});
 
-        // Combine questions with their answers
-        const items = questions.map(question => ({
-            question,
-            answers: answersMap[question.MaCauHoi] || [],
-        }));
+        // Combine questions with their answers and add CLO info
+        const items = questions.map(question => {
+            // Extract CLO information if available
+            const cloInfo = question.CLO ? {
+                MaCLO: question.CLO.MaCLO,
+                TenCLO: question.CLO.TenCLO
+            } : null;
+
+            return {
+                question: {
+                    ...question,
+                    cloInfo // Add CLO info
+                },
+                answers: answersMap[question.MaCauHoi] || [],
+            };
+        });
 
         return {
             items,

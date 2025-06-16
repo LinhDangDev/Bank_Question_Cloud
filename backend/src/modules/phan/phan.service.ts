@@ -76,7 +76,9 @@ export class PhanService {
             ...phan,
             MaPhan: uuidv4(),
             XoaTamPhan: false,
-            LaCauHoiNhom: phan.LaCauHoiNhom || false
+            LaCauHoiNhom: phan.LaCauHoiNhom || false,
+            NgayTao: new Date(),
+            NgaySua: new Date()
         });
 
         return await this.phanRepository.save(newPhan);
@@ -98,7 +100,12 @@ export class PhanService {
             }
         }
 
-        await this.phanRepository.update(maPhan, phan);
+        const updateData = {
+            ...phan,
+            NgaySua: new Date()
+        };
+
+        await this.phanRepository.update(maPhan, updateData);
         return await this.findOne(maPhan);
     }
 
@@ -110,12 +117,14 @@ export class PhanService {
     async softDelete(maPhan: string): Promise<Phan> {
         const phan = await this.findOne(maPhan);
         phan.XoaTamPhan = true;
+        phan.NgaySua = new Date();
         return await this.phanRepository.save(phan);
     }
 
     async restore(maPhan: string): Promise<Phan> {
         const phan = await this.findOne(maPhan);
         phan.XoaTamPhan = false;
+        phan.NgaySua = new Date();
         return await this.phanRepository.save(phan);
     }
 }

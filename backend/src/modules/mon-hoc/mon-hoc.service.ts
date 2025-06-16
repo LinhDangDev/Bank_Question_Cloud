@@ -34,14 +34,22 @@ export class MonHocService {
     }
 
     async findByMaKhoa(maKhoa: string): Promise<MonHoc[]> {
-        return await this.monHocRepository.find({
-            where: {
-                MaKhoa: maKhoa,
-                XoaTamMonHoc: false
-            },
-            order: { TenMonHoc: 'ASC' },
-            relations: ['Khoa']
-        });
+
+        try {
+            return await this.monHocRepository.find({
+                where: {
+                    MaKhoa: maKhoa,
+                    XoaTamMonHoc: false
+                },
+                order: { TenMonHoc: 'ASC' },
+                relations: ['Khoa']
+            });
+        } catch (error) {
+            if (error.code === 'EPARAM' && error.message.includes('Invalid GUID')) {
+                throw new BadRequestException(`Invalid Khoa ID format: ${maKhoa}`);
+            }
+            throw error;
+        }
     }
 
     async create(monHoc: CreateMonHocDto): Promise<MonHoc> {
@@ -71,7 +79,9 @@ export class MonHocService {
         const newMonHoc = this.monHocRepository.create({
             ...monHoc,
             MaMonHoc: uuidv4(),
-            XoaTamMonHoc: false
+            XoaTamMonHoc: false,
+            NgayTao: new Date(),
+            NgaySua: new Date()
         });
 
         return await this.monHocRepository.save(newMonHoc);
@@ -100,7 +110,12 @@ export class MonHocService {
             }
         }
 
-        await this.monHocRepository.update(maMonHoc, monHoc);
+        const updateData = {
+            ...monHoc,
+            NgaySua: new Date()
+        };
+
+        await this.monHocRepository.update(maMonHoc, updateData);
         return await this.findOne(maMonHoc);
     }
 
@@ -112,12 +127,14 @@ export class MonHocService {
     async softDelete(maMonHoc: string): Promise<MonHoc> {
         const monHoc = await this.findOne(maMonHoc);
         monHoc.XoaTamMonHoc = true;
+        monHoc.NgaySua = new Date();
         return await this.monHocRepository.save(monHoc);
     }
 
     async restore(maMonHoc: string): Promise<MonHoc> {
         const monHoc = await this.findOne(maMonHoc);
         monHoc.XoaTamMonHoc = false;
+        monHoc.NgaySua = new Date();
         return await this.monHocRepository.save(monHoc);
     }
 }

@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "@nestjs/bull": "^10.0.1",
+    "bull": "^4.12.0",
+    "pizzip": "^3.1.4",
+    "docxtemplater": "^3.44.0",
+    "redis": "^4.6.13",
+    "@nestjs/cache-manager": "^2.2.2",
+    "cache-manager": "^5.4.0"
+  }
+}

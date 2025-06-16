@@ -37,7 +37,7 @@ function App() {
             <Route path="faculty" element={<Faculty />} />
             <Route path="subjects/:maKhoa" element={<SubjectList />} />
             <Route path="chapters/:maMonHoc" element={<ChapterList />} />
-            <Route path="questions/:maPhan" element={<ChapterQuestions />} />
+            <Route path="chapter-questions/:maPhan" element={<ChapterQuestions />} />
             <Route path="exams" element={<Exams />} />
 
             {/* Questions routes */}
@@ -52,6 +52,7 @@ function App() {
             {/* Keep backward compatibility with old routes */}
             <Route path="create-question" element={<CreateQuestion />} />
             <Route path="upload-questions" element={<UploadQuestions />} />
+            <Route path="questions/:maPhan" element={<ChapterQuestions />} /> {/* Keep for backward compatibility */}
 
             <Route path="users" element={<Users />} />
             <Route path="add-user" element={<AddUser />} />

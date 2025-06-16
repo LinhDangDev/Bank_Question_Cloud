@@ -20,6 +20,12 @@ export class MonHoc {
     @Column({ nullable: true })
     XoaTamMonHoc: boolean;
 
+    @Column({ type: 'datetime', nullable: true })
+    NgayTao: Date;
+
+    @Column({ type: 'datetime', nullable: true })
+    NgaySua: Date;
+
     @ManyToOne(() => Khoa, khoa => khoa.MonHoc)
     @JoinColumn({ name: 'MaKhoa' })
     Khoa: Khoa;

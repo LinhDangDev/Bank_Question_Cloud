@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsUUID, IsNumber } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsUUID, IsNumber, IsDate } from 'class-validator';
 
 export class CreatePhanDto {
     @IsString()
@@ -110,4 +110,12 @@ export class PhanResponseDto {
 
     @IsBoolean()
     LaCauHoiNhom: boolean;
+
+    @IsDate()
+    @IsOptional()
+    NgayTao?: Date;
+
+    @IsDate()
+    @IsOptional()
+    NgaySua?: Date;
 }

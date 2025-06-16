@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsUUID, IsDate } from 'class-validator';
 
 export class CreateMonHocDto {
     @IsString()
@@ -52,4 +52,12 @@ export class MonHocResponseDto {
     @IsBoolean()
     @IsOptional()
     XoaTamMonHoc?: boolean;
+
+    @IsDate()
+    @IsOptional()
+    NgayTao?: Date;
+
+    @IsDate()
+    @IsOptional()
+    NgaySua?: Date;
 }

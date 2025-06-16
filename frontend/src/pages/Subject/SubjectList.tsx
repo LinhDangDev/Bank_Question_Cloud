@@ -126,6 +126,22 @@ const SubjectList = () => {
     navigate(`/chapters/${maMonHoc}`)
   }
 
+  // Format date to show both date and time in a user-friendly format
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
+
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Invalid date';
+
+    return date.toLocaleString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   const filteredSubjects = subjects.filter(subject =>
     subject.TenMonHoc.toLowerCase().includes(searchQuery.toLowerCase()) ||
     subject.MaSoMonHoc.toLowerCase().includes(searchQuery.toLowerCase())
@@ -213,8 +229,8 @@ const SubjectList = () => {
               <div className="text-sm text-muted-foreground">
                 <p>Mã môn học: {subject.MaSoMonHoc}</p>
                 <p>Khoa: {subject.Khoa?.TenKhoa || faculty?.TenKhoa}</p>
-                <p>Ngày tạo: {new Date(subject.NgayTao).toLocaleDateString('vi-VN')}</p>
-                <p>Ngày sửa: {new Date(subject.NgaySua).toLocaleDateString('vi-VN')}</p>
+                <p>Ngày tạo: {formatDate(subject.NgayTao)}</p>
+                <p>Ngày sửa: {formatDate(subject.NgaySua)}</p>
               </div>
               <div className="flex justify-end gap-2 mt-4">
                 {subject.XoaTamMonHoc ? (

@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom';
 import { Editor } from '@tinymce/tinymce-react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 // @ts-ignore
 declare global {
@@ -67,6 +67,7 @@ interface SingleChoiceQuestionProps {
 const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
   const styles = useThemeStyles();
   const navigate = useNavigate();
+  const location = useLocation();
   const [content, setContent] = useState(question?.NoiDung || '');
   const [answers, setAnswers] = useState<AnswerForm[]>(
     question?.answers
@@ -93,6 +94,100 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
   const [maMonHoc, setMaMonHoc] = useState('');
   const [maPhan, setMaPhan] = useState('');
   const [maCLO, setMaCLO] = useState('');
+  const [selectedCLOName, setSelectedCLOName] = useState('');
+
+  // Fetch CLO list from backend
+  useEffect(() => {
+    fetch('http://localhost:3000/clo')
+      .then(res => res.json())
+      .then(data => setCloList(data))
+      .catch(err => console.error("Error fetching CLO list:", err));
+  }, []);
+
+  // Parse query parameters
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const maPhanParam = searchParams.get('maPhan');
+
+    if (maPhanParam) {
+      setMaPhan(maPhanParam);
+
+      // Fetch chapter info to get monHoc and khoa
+      const fetchChapterInfo = async () => {
+        try {
+          const response = await fetch(`http://localhost:3000/phan/${maPhanParam}`);
+          if (response.ok) {
+            const chapter = await response.json();
+            if (chapter.MaMonHoc) {
+              setMaMonHoc(chapter.MaMonHoc);
+
+              // Fetch subject info to get khoa
+              const subjectResponse = await fetch(`http://localhost:3000/mon-hoc/${chapter.MaMonHoc}`);
+              if (subjectResponse.ok) {
+                const subject = await subjectResponse.json();
+                if (subject.MaKhoa) {
+                  setMaKhoa(subject.MaKhoa);
+
+                  // Now that we have maKhoa, fetch the monHoc list
+                  const monHocResponse = await fetch(`http://localhost:3000/mon-hoc/khoa/${subject.MaKhoa}`);
+                  if (monHocResponse.ok) {
+                    setMonHocList(await monHocResponse.json());
+                  }
+                }
+              }
+
+              // Fetch phan list for this monHoc
+              const phanResponse = await fetch(`http://localhost:3000/phan/mon-hoc/${chapter.MaMonHoc}`);
+              if (phanResponse.ok) {
+                setPhanList(await phanResponse.json());
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching chapter info:", error);
+        }
+      };
+
+      fetchChapterInfo();
+    }
+  }, [location.search]);
+
+  // Load khoa list if not coming from a chapter
+  useEffect(() => {
+    if (!maPhan) {
+      fetch('http://localhost:3000/khoa')
+        .then(res => res.json())
+        .then(data => setKhoaList(data));
+    }
+  }, [maPhan]);
+
+  // Load monHoc list when khoa changes
+  useEffect(() => {
+    if (maKhoa && !monHocList.length) {
+      fetch(`http://localhost:3000/mon-hoc/khoa/${maKhoa}`)
+        .then(res => res.json())
+        .then(data => setMonHocList(data));
+    }
+  }, [maKhoa, monHocList.length]);
+
+  // Load phan list when monHoc changes
+  useEffect(() => {
+    if (maMonHoc && !phanList.length) {
+      fetch(`http://localhost:3000/phan/mon-hoc/${maMonHoc}`)
+        .then(res => res.json())
+        .then(data => setPhanList(data));
+    }
+  }, [maMonHoc, phanList.length]);
+
+  // Update selectedCLOName when maCLO changes
+  useEffect(() => {
+    if (maCLO) {
+      const selectedCLO = cloList.find(clo => clo.MaCLO === maCLO);
+      if (selectedCLO) {
+        setSelectedCLOName(selectedCLO.TenCLO);
+      }
+    }
+  }, [maCLO, cloList]);
 
   const handleAnswerChange = (idx: number, value: string) => {
     setAnswers(ans => ans.map((a, i) => (i === idx ? { ...a, text: value } : a)));
@@ -115,53 +210,6 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
       window.MathJax.typesetPromise && window.MathJax.typesetPromise();
     }
   }, [showPreview, content, answers, explanation]);
-
-  useEffect(() => {
-    fetch('http://localhost:3000/khoa')
-      .then(res => res.json())
-      .then(data => setKhoaList(data));
-  }, []);
-
-  useEffect(() => {
-    if (question) {
-      // Lấy MaPhan, MaCLO từ question
-      // Cần fetch ngược lại MaMonHoc, MaKhoa từ API nếu chưa có
-      const fetchAllDropdowns = async () => {
-        // 1. Fetch Phan để lấy MaMonHoc
-        let phan: any = null;
-        if ((question as any).MaPhan) {
-          const resPhan = await fetch(`http://localhost:3000/phan/${(question as any).MaPhan}`);
-          if (resPhan.ok) phan = await resPhan.json();
-        }
-        // 2. Fetch MonHoc để lấy MaKhoa
-        let monHoc: any = null;
-        if (phan && phan.MaMonHoc) {
-          const resMon = await fetch(`http://localhost:3000/mon-hoc/${phan.MaMonHoc}`);
-          if (resMon.ok) monHoc = await resMon.json();
-        }
-        // 3. Set state cho các trường
-        if (monHoc && monHoc.MaKhoa) setMaKhoa(monHoc.MaKhoa);
-        if (phan && phan.MaMonHoc) setMaMonHoc(phan.MaMonHoc);
-        if ((question as any).MaPhan) setMaPhan((question as any).MaPhan);
-        if ((question as any).MaCLO) setMaCLO((question as any).MaCLO);
-
-        // 4. Fetch danh sách các dropdown
-        if (monHoc && monHoc.MaKhoa) {
-          const resMonList = await fetch(`http://localhost:3000/mon-hoc/khoa/${monHoc.MaKhoa}`);
-          if (resMonList.ok) setMonHocList(await resMonList.json());
-        }
-        if (phan && phan.MaMonHoc) {
-          const resPhanList = await fetch(`http://localhost:3000/phan/mon-hoc/${phan.MaMonHoc}`);
-          if (resPhanList.ok) setPhanList(await resPhanList.json());
-        }
-        if ((question as any).MaPhan) {
-          const resCloList = await fetch(`http://localhost:3000/clo?phan=${(question as any).MaPhan}`);
-          if (resCloList.ok) setCloList(await resCloList.json());
-        }
-      };
-      fetchAllDropdowns();
-    }
-  }, [question]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -197,10 +245,23 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
           body: JSON.stringify(payload)
         });
 
-        if (!res.ok) throw new Error('Lưu thất bại!');
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          console.error("API error response:", errorData);
+          throw new Error('Lưu thất bại!');
+        }
         setMessage('Lưu thành công!');
+
+        // Check if we came from a specific chapter page
+        const searchParams = new URLSearchParams(location.search);
+        const maPhanParam = searchParams.get('maPhan');
+
         setTimeout(() => {
-          navigate('/questions');
+          if (maPhanParam) {
+            navigate(`/chapter-questions/${maPhanParam}`);
+          } else {
+            navigate('/questions');
+          }
         }, 1200);
       } else {
         // Validate các trường bắt buộc
@@ -234,37 +295,66 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
           setSaving(false);
           return;
         }
+
+        // Create the question object first
+        const questionData = {
+          MaPhan: maPhan,
+          MaSoCauHoi: Math.floor(Math.random() * 9000) + 1000, // Generate a random question number
+          NoiDung: content,
+          HoanVi: !fixedOrder,
+          CapDo: parseInt(level) || 1,
+          SoCauHoiCon: 0,
+          MaCLO: maCLO,
+          XoaTamCauHoi: false, // Explicitly set to false
+          SoLanDuocThi: 0,     // Explicitly set to 0
+          SoLanDung: 0         // Explicitly set to 0
+        };
+
+        // For the answers, we don't need to include MaCauHoi
+        // The backend will assign the correct MaCauHoi after creating the question
         const mappedAnswers = answers.map((a, idx) => ({
           NoiDung: a.text,
           ThuTu: idx + 1,
           LaDapAn: a.correct,
           HoanVi: false
         }));
+
         const payload = {
-          question: {
-            MaPhan: maPhan,
-            MaSoCauHoi: Math.floor(Math.random() * 9000) + 1000,
-            NoiDung: content,
-            HoanVi: !fixedOrder,
-            CapDo: parseInt(level) || 1,
-            SoCauHoiCon: 0,
-            MaCLO: maCLO
-          },
+          question: questionData,
           answers: mappedAnswers
         };
+
+        console.log("Sending payload:", JSON.stringify(payload, null, 2));
+
         const res = await fetch('http://localhost:3000/cau-hoi/with-answers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-        if (!res.ok) throw new Error('Tạo câu hỏi thất bại!');
+
+        if (!res.ok) {
+          const errorData = await res.json();
+          console.error("API error response:", errorData);
+          throw new Error('Tạo câu hỏi thất bại!');
+        }
+
         setMessage('Tạo câu hỏi thành công!');
+
+        // Check if we came from a specific chapter page
+        const searchParams = new URLSearchParams(location.search);
+        const maPhanParam = searchParams.get('maPhan');
+
         setTimeout(() => {
-          navigate('/questions');
+          if (maPhanParam) {
+            navigate(`/chapter-questions/${maPhanParam}`);
+          } else {
+            navigate('/questions');
+          }
         }, 1200);
       }
     } catch (err) {
-      setErrorMsg('Lưu thất bại!');
+      console.error("Error saving question:", err);
+      setErrorMsg(err instanceof Error ? err.message : 'Lưu thất bại!');
     } finally {
       setSaving(false);
     }
@@ -304,7 +394,11 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
           body: JSON.stringify(payload)
         });
 
-        if (!res.ok) throw new Error('Lưu thất bại!');
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          console.error("API error response:", errorData);
+          throw new Error('Lưu thất bại!');
+        }
         setMessage('Lưu thành công!');
       } else {
         // Validate các trường bắt buộc
@@ -338,39 +432,60 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
           setSaving(false);
           return;
         }
+
+        // Create the question object first
+        const questionData = {
+          MaPhan: maPhan,
+          MaSoCauHoi: Math.floor(Math.random() * 9000) + 1000, // Generate a random question number
+          NoiDung: content,
+          HoanVi: !fixedOrder,
+          CapDo: parseInt(level) || 1,
+          SoCauHoiCon: 0,
+          MaCLO: maCLO,
+          XoaTamCauHoi: false, // Explicitly set to false
+          SoLanDuocThi: 0,     // Explicitly set to 0
+          SoLanDung: 0         // Explicitly set to 0
+        };
+
+        // For the answers, we don't need to include MaCauHoi
         const mappedAnswers = answers.map((a, idx) => ({
           NoiDung: a.text,
           ThuTu: idx + 1,
           LaDapAn: a.correct,
           HoanVi: false
         }));
+
         const payload = {
-          question: {
-            MaPhan: maPhan,
-            MaSoCauHoi: Math.floor(Math.random() * 9000) + 1000,
-            NoiDung: content,
-            HoanVi: !fixedOrder,
-            CapDo: parseInt(level) || 1,
-            SoCauHoiCon: 0,
-            MaCLO: maCLO
-          },
+          question: questionData,
           answers: mappedAnswers
         };
+
+        console.log("Sending payload:", JSON.stringify(payload, null, 2));
+
         const res = await fetch('http://localhost:3000/cau-hoi/with-answers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-        if (!res.ok) throw new Error('Tạo câu hỏi thất bại!');
-        setMessage('Tạo câu hỏi thành công!');
-      }
 
-      // Always redirect to create page for "Save & Add"
-      setTimeout(() => {
-        navigate('/questions/create');
-      }, 1200);
+        if (!res.ok) {
+          const errorData = await res.json();
+          console.error("API error response:", errorData);
+          throw new Error('Tạo câu hỏi thất bại!');
+        }
+
+        setMessage('Tạo câu hỏi thành công!');
+
+        // Reset form for adding another question
+        setContent('');
+        setAnswers(defaultAnswers);
+        setExplanation('');
+        setFixedOrder(false);
+        setAdvanced(false);
+      }
     } catch (err) {
-      setErrorMsg('Lưu thất bại!');
+      console.error("Error saving question:", err);
+      setErrorMsg(err instanceof Error ? err.message : 'Lưu thất bại!');
     } finally {
       setSaving(false);
     }

@@ -1,11 +1,11 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import PageContainer from "../../components/ui/PageContainer"
-import { Card } from "@/components/ui/Card"
 import { useThemeStyles, cx } from "../../utils/theme"
 import { File, Upload, ChevronRight, Edit, Check, X, Trash } from "lucide-react"
+import { useLocation, useNavigate } from "react-router-dom"
 
 interface QuestionTypeCardProps {
   icon: React.ReactNode
@@ -20,7 +20,7 @@ const QuestionTypeCard = ({ icon, title, description, onClick, isSelected }: Que
   return (
     <div
       className={cx(
-        "border rounded-lg p-4 flex flex-col items-center text-center gap-2 cursor-pointer transition-all",
+        "border rounded-lg p-4 flex flex-col items-center text-center gap-2 cursor-pointer transition-all hover:shadow-md",
         isSelected
           ? "border-blue-500 bg-blue-50 shadow-md"
           : `${styles.isDark ? 'border-gray-700 hover:border-gray-500' : 'border-gray-200 hover:border-gray-300'}`,
@@ -269,9 +269,21 @@ type QuestionType =
 
 const CreateQuestion = () => {
   const styles = useThemeStyles();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [selectedType, setSelectedType] = useState<QuestionType | null>(null);
   const [step, setStep] = useState<number>(1);
   const [uploadedQuestions, setUploadedQuestions] = useState<Question[]>([]);
+  const [maPhan, setMaPhan] = useState<string | null>(null);
+
+  // Extract maPhan from URL query parameters
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const maPhanParam = searchParams.get('maPhan');
+    if (maPhanParam) {
+      setMaPhan(maPhanParam);
+    }
+  }, [location.search]);
 
   const questionTypes = [
     {
@@ -345,14 +357,29 @@ const CreateQuestion = () => {
                 onClick={() => {
                   setSelectedType(type.id as QuestionType);
                   if (type.id === 'upload') {
-                    window.location.href = '/questions/upload';
+                    navigate('/questions/upload');
                   } else {
-                    window.location.href = `/questions/edit/new?type=${type.id}`;
+                    // Pass maPhan as query parameter if available
+                    const queryParam = maPhan ? `?maPhan=${maPhan}` : '';
+                    navigate(`/questions/edit/new?type=${type.id}${maPhan ? `&maPhan=${maPhan}` : ''}`);
                   }
                 }}
               />
             ))}
           </div>
+
+          {/* Show back button if we came from a chapter */}
+          {maPhan && (
+            <div className="flex justify-start mt-6">
+              <Button
+                variant="outline"
+                onClick={() => navigate(`/chapter-questions/${maPhan}`)}
+                className={styles.outlineButton}
+              >
+                Quay lại danh sách câu hỏi
+              </Button>
+            </div>
+          )}
         </div>
       );
     } else if (step === 2) {
@@ -386,7 +413,7 @@ const CreateQuestion = () => {
             </Button>
           </div>
           <div className={cx(
-            "border rounded-lg",
+            "border rounded-lg overflow-hidden",
             styles.isDark ? 'border-gray-700' : 'border-gray-200'
           )}>
             {uploadedQuestions.map((question, index) => (
@@ -394,7 +421,8 @@ const CreateQuestion = () => {
                 key={question.id}
                 className={cx(
                   "p-4 border-b last:border-b-0",
-                  styles.isDark ? 'border-gray-700' : 'border-gray-200'
+                  styles.isDark ? 'border-gray-700' : 'border-gray-200',
+                  styles.isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50'
                 )}
               >
                 <div className="flex items-start justify-between gap-4 mb-3">
@@ -508,10 +536,29 @@ const CreateQuestion = () => {
 
   return (
     <PageContainer className="p-6">
-      <h1 className="text-2xl font-bold mb-6">Tạo câu hỏi mới</h1>
-      <Card className="w-full">
-        {renderStep()}
-      </Card>
+      <div className={cx(
+        "max-w-8xl mx-auto",
+        styles.isDark ? 'bg-white-900' : 'bg-white'
+      )}>
+        <div className={cx(
+          "border-b mb-7 pb-5",
+          styles.isDark ? 'border-gray-800' : 'border-gray-200'
+        )}>
+          <h1 className={cx(
+            "text-2xl font-bold",
+            styles.isDark ? 'text-gray-100' : 'text-gray-900'
+          )}>
+            Tạo câu hỏi mới
+          </h1>
+        </div>
+
+        <div className={cx(
+          "p-6 rounded-lg",
+          styles.isDark ? 'bg-gray-850 shadow-xl' : 'bg-white shadow-sm'
+        )}>
+          {renderStep()}
+        </div>
+      </div>
     </PageContainer>
   )
 }

@@ -4,7 +4,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class CreateCauTraLoiDto {
     @ApiProperty({ description: 'Question ID this answer belongs to' })
     @IsUUID()
-    MaCauHoi: string;
+    @IsOptional()
+    MaCauHoi?: string;
 
     @ApiPropertyOptional({ description: 'Answer content' })
     @IsString()

@@ -7,6 +7,7 @@
 	],
     "settings": {
         "powershell.cwd": "Graduation",
-        "liveServer.settings.multiRootWorkspaceName": "UI"
+        "liveServer.settings.multiRootWorkspaceName": "UI",
+        "postman.settings.dotenv-detection-notification-visibility": false
     }
 }

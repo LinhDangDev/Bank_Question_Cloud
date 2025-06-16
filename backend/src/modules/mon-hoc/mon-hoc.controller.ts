@@ -11,14 +11,14 @@ export class MonHocController {
         return await this.monHocService.findAll();
     }
 
-    @Get(':id')
-    async findOne(@Param('id') id: string) {
-        return await this.monHocService.findOne(id);
-    }
-
     @Get('khoa/:maKhoa')
     async findByMaKhoa(@Param('maKhoa') maKhoa: string) {
         return await this.monHocService.findByMaKhoa(maKhoa);
+    }
+
+    @Get(':id')
+    async findOne(@Param('id') id: string) {
+        return await this.monHocService.findOne(id);
     }
 
     @Post()

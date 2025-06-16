@@ -35,6 +35,12 @@ export class Phan {
     @Column()
     LaCauHoiNhom: boolean;
 
+    @Column({ type: 'datetime', nullable: true })
+    NgayTao: Date;
+
+    @Column({ type: 'datetime', nullable: true })
+    NgaySua: Date;
+
     @ManyToOne(() => MonHoc, monHoc => monHoc.Phan)
     @JoinColumn({ name: 'MaMonHoc' })
     MonHoc: MonHoc;
