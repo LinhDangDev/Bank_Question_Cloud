@@ -1,11 +1,13 @@
-import { useState } from 'react'
+import React, { useEffect, useState } from 'react'
+import axios from 'axios'
+import { API_BASE_URL } from '@/config'
+import { useThemeStyles, cx } from '../../utils/theme'
 import { Search, Filter, Plus, Edit, Trash2, UserCheck, UserX } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import PageContainer from '../../components/ui/PageContainer'
-import { Card } from '@/components/ui/Card'
-import { useThemeStyles, cx } from '../../utils/theme'
+import { Card } from '@/components/ui/card'
 import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
+
 
 const Users = () => {
   const [searchQuery, setSearchQuery] = useState('')

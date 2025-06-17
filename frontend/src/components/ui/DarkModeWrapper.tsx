@@ -24,7 +24,7 @@ const DarkModeWrapper: React.FC<DarkModeProps> = ({
   return (
     <Component
       className={cx(
-        cardStyle ? styles.card : styles.pageContainer,
+        cardStyle ? styles.card.base : styles.pageContainer,
         className
       )}
     >
@@ -44,7 +44,7 @@ export const DarkModeContent: React.FC<{
   const styles = useThemeStyles();
 
   return (
-    <div className={cx(muted ? styles.textMuted : styles.text, className)}>
+    <div className={cx(muted ? styles.textMuted : styles.textColor, className)}>
       {children}
     </div>
   );

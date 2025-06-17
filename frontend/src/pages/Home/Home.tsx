@@ -1,13 +1,10 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import PageContainer from '../../components/ui/PageContainer';
-import { Card } from "@/components/ui/Card"
-import { useThemeStyles, cx } from '../../utils/theme';
-import { Filter, BarChart2, PieChart, TrendingUp, Calendar, Users, Download, FileText } from 'lucide-react';
+import { Filter, BarChart2, PieChart, TrendingUp, Calendar, Users, FileText } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 const Home = () => {
-  const styles = useThemeStyles();
-  const [timeRange, setTimeRange] = useState('all');
-  const [department, setDepartment] = useState('');
+  const [selectedRange, setSelectedRange] = useState('week');
 
   // Mock data - would be replaced with API data
   const departments = ['Tất cả', 'Khoa CNTT', 'Khoa Toán', 'Khoa Vật lý', 'Khoa Hóa học', 'Khoa Điện tử'];
@@ -23,8 +20,8 @@ const Home = () => {
             <Calendar size={16} className="text-gray-400" />
           </div>
           <select
-            value={timeRange}
-            onChange={(e) => setTimeRange(e.target.value)}
+            value={selectedRange}
+            onChange={(e) => setSelectedRange(e.target.value)}
             className="pl-10 pr-4 py-2 w-full border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none appearance-none"
           >
             <option value="all">Tất cả thời gian</option>
@@ -41,8 +38,6 @@ const Home = () => {
             <Filter size={16} className="text-gray-400" />
           </div>
           <select
-            value={department}
-            onChange={(e) => setDepartment(e.target.value)}
             className="pl-10 pr-4 py-2 w-full border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none appearance-none"
           >
             <option value="">Chọn khoa</option>

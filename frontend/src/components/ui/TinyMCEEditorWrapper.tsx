@@ -1,4 +1,4 @@
-import React, { forwardRef } from 'react';
+import { forwardRef } from 'react';
 
 const TinyMCEEditorWrapper = forwardRef((props: any, ref) => {
   const { Editor } = require('@tinymce/tinymce-react');

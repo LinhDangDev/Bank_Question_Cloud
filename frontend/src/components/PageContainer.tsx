@@ -12,3 +12,5 @@ const PageContainer: React.FC<PageContainerProps> = ({ children, className, ...p
     </div>
   )
 }
+
+export default PageContainer
