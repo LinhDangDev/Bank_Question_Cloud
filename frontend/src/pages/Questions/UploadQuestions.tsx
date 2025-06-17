@@ -1,10 +1,56 @@
-import { useState, useRef } from 'react';
-import { ChevronLeft, Upload as UploadIcon, FileText, Database, File, X } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import {
+  ChevronLeft,
+  Upload as UploadIcon,
+  FileText,
+  Database,
+  File,
+  X,
+  ChevronDown,
+  ChevronRight,
+  Eye,
+  Edit,
+  Trash2,
+  Users
+} from 'lucide-react';
 import { Modal } from '../../components/Modal/Modal';
 import axios from 'axios';
 import KaTeX from 'katex';
 import 'katex/dist/katex.min.css';
 import { API_BASE_URL } from '@/config';
+import { v4 as uuidv4 } from 'uuid';
+// Helper functions for displaying question difficulty
+const getDifficultyColor = (level: number) => {
+  if (!level || level <= 2) return "bg-green-100 text-green-800";
+  if (level <= 4) return "bg-yellow-100 text-yellow-800";
+  return "bg-red-100 text-red-800";
+}
+
+const getDifficultyText = (level: number) => {
+  if (!level || level <= 2) return "Dễ";
+  if (level <= 4) return "Trung bình";
+  return "Khó";
+}
+
+// Helper function to get CLO color based on CLO number
+const getCloColor = (clo: string) => {
+  if (!clo) return "bg-gray-100 text-gray-800";
+
+  // Extract the number from CLO text (e.g., "CLO1" -> 1)
+  const cloNumber = clo.match(/\d+/)?.[0];
+  if (!cloNumber) return "bg-gray-100 text-gray-800";
+
+  // Return the appropriate color based on CLO number
+  switch (cloNumber) {
+    case '1': return "bg-green-100 text-green-700";
+    case '2': return "bg-blue-100 text-blue-700";
+    case '3': return "bg-purple-100 text-purple-700";
+    case '4': return "bg-orange-100 text-orange-700";
+    case '5': return "bg-yellow-100 text-yellow-700";
+    default: return "bg-indigo-100 text-indigo-800";
+  }
+};
+
 // Component để hiển thị code với syntax highlighting
 const CodeBlock = ({ children }: { children: string }) => {
   // Xử lý syntax highlighting cho các ký hiệu đặc biệt
@@ -28,6 +74,10 @@ const UploadQuestions = () => {
   const [selectedQuestions, setSelectedQuestions] = useState<any[]>([]);
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [guideType, setGuideType] = useState<'word' | 'excel' | 'backup' | 'package'>('word');
+  // Faculty, subject, and chapter state
+  const [faculties, setFaculties] = useState<any[]>([]);
+  const [subjects, setSubjects] = useState<any[]>([]);
+  const [chapters, setChapters] = useState<any[]>([]);
   const [facultyId, setFacultyId] = useState('');
   const [subjectId, setSubjectId] = useState('');
   const [chapterId, setChapterId] = useState('');
@@ -35,6 +85,85 @@ const UploadQuestions = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Add state for selected question IDs
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
+  // Add state for expanded group questions
+  const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+
+  // Toggle group expansion
+  const toggleGroup = (questionId: string) => {
+    setExpandedGroups((prev) =>
+      prev.includes(questionId) ? prev.filter((id) => id !== questionId) : [...prev, questionId]
+    );
+  };
+
+  // Fetch faculties
+  useEffect(() => {
+    const fetchFaculties = async () => {
+      try {
+        const response = await axios.get(`${API_BASE_URL}/khoa`);
+        if (response.data) {
+          setFaculties(response.data);
+        }
+      } catch (err) {
+        console.error('Error fetching faculties:', err);
+      }
+    };
+    fetchFaculties();
+  }, []);
+
+  // Fetch subjects when faculty changes
+  useEffect(() => {
+    if (!facultyId) {
+      setSubjects([]);
+      return;
+    }
+
+    const fetchSubjects = async () => {
+      try {
+        const response = await axios.get(`${API_BASE_URL}/mon-hoc/khoa/${facultyId}`);
+        if (response.data) {
+          setSubjects(response.data);
+        }
+      } catch (err) {
+        console.error('Error fetching subjects:', err);
+      }
+    };
+    fetchSubjects();
+  }, [facultyId]);
+
+  // Fetch chapters when subject changes
+  useEffect(() => {
+    if (!subjectId) {
+      setChapters([]);
+      return;
+    }
+
+    const fetchChapters = async () => {
+      try {
+        const response = await axios.get(`${API_BASE_URL}/phan/mon-hoc/${subjectId}`);
+        if (response.data) {
+          setChapters(response.data);
+        }
+      } catch (err) {
+        console.error('Error fetching chapters:', err);
+      }
+    };
+    fetchChapters();
+  }, [subjectId]);
+
+  // Handle faculty change
+  const handleFacultyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setFacultyId(e.target.value);
+    setSubjectId('');
+    setChapterId('');
+  };
+
+  // Handle subject change
+  const handleSubjectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSubjectId(e.target.value);
+    setChapterId('');
+  };
 
   // Handle file upload for different types
   const handleFileUpload = (fileType: string) => {
@@ -57,8 +186,8 @@ const UploadQuestions = () => {
       return;
     }
 
-    // Validate file size (max 10MB)
-    const maxSize = 20 * 1024 * 1024; // 20MB
+    // Validate file size (max 50MB to handle larger files with images)
+    const maxSize = 50 * 1024 * 1024; // 50MB
     if (file.size > maxSize) {
       setError(`Kích thước tệp tin quá lớn. Tối đa ${maxSize / (1024 * 1024)}MB`);
       return;
@@ -73,36 +202,127 @@ const UploadQuestions = () => {
       formData.append('maPhan', chapterId);
     }
 
+    // Add a parameter to indicate we want to process images
+    formData.append('processImages', 'true');
+    // Request to get all questions, not just the first few
+    formData.append('limit', '100');
+
     setIsLoading(true);
     setError(null);
 
     try {
-      // Send the file to backend for processing
+      // Send the file to backend for processing with increased timeout
       const response = await axios.post(`${API_BASE_URL}/questions-import/upload`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
-        }
+        },
+        timeout: 60000 // Increase timeout to 60 seconds for larger files
       });
 
       // Process the parsed questions
       if (response.data && response.data.fileId) {
-        // Fetch the preview of parsed questions
-        const previewResponse = await axios.get(`${API_BASE_URL}/questions-import/preview/${response.data.fileId}`);
-        if (previewResponse.data && Array.isArray(previewResponse.data.items)) {
-          setSelectedQuestions(previewResponse.data.items);
+        // Fetch the preview of parsed questions with a large limit to get all questions
+        const previewResponse = await axios.get(
+          `${API_BASE_URL}/questions-import/preview/${response.data.fileId}`,
+          { params: { limit: 100 } } // Request a large number of questions
+        );
 
-          if (previewResponse.data.items.length === 0) {
+        if (previewResponse.data && Array.isArray(previewResponse.data.items)) {
+          console.log(`Received ${previewResponse.data.items.length} questions from server`);
+
+          // Process the questions before setting state
+          const processedQuestions = previewResponse.data.items.map((q: any) => {
+            // Extract CLO information from content using regex
+            const cloRegex = /\((CLO\d+)\)/;
+            const cloMatch = q.content.match(cloRegex);
+            const clo = cloMatch ? cloMatch[1] : null;
+
+            // Remove CLO tag from content for cleaner display if it was found
+            let cleanContent = q.content;
+            if (clo) {
+              cleanContent = q.content.replace(cloRegex, '').trim();
+            }
+
+            // Handle group questions specially
+            const isGroupQuestion =
+              q.content.includes('[<sg>]') ||
+              (q.childQuestions && q.childQuestions.length > 0);
+
+            // Process each answer to identify correct ones (underlined in Word)
+            const processedAnswers = q.answers ? q.answers.map((a: any) => {
+              // Check if this answer is marked as correct
+              // Look for underline tags or bold tags which might indicate correct answers
+              const isCorrect =
+                a.content.includes('<u>') ||
+                a.isCorrect === true ||
+                (a.content.match(/^(_|\*\*).*?(_|\*\*)$/) !== null);
+
+              return {
+                ...a,
+                isCorrect
+              };
+            }) : [];
+
+            // Process child questions to extract their CLO info too
+            const processedChildQuestions = q.childQuestions ? q.childQuestions.map((child: any) => {
+              // Extract CLO from child questions
+              const childCloMatch = child.content.match(cloRegex);
+              const childClo = childCloMatch ? childCloMatch[1] : null;
+
+              // Remove CLO tag from content for cleaner display if it was found
+              let childCleanContent = child.content;
+              if (childClo) {
+                childCleanContent = child.content.replace(cloRegex, '').trim();
+              }
+
+              const processedChildAnswers = child.answers ? child.answers.map((a: any) => {
+                const isCorrect =
+                  a.content.includes('<u>') ||
+                  a.isCorrect === true ||
+                  (a.content.match(/^(_|\*\*).*?(_|\*\*)$/) !== null);
+
+                return {
+                  ...a,
+                  isCorrect
+                };
+              }) : [];
+
+              return {
+                ...child,
+                id: child.id || uuidv4(),
+                content: childCleanContent,
+                clo: childClo,
+                answers: processedChildAnswers
+              };
+            }) : [];
+
+            // Add fileId to each question
+            return {
+              ...q,
+              fileId: response.data.fileId,
+              content: cleanContent,
+              clo: clo,
+              type: isGroupQuestion ? 'group' : (q.type || 'single-choice'),
+              answers: processedAnswers,
+              childQuestions: processedChildQuestions
+            };
+          });
+
+          setSelectedQuestions(processedQuestions);
+          console.log(`Processed ${processedQuestions.length} questions`);
+
+          if (processedQuestions.length === 0) {
             setError('Không tìm thấy câu hỏi nào trong tệp tin');
           }
         } else {
-          setError('Invalid response format from server');
+          setError('Định dạng phản hồi không đúng hoặc không có câu hỏi nào');
         }
       } else {
-        setError('Invalid response format from server');
+        setError('Định dạng phản hồi không đúng');
       }
     } catch (err: any) {
       console.error('Error uploading file:', err);
-      setError(err.response?.data?.message || 'Error processing file. Please check format and try again.');
+      setError(err.response?.data?.message || 'Lỗi xử lý tệp tin. Vui lòng kiểm tra định dạng và thử lại.');
     } finally {
       setIsLoading(false);
       // Reset the file input
@@ -117,12 +337,38 @@ const UploadQuestions = () => {
     setShowGuideModal(true);
   };
 
-  const handleSaveQuestions = () => {
+  // Handle select/deselect all questions
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedQuestionIds(selectedQuestions.map(q => q.id));
+    } else {
+      setSelectedQuestionIds([]);
+    }
+  };
+
+  // Handle select/deselect individual question
+  const handleSelectQuestion = (questionId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedQuestionIds(prev => [...prev, questionId]);
+    } else {
+      setSelectedQuestionIds(prev => prev.filter(id => id !== questionId));
+    }
+  };
+
+  // Set all questions as selected by default when they are loaded
+  useEffect(() => {
+    if (selectedQuestions.length > 0) {
+      setSelectedQuestionIds(selectedQuestions.map(q => q.id));
+    }
+  }, [selectedQuestions]);
+
+  // Update handleSaveQuestions to use selectedQuestionIds
+  const handleSaveQuestions = async () => {
     if (!facultyId || !subjectId || !chapterId) {
       alert('Vui lòng chọn đầy đủ Khoa, Môn học và Chương/Phần');
       return;
     }
-    if (selectedQuestions.length === 0) {
+    if (selectedQuestionIds.length === 0) {
       alert('Chưa có câu hỏi nào được chọn');
       return;
     }
@@ -130,8 +376,7 @@ const UploadQuestions = () => {
     setIsLoading(true);
     setError(null);
 
-        // We need to get the fileId from the response we got earlier
-    // For simplicity, assuming the first question contains the fileId
+    // We need to get the fileId from the response we got earlier
     const fileId = selectedQuestions[0]?.fileId;
 
     if (!fileId) {
@@ -140,48 +385,340 @@ const UploadQuestions = () => {
       return;
     }
 
-    // Get the IDs of all selected questions
-    const questionIds = selectedQuestions.map(q => q.id);
+    try {
+      // Filter the selected questions to include their CLO information
+      const selectedQuestionsWithClO = selectedQuestions
+        .filter(q => selectedQuestionIds.includes(q.id))
+        .map(q => ({
+          id: q.id,
+          clo: q.clo || null,  // Include the CLO information
+          childQuestions: q.childQuestions ? q.childQuestions.map((child: { id: string; clo?: string }) => ({
+            id: child.id,
+            clo: child.clo || null  // Include CLO for child questions too
+          })) : []
+        }));
 
-    axios.post(`${API_BASE_URL}/questions-import/save`, {
-      fileId,
-      questionIds,
-      maPhan: chapterId // Using chapterId as maPhan
-    })
-    .then(response => {
-      alert('Lưu câu hỏi thành công!');
+      // Send request to save questions with CLO information
+      const response = await axios.post(`${API_BASE_URL}/questions-import/save`, {
+        fileId,
+        questionIds: selectedQuestionIds,
+        maPhan: chapterId,
+        questionMetadata: selectedQuestionsWithClO  // Send the CLO metadata
+      });
+
+      if (response.data && response.data.success) {
+        alert(`Đã lưu thành công ${response.data.savedCount} câu hỏi!`);
       // Optionally clear questions or redirect
       // setSelectedQuestions([]);
-    })
-    .catch(err => {
-      console.error('Error saving questions:', err);
+      } else {
       setError('Lỗi khi lưu câu hỏi. Vui lòng thử lại.');
-    })
-    .finally(() => {
+      }
+    } catch (err: any) {
+      console.error('Error saving questions:', err);
+      setError(err.response?.data?.message || 'Lỗi khi lưu câu hỏi. Vui lòng thử lại.');
+    } finally {
       setIsLoading(false);
-    });
+    }
   };
 
   // Function to render LaTeX in question content
   const renderContent = (content: string) => {
+    if (!content) return <div></div>;
+
+    // Replace special tags for better display
+    let processedContent = content;
+
+    // Handle special tags for group questions with better styling
+    processedContent = processedContent
+      .replace(/\[\<sg\>\]/g, '<div class="bg-gray-50 p-3 rounded-md border-l-4 border-blue-500 my-3">')
+      .replace(/\[\<\/sg\>\]/g, '</div>')
+      .replace(/\[\<egc\>\]/g, '<hr class="my-3 border-dashed border-gray-300"/>')
+      .replace(/\[\<br\>\]/g, '');
+
+    // Replace question number references with nicer styling
+    processedContent = processedContent
+      .replace(/\{<(\d+)>\}/g, '<span class="inline-block bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-medium text-xs">$1</span>')
+      .replace(/\(<(\d+)>\)/g, '<span class="inline-block bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded font-medium text-xs">$1</span>');
+
+    // Process audio tags
+    processedContent = processedContent
+      .replace(/<audio>(.*?)<\/audio>/g, '<div class="flex items-center gap-2 my-2"><span class="text-green-600">🔊</span><span class="text-xs bg-green-50 text-green-700 p-1 rounded">$1</span></div>');
+
+    // Handle underlined answers (Word format for correct answers)
+    processedContent = processedContent
+      .replace(/<u>([A-D]\.)<\/u>/g, '<span class="text-green-700 font-bold border-b-2 border-green-500">$1</span>')
+      .replace(/<u>([A-D]\.<\/u> .*?)(?=<br|$)/g, '<span class="text-green-700 font-bold border-b-2 border-green-500">$1</span>');
+
+    // Ensure images are properly displayed with max width
+    processedContent = processedContent
+      .replace(/<img/g, '<img style="max-width: 100%; height: auto; display: block; margin: 10px 0;"');
+
     // Check if content contains LaTeX (enclosed in $ signs)
-    if (content.includes('$')) {
-      const parts = content.split(/(\$.*?\$)/g);
-      return parts.map((part, index) => {
-        if (part.startsWith('$') && part.endsWith('$')) {
-          try {
-            const latex = part.slice(1, -1);
-            const html = KaTeX.renderToString(latex, { throwOnError: false });
-            return <span key={index} dangerouslySetInnerHTML={{ __html: html }} />;
-          } catch (e) {
-            return <span key={index}>{part}</span>;
+    if (processedContent.includes('$')) {
+      try {
+        const parts = processedContent.split(/(\$.*?\$|\$\$.*?\$\$)/gs);
+        let result = '';
+
+        for (let i = 0; i < parts.length; i++) {
+          const part = parts[i];
+          if (part.startsWith('$$') && part.endsWith('$$')) {
+            // Display math (centered)
+            try {
+              const latex = part.slice(2, -2);
+              const html = KaTeX.renderToString(latex, {
+                displayMode: true,
+                throwOnError: false,
+                trust: true
+              });
+              result += `<div class="katex-display my-2">${html}</div>`;
+            } catch (e) {
+              console.error('LaTeX rendering error:', e);
+              result += part;
+            }
+          } else if (part.startsWith('$') && part.endsWith('$')) {
+            // Inline math
+            try {
+              const latex = part.slice(1, -1);
+              const html = KaTeX.renderToString(latex, {
+                displayMode: false,
+                throwOnError: false,
+                trust: true
+              });
+              result += `<span class="katex-formula">${html}</span>`;
+            } catch (e) {
+              console.error('LaTeX rendering error:', e);
+              result += part;
+            }
+          } else {
+            result += part;
           }
         }
-        return <span key={index}>{part}</span>;
-      });
+
+        return <div dangerouslySetInnerHTML={{ __html: result }} />;
+      } catch (e) {
+        console.error('Content processing error:', e);
+        return <div dangerouslySetInnerHTML={{ __html: processedContent }} />;
+      }
     }
-    return content;
+
+    // Handle images (if URLs are present)
+    if (processedContent.includes('<img') || processedContent.includes('[img]')) {
+      return <div dangerouslySetInnerHTML={{ __html: processedContent }} />;
+    }
+
+    return <div dangerouslySetInnerHTML={{ __html: processedContent }} />;
   };
+
+  // Function to render answers
+  const renderAnswers = (answers: any[]) => (
+    <div className="space-y-2 mt-3">
+      {answers.map((answer, index) => (
+        <div
+          key={index}
+          className={`flex items-start gap-2 p-2 rounded-md ${
+            answer.isCorrect
+              ? "bg-green-50 border border-green-200"
+              : "bg-gray-50 border border-gray-200"
+          }`}
+        >
+          <span className={`flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full text-xs font-medium ${
+            answer.isCorrect
+              ? "bg-green-100 text-green-700"
+              : "bg-gray-100 text-gray-700"
+          }`}>
+            {String.fromCharCode(65 + index)}
+          </span>
+          <span className={`flex-1 ${answer.isCorrect ? "text-green-700" : ""}`}>
+            {renderContent(answer.content)}
+          </span>
+          {answer.isCorrect && (
+            <span className="ml-auto bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded">
+              Đáp án
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  // Render single question as a card
+  const renderQuestionCard = (question: any, index: number) => (
+    <div
+      key={question.id}
+      className="mb-4 border rounded-lg overflow-hidden shadow-sm bg-white"
+    >
+      <div className="p-4 border-b">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center flex-wrap gap-2">
+            {question.type === 'group' ? (
+              <Users className="h-4 w-4 text-purple-600" />
+            ) : (
+              <FileText className="h-4 w-4 text-blue-600" />
+            )}
+            <span className="text-sm font-medium text-gray-600">#{index + 1}</span>
+            {question.clo && (
+              <span className={`${getCloColor(question.clo)} text-xs rounded px-2 py-0.5`}>
+                {question.clo}
+              </span>
+            )}
+            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+              question.type === 'group'
+                ? 'bg-purple-100 text-purple-700'
+                : question.type === 'fill-blank'
+                  ? 'bg-blue-100 text-blue-700'
+                  : question.type === 'multi-choice'
+                    ? 'bg-orange-100 text-orange-700'
+                    : 'bg-green-100 text-green-700'
+            }`}>
+              {question.type === 'group'
+                ? 'Câu hỏi nhóm'
+                : question.type === 'fill-blank'
+                  ? 'Điền khuyết'
+                  : question.type === 'multi-choice'
+                    ? 'Nhiều lựa chọn'
+                    : 'Đơn lựa chọn'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <input
+              type="checkbox"
+              className="h-4 w-4 text-blue-600"
+              checked={selectedQuestionIds.includes(question.id)}
+              onChange={(e) => handleSelectQuestion(question.id, e.target.checked)}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="p-4">
+        <div className="space-y-3">
+          {/* Question content */}
+          <div className="text-gray-800 font-medium">
+            {renderContent(question.content)}
+          </div>
+
+          {/* Group content if applicable */}
+          {question.groupContent && (
+            <div className="bg-gray-50 p-3 rounded-md border border-gray-200 mt-2">
+              {renderContent(question.groupContent)}
+            </div>
+          )}
+
+          {/* Answers */}
+          {question.answers && question.answers.length > 0 && (
+            renderAnswers(question.answers)
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  // Render group question with child questions
+  const renderGroupQuestionCard = (question: any, index: number) => (
+    <div
+      key={question.id}
+      className="mb-4 border rounded-lg overflow-hidden shadow-sm bg-white"
+    >
+      <div className="p-4 border-b">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Users className="h-4 w-4 text-purple-600" />
+            <span className="text-sm font-medium text-gray-600">#{index + 1}</span>
+            {question.clo && (
+              <span className={`${getCloColor(question.clo)} text-xs rounded px-2 py-0.5`}>
+                {question.clo}
+              </span>
+            )}
+            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+              question.type === 'group'
+                ? 'bg-purple-100 text-purple-700'
+                : question.type === 'fill-blank'
+                  ? 'bg-blue-100 text-blue-700'
+                  : question.type === 'multi-choice'
+                    ? 'bg-orange-100 text-orange-700'
+                    : 'bg-green-100 text-green-700'
+            }`}>
+              {question.type === 'group'
+                ? 'Câu hỏi nhóm'
+                : question.type === 'fill-blank'
+                  ? 'Điền khuyết'
+                  : question.type === 'multi-choice'
+                    ? 'Nhiều lựa chọn'
+                    : 'Đơn lựa chọn'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <input
+              type="checkbox"
+              className="h-4 w-4 text-blue-600"
+              checked={selectedQuestionIds.includes(question.id)}
+              onChange={(e) => handleSelectQuestion(question.id, e.target.checked)}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="p-4">
+        <div className="space-y-3">
+          {/* Question content */}
+          <div className="text-gray-800 font-medium">
+            {renderContent(question.content)}
+          </div>
+
+          {/* Group content if applicable */}
+          {question.groupContent && (
+            <div className="bg-gray-50 p-3 rounded-md border border-gray-200 mt-2 mb-4">
+              {renderContent(question.groupContent)}
+            </div>
+          )}
+
+          {/* Button to expand/collapse child questions */}
+          {question.childQuestions && question.childQuestions.length > 0 && (
+            <div>
+              <button
+                onClick={() => toggleGroup(question.id)}
+                className="w-full border border-gray-300 text-left px-4 py-2 rounded-md flex justify-between items-center hover:bg-gray-50"
+              >
+                <span>Xem {question.childQuestions.length} câu hỏi con</span>
+                {expandedGroups.includes(question.id) ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+              </button>
+
+              {/* Child questions (displayed when expanded) */}
+              {expandedGroups.includes(question.id) && (
+                <div className="mt-3 space-y-4">
+                  {question.childQuestions.map((childQuestion: any, childIndex: number) => (
+                    <div key={childQuestion.id} className="border rounded-md p-3 bg-gray-50">
+                      <div className="font-medium mb-2">
+                        Câu {childIndex + 1}: {renderContent(childQuestion.content)}
+                      </div>
+
+                      {childQuestion.clo && (
+                        <div className="mb-2">
+                          <span className={`${getCloColor(childQuestion.clo)} text-xs rounded px-2 py-0.5`}>
+                            {childQuestion.clo}
+                          </span>
+                        </div>
+                      )}
+
+                      {childQuestion.answers && childQuestion.answers.length > 0 &&
+                        renderAnswers(childQuestion.answers)
+                      }
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   // Renders appropriate guide content based on type
   const renderGuideContent = () => {
@@ -400,6 +937,72 @@ D. All are correct.
     );
   };
 
+  // Implement collapse functionality for group questions
+  const handleToggleGroup = (questionId: string) => {
+    setExpandedGroups(prev =>
+      prev.includes(questionId)
+        ? prev.filter(id => id !== questionId)
+        : [...prev, questionId]
+    );
+  };
+
+  // Modify the existing rendering of questions to better handle grouped questions
+  const renderGroupQuestionContent = (question: any, index: number) => {
+    const isExpanded = expandedGroups.includes(question.id);
+
+    return (
+      <div className="space-y-2">
+        {/* Group parent content */}
+        <div className="font-medium mb-3">{renderContent(question.content)}</div>
+
+        {/* Group context */}
+        {question.groupContent && (
+          <div className="bg-blue-50 p-3 rounded-md border border-blue-100 mb-3">
+            {renderContent(question.groupContent)}
+          </div>
+        )}
+
+        {/* Toggle button for child questions */}
+        <button
+          onClick={() => handleToggleGroup(question.id)}
+          className="w-full border border-gray-300 text-left px-4 py-2 rounded-md flex justify-between items-center hover:bg-gray-50"
+        >
+          <span>Xem câu hỏi con</span>
+          {isExpanded ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
+        </button>
+
+        {/* Child questions */}
+        {isExpanded && question.childQuestions && question.childQuestions.length > 0 && (
+          <div className="mt-3 space-y-3">
+            {question.childQuestions.map((childQuestion: any, childIndex: number) => (
+              <div key={childQuestion.id} className="border rounded-md p-3 bg-gray-50">
+                <div className="font-medium mb-2">
+                  Câu {childIndex + 1}: {renderContent(childQuestion.content)}
+                </div>
+
+                {childQuestion.clo && (
+                  <div className="mb-2">
+                    <span className={`${getCloColor(childQuestion.clo)} text-xs rounded px-2 py-0.5`}>
+                      {childQuestion.clo}
+                    </span>
+                  </div>
+                )}
+
+                {childQuestion.answers && childQuestion.answers.length > 0 &&
+                  renderAnswers(childQuestion.answers)
+                }
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4 max-w-7xl mx-auto px-2 sm:px-4 md:px-6">
       {/* Hidden file input */}
@@ -561,11 +1164,14 @@ D. All are correct.
             <select
               className="border p-1 sm:p-2 rounded-md w-full text-xs sm:text-sm"
               value={facultyId}
-              onChange={(e) => setFacultyId(e.target.value)}
+              onChange={handleFacultyChange}
             >
               <option value="">Chọn khoa</option>
-              <option value="khoa1">Khoa 1</option>
-              <option value="khoa2">Khoa 2</option>
+              {faculties.map(faculty => (
+                <option key={faculty.MaKhoa} value={faculty.MaKhoa}>
+                  {faculty.TenKhoa}
+                </option>
+              ))}
             </select>
           </div>
           {/* Select Môn Học */}
@@ -574,12 +1180,15 @@ D. All are correct.
             <select
               className="border p-1 sm:p-2 rounded-md w-full text-xs sm:text-sm"
               value={subjectId}
-              onChange={(e) => setSubjectId(e.target.value)}
+              onChange={handleSubjectChange}
               disabled={!facultyId}
             >
               <option value="">Chọn môn học</option>
-              <option value="mon1">Môn học 1</option>
-              <option value="mon2">Môn học 2</option>
+              {subjects.map(subject => (
+                <option key={subject.MaMonHoc} value={subject.MaMonHoc}>
+                  {subject.TenMonHoc}
+                </option>
+              ))}
             </select>
           </div>
           {/* Select Chương/Phần */}
@@ -592,106 +1201,177 @@ D. All are correct.
               disabled={!subjectId}
             >
               <option value="">Chọn chương/phần</option>
-              <option value="chuong1">Chương 1</option>
-              <option value="chuong2">Chương 2</option>
+              {chapters.map(chapter => (
+                <option key={chapter.MaPhan} value={chapter.MaPhan}>
+                  {chapter.TenPhan}
+                </option>
+              ))}
             </select>
           </div>
         </div>
       </div>
 
-      {/* Questions Table */}
-      <div className="border rounded-lg overflow-x-auto">
-        <table className="w-full table-auto">
-          <thead>
-            <tr className="bg-gray-200">
-              <th className="w-8 sm:w-12 p-1 sm:p-2"><input type="checkbox" className="w-3 h-3 sm:w-4 sm:h-4" /></th>
-              <th className="w-10 sm:w-16 p-1 sm:p-2 text-xs sm:text-sm">STT</th>
-              <th className="p-1 sm:p-2 text-xs sm:text-sm">Nội dung câu hỏi</th>
-              <th className="w-24 sm:w-32 p-1 sm:p-2 text-xs sm:text-sm">Loại câu hỏi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {selectedQuestions.length > 0 ? (
-              selectedQuestions.map((question, index) => (
-                <tr key={index} className="border-t">
-                  <td className="p-1 sm:p-2"><input type="checkbox" className="w-3 h-3 sm:w-4 sm:h-4" checked /></td>
-                  <td className="p-1 sm:p-2 text-xs sm:text-sm">{index + 1}</td>
-                  <td className="p-1 sm:p-2 text-xs sm:text-sm">
-                    <div className="space-y-1 sm:space-y-2">
-                      <div>{renderContent(question.content)}</div>
-                      <div className="pl-3 sm:pl-4 space-y-0.5 sm:space-y-1">
-                        {question.options?.map((option: any, i: number) => (
-                          <div key={i}>{renderContent(option)}</div>
-                        ))}
-                      </div>
+      {/* Questions Section */}
+      <div className="space-y-4 flex flex-col h-[calc(100vh-320px)]">
+        {/* Select All Checkbox */}
+        <div className="flex items-center gap-2 mb-2">
+          <input
+            type="checkbox"
+            className="h-4 w-4 text-blue-600"
+            checked={selectedQuestionIds.length === selectedQuestions.length && selectedQuestions.length > 0}
+            onChange={handleSelectAll}
+          />
+          <span className="text-sm font-medium">Chọn tất cả câu hỏi</span>
+
+          {selectedQuestionIds.length > 0 && (
+            <span className="text-xs text-gray-500">
+              ({selectedQuestionIds.length} / {selectedQuestions.length} câu hỏi được chọn)
+            </span>
+          )}
+        </div>
+
+        {/* Questions List - Scrollable Container */}
+        <div className="flex-1 overflow-y-auto border rounded-lg bg-gray-50 mb-4">
+          {selectedQuestions.length > 0 ? (
+            <div className="space-y-4 p-4">
+              {selectedQuestions.map((question, index) => (
+                <div key={question.id} className="border rounded-lg bg-white shadow-sm">
+                  <div className="p-4 border-b flex items-start justify-between">
+                    <div className="flex items-center flex-wrap gap-2">
+                      {question.type === 'group' ? (
+                        <Users className="h-4 w-4 text-purple-600" />
+                      ) : (
+                        <FileText className="h-4 w-4 text-blue-600" />
+                      )}
+                      <span className="text-sm font-medium text-gray-600">#{index + 1}</span>
+                      {question.clo && (
+                        <span className={`${getCloColor(question.clo)} text-xs rounded px-2 py-0.5`}>
+                          {question.clo}
+                        </span>
+                      )}
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                        question.type === 'group'
+                          ? 'bg-purple-100 text-purple-700'
+                          : question.type === 'fill-blank'
+                            ? 'bg-blue-100 text-blue-700'
+                            : question.type === 'multi-choice'
+                              ? 'bg-orange-100 text-orange-700'
+                              : 'bg-green-100 text-green-700'
+                      }`}>
+                        {question.type === 'group'
+                          ? 'Câu hỏi nhóm'
+                          : question.type === 'fill-blank'
+                            ? 'Điền khuyết'
+                            : question.type === 'multi-choice'
+                              ? 'Nhiều lựa chọn'
+                              : 'Đơn lựa chọn'}
+                      </span>
                     </div>
-                  </td>
-                  <td className="p-1 sm:p-2 text-xs sm:text-sm">{question.type}</td>
-                </tr>
-              ))
-            ) : (
-              <tr className="border-t">
-                <td colSpan={4} className="p-2 sm:p-4 text-center text-gray-500 text-xs sm:text-sm">
-                  Chưa có câu hỏi nào được tải lên
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4"
+                      checked={selectedQuestionIds.includes(question.id)}
+                      onChange={(e) => handleSelectQuestion(question.id, e.target.checked)}
+                    />
+                  </div>
 
-      {/* Statistics Button (Mobile) */}
-      <div className="md:hidden">
-        <button
-          onClick={() => setShowStats(!showStats)}
-          className="fixed bottom-16 right-4 bg-white p-2 rounded-full shadow-md z-20 border border-gray-300"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 3v18h18"/>
-            <path d="M18 17V9"/>
-            <path d="M13 17V5"/>
-            <path d="M8 17v-3"/>
-          </svg>
-        </button>
-      </div>
+                  <div className="p-4">
+                    {/* Question content */}
+                    <div className="font-medium mb-3">{renderContent(question.content)}</div>
 
-      {/* Statistics Card */}
-      {/* <div className={`
-        md:w-64 md:fixed md:top-[100px] md:right-4 bg-white p-3 sm:p-4 rounded-lg shadow-lg
-        ${showStats ? 'fixed inset-x-4 bottom-16 z-20' : 'hidden md:block'}
-      `}>
-        <div className="flex justify-between items-center">
-          <h3 className="font-medium text-sm sm:text-base">Thống kê</h3>
-          <button
-            onClick={() => setShowStats(false)}
-            className="md:hidden text-gray-500"
-          >
-            <X size={16} />
-          </button>
+                    {/* Group content */}
+                    {question.groupContent && (
+                      <div className="bg-blue-50 p-3 rounded-md border border-blue-100 mb-3">
+                        {renderContent(question.groupContent)}
+                      </div>
+                    )}
+
+                    {/* Toggle for group questions */}
+                    {question.type === 'group' && question.childQuestions && question.childQuestions.length > 0 && (
+                      <div className="mt-2 mb-4">
+                        <button
+                          onClick={() => handleToggleGroup(question.id)}
+                          className="w-full border border-gray-300 text-left px-4 py-2 rounded-md flex justify-between items-center hover:bg-gray-50"
+                        >
+                          <span>Xem {question.childQuestions.length} câu hỏi con</span>
+                          {expandedGroups.includes(question.id) ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                        </button>
+
+                        {/* Child questions */}
+                        {expandedGroups.includes(question.id) && (
+                          <div className="mt-3 space-y-3">
+                            {question.childQuestions.map((childQuestion: any, childIndex: number) => (
+                              <div key={childQuestion.id} className="border rounded-md p-3 bg-gray-50">
+                                <div className="font-medium mb-2">
+                                  Câu {childIndex + 1}: {renderContent(childQuestion.content)}
+                                </div>
+
+                                {childQuestion.clo && (
+                                  <div className="mb-2">
+                                    <span className={`${getCloColor(childQuestion.clo)} text-xs rounded px-2 py-0.5`}>
+                                      {childQuestion.clo}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {childQuestion.answers && childQuestion.answers.length > 0 &&
+                                  renderAnswers(childQuestion.answers)
+                                }
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Answer options for non-group questions */}
+                    {question.type !== 'group' && question.answers && question.answers.length > 0 &&
+                      renderAnswers(question.answers)
+                    }
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center p-8 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+              <div className="flex flex-col items-center justify-center text-gray-500">
+                <FileText className="h-12 w-12 mb-3 opacity-50" />
+                <p>Chưa có câu hỏi nào được tải lên</p>
+                <p className="text-sm mt-1">Vui lòng chọn tệp tin câu hỏi ở bước 1</p>
+              </div>
+            </div>
+          )}
         </div>
-        <div className="space-y-1 sm:space-y-2 mt-2 text-xs sm:text-sm">
-          <div className="flex justify-between">
-            <span>Tổng số câu:</span>
-            <span>{selectedQuestions.length}</span>
+
+        {/* Statistics - Fixed at Bottom */}
+        {selectedQuestions.length > 0 && (
+          <div className="sticky bottom-0 p-4 bg-gray-100 rounded-lg border border-gray-300 shadow-inner">
+            <h3 className="font-medium text-gray-900 mb-2">Thống kê</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <span className="text-gray-600">Tổng câu hỏi:</span>
+                <span className="ml-2 font-medium">{selectedQuestions.length}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">Câu hỏi đơn:</span>
+                <span className="ml-2 font-medium">{selectedQuestions.filter(q => q.type !== 'group').length}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">Câu hỏi nhóm:</span>
+                <span className="ml-2 font-medium">{selectedQuestions.filter(q => q.type === 'group').length}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">Được chọn:</span>
+                <span className="ml-2 font-medium">{selectedQuestionIds.length}</span>
+              </div>
+            </div>
           </div>
-          <div className="flex justify-between">
-            <span>Số câu hỏi nhóm:</span>
-            <span>0</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Số câu hỏi con:</span>
-            <span>0</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Số câu hỏi đơn:</span>
-            <span>0</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Số câu bị lỗi:</span>
-            <span>0</span>
-          </div>
-        </div>
-      </div> */}
+        )}
+      </div>
 
       {/* Save Button */}
       <div className="fixed bottom-4 right-4 z-20">
@@ -722,6 +1402,46 @@ D. All are correct.
       >
         {renderGuideContent()}
       </Modal>
+
+      {/* KaTeX Styles */}
+      <style>{`
+        .katex-formula .katex {
+          display: inline-block;
+          font-size: 1.1em;
+        }
+
+        /* Additional styles for better LaTeX rendering */
+        .katex-display {
+          display: block;
+          margin: 0.5em 0;
+          text-align: center;
+        }
+
+        /* Fix for fractions */
+        .katex .mfrac .frac-line {
+          border-bottom-width: 1px;
+        }
+
+        /* Fix for matrices */
+        .katex .mord.mtable {
+          vertical-align: middle;
+        }
+
+        /* Fix for chemical formulas */
+        .katex .msupsub {
+          text-align: left;
+        }
+
+        /* Fix for superscripts */
+        .katex .msup {
+          vertical-align: baseline;
+        }
+
+        /* Fix for subscripts */
+        .katex .msub {
+          vertical-align: baseline;
+        }
+      `}</style>
     </div>
   );
 };

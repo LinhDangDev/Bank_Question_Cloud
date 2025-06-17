@@ -1,0 +1,145 @@
+Câu 1: Tìm từ khác nghĩa với các từ còn lại
+	Good bye		B. こんにちは.	C. 안녕하세요.	D. 你好.
+Câu 2: Tìm từ khác nghĩa với các từ còn lại
+	Apple			B. オレンジ.	C. 사과		D. Quả táo
+Câu 3: Cho lược đồ quan hệ R(U), với U = (A,B,D,C), F= {A→BCD, C→D}. Lược đồ quan hệ R(U)  ở dạng chuẩn nào?
+A. Dạng chuẩn 1 (1NF)
+B. Dạng chuẩn 2 (2NF)
+C. Dạng chuẩn 3 (3NF)
+D. Không ở dạng chuẩn nào
+Câu 4: Trong thực tế cài đặt, một lược đồ cơ sở dữ liệu ít nhất phải đạt dạng chuẩn nào trong các dạng chuẩn sau:
+A. Dạng chuẩn 1 (1NF)
+B. Dạng chuẩn 2 (2NF)
+C. Dạng chuẩn 3 (3NF)
+D. Dạng chuẩn Boyce-Codd (BCNF)
+Câu 5: Cho lược đồ quan hệ R(U), với U = {A,B,D,C,E}, F = {A→BC, C→D, AC→E}. Lược đồ quan hệ R(U)  ở dạng chuẩn nào?
+A. Dạng chuẩn 1 (1NF)
+B. Dạng chuẩn 2 (2NF)
+C. Dạng chuẩn 3 (3NF)
+D. Không ở dạng chuẩn nào
+Câu 6: Cho loại quan hệ SINHVIEN(MSSV, HoTen, Ngaysinh, NgayVaoDoan). Phát biểu: “Ngày vào Đoàn (NgayVaoDoan) > Ngày sinh (Ngaysinh)” thuộc loại ràng buộc toàn vẹn gì?
+A. Liên quan đến miền giá trị
+B. Liên thuộc tính trên cùng loại quan hệ
+C. Liên thuộc tính liên quan hệ
+D. Do thuộc tính tổng hợp
+Câu 7: Choose difference
+A. determine
+B. cosume
+C. culure
+D. criical
+Câu 8:  Cho lược đồ quan hệ SACH gồm các thuộc tính: Mã sách, tên tên sách, giá, mã nhà xuất bản, tên nhà xuất bản và tập PTH
+F={Mã sách → tên sách, giá, mã nhà xuất bản; mã nhà xuất bản → tên nhà xuất bản}. Lược đồ quan hệ trên ở dạng chuẩn nào?
+A. 1NF
+B. 2NF
+C. 3NF
+D. Không ở dạng chuẩn nào
+Câu 9:  Cho lược đồ quan hệ HOADON(SOHD: Số hóa đơn, NGAY: Ngày lập hóa đơn, NOIDUNG: Nội dung). Ràng buộc: “Ngày lập hóa đơn phải nhỏ hơn hoặc bằng ngày hiện hành“. Hãy chỉ ra phát biểu mô tả đúng nhất?
+A. \forall</span> h \exists</span> HOADON: h.NGAY<=Getdate()
+B. \exists</span> h \exists</span> HOADON: h.NGAY<=Getdate()
+C. \forall</span> h \exists</span> HOADON: h.NGAY>=Getdate()
+D. \exists</span> h \exists</span> HOADON: h.NGAY>=Getdate()
+Câu 10: Cho lược đồ quan hệ Q(A,B,C,D,E,I) và tập phụ thuộc hàm F={ACD→EBI, CE→AD}. Q đạt dạng mấy?
+A. Dạng chuẩn 1 (1NF)
+B. Dạng chuẩn 2 (2NF)
+C. Dạng chuẩn 3 (3NF)
+D. Dạng chuẩn Boyce-Codd (BCNF)
+Câu 11: Dạng chuẩn đạt được của một lược đồ cơ sở dữ liệu là:
+A. MIN (dạng chuẩn Qi), với Qi là các lược đồ quan hệ của cơ sở dữ liệu
+B. MAX (dạng chuẩn Qi), với Qi là các lược đồ quan hệ của cơ sở dữ liệu
+C. Trung bình (dạng chuẩn Qi), với Qi là các lược đồ quan hệ của cơ sở dữ liệu
+D. Tùy vào quyết định của người phân tích
+<b>Read the following passage and mark the letter A, B, C or D to indicate the correct word or phrase that best fits each of the numbered blanks.</b>
+Nowadays, everybody knows Apples and (12) ____ everybody knows that the company was founded by Steve Jobs, an American inventor and entrepreneur. He is (13) ____ recognized as a pioneer in the field of microcomputer revolution. He helped design the first Macintosh computer, (14) ____ a small computer graphics company into Pixar, the company behind Toy Story and The Monster Inc.
+His countercultural lifestyle and philosophy was a product of the time and place of his (15) ____. Jobs was adopted and raised in San Francisco Bay Area during the 1960s. In 1972, Jobs attended Reed College from which he (16) ____ in next to no time. Jobs co-founded Apple in 1976 in order to sell Apple I personal computer. At that moment, he might (17) ____ imagine that only a year later the company tasted impressive victory with Apple II, one of the first highly successful (18) ____ personal computers. (19) ____, in 1985, following a long power struggle, Jobs was forced out of Apple. After leaving Apple, Jobs took (20) ____ of its members with him to found NeXT, a computer development company which was then bought by Apple. The purchase (21) ____ Jobs to become the company's CEO once again.
+Steve Jobs died in 2011 after battling with pancreatic cancer (22) ____ nearly a decade. Millions first learned of Job's death on a (23) ____ which had been invented by himself.
+12. A. most			B. almost 		C. the most 			D. mostly
+13. A. widely		B. hardly		C. legally 		          D. nationally
+14. A. translated		B. transferred 	C. transformed 		D. transited
+15. A. increase 		B. upbringing 	C. rising			D. grow
+16. A. dropped in		B. dropped up 	C. dropped out 	        D. dropped by
+17. A. hardly		B. truly		C. effortlessly 	D. frequently
+18. A. massly-produced		B. mass-produced
+	C. massive-produced 	D. mass-producing
+19. A. Generally		B. Frankly 		C. Fortunately 	D. Unfortunately
+20. A. few			B. a few 		C. a little		D. little
+21. A. was allowing 	B. has allowed 	C. allowed 		D. had allowed
+22. A. for			B. since		C. during 		D. of
+23. A. devil			B. deviation 		C. deviant 		D. device
+
+Câu 24:	Nghiệm của phương trình<span class= “latex”>2^x = 3.</span>
+A. x  = \log_{2}{3}.</span>
+B.  x = \log_{3}{2}.</span>
+C. x = 2^3.</span>
+D. x = 3^2.</span>
+Câu 25:	Cho   là số thực dương. Giá trị rút gọn của biểu thức P = a_4^3\sqrt{a}</span>bằng
+A. a_{6}^{5}.</span>
+B.  a_{6}^{11}.</span>
+C. a_{3}^{10}.</span>
+D. a_{3}^{7}.</span>
+Câu 26:	Bồn hoa của một trường X có dạng hình tròn bán kính bằng 8m. Người ta chia bồn hoa thành các phần như hình vẽ dưới đây và có ý định trồng hoa như sau: Phần diện tích bên trong hình vuông ABCD để trồng hoa. Phần diện tích kéo dài từ 4 cạnh của hình vuông đến đường tròn dùng để trồng cỏ. Ở bốn góc còn lại, mỗi góc trồng một cây cọ. Biết AB = 4m, giá trồng hoa là 200.000đ/m^2</span>, giá trồng cỏ là 100.000đ/m^2</span>, mỗi cây cọ giá 150.000đ. Hỏi cần bao nhiêu tiền để thực hiện việc trang trí bồn hoa đó.
+
+A. 14.865.000 đồng.		B. 12.218.000 đồng.
+C. 14.465.000 đồng.		D. 13.265.000 đồng.
+Câu 27:	Trong không gian  , đường thẳng   có phương trình là
+A. \begin{cases}x=t\\y= 0\\z = 0\end{cases}</span>
+B. \begin{cases}x=0\\y=t\\z = 0\end{cases} </span>
+C. \begin{cases}x=0\\y= t\\z = t\end{cases} </span>
+D. \begin{cases}x=0\\y=0\\z=1+t\end{cases} </span>
+
+Câu 28:Tính thể tích V của khối lăng trụ có đáy là một lục giác đều cạnh a và chiều cao của khối lăng trụ 4a
+A. V = 12a^{3}\sqrt{3}</span>
+B. V = 6a^{3}\sqrt{3} </span>
+C. V = 2a^{3}\sqrt{3}</span>
+D. V = 24a^{3}\sqrt{3}</span>
+Câu 29:	Đồ thị sau đây là đồ thị của hàm số nào?
+
+A. y = -x^{4}+2x^{2}</span>
+B. y = x^{4}-2x^{2}</span>
+C. y = x^{4}-2x^{2}+1</span>
+D. y = -x^{4}+2x^{2}+1</span>
+Câu 30: Một sóng cơ truyền dọc theo trục Ox với phương trình u=4\cos(20\pi t-2\pi x)</span>(mm). Biên độ của sóng này là
+ A. 20\pi mm</span>
+B. 4mm</span>
+C. 8 mm</span>
+D. 2\pi mm</span>
+ (https://youtu.be/UNIyC2o6ekw?si=Ufpw4Pvge3eiw_PW)
+Câu 31: 1Mark is going to...
+	Visit his family.			B. Travel.
+C. Buy a new car.			D. Not going anywhere
+Câu 32: Mark is also going to...
+	Ride a bike				B. Buy a new bike for his daughter.
+C.Buy a new furniture.		D. Buy a new car
+Câu 33: James is going to...
+	Spend one month with his grandparents.
+	Go fishing.
+	Read a book.
+	Go to buy some food.
+Câu 34: Sam is going to...
+	Call James.
+	Visit her family for a few days.
+	Read a book.
+	Go fishing.
+Câu 35: Jake is going to...
+	Help his dad.
+	Go to the cinema.
+	Cook piza.
+	Do some housework.
+Câu 36: Carla is going to...
+	Make popcorn.
+	Visit a friend.
+	Go to the beach.
+	Do some homework.
+Câu 37: Tom is not going to…
+	Have a shower.
+	Eat dinner with his family.
+	Drive to Tom’s place.
+	Do some housework.
+Câu 38: Daniel and Tom are going to…
+	Travel together.
+	Go to the pub.
+	Watch a match.
+	Have a date.
+Câu 39: Hỗn hợp X</span> gồm Al, Al_{2}O_{3}, Fe, FeO, Fe_{3}O_{4}</span> và Fe_{2}O_{3}</span> trong đó O</span> chiếm 18,49% về khối lượng. Hòa tan hết 12,98 gam X</span> cần vừa đủ 627,5 ml dung dịch HNO_{3} </span> 1M thu được dung dịch Y và 0,448 lít hỗn hợp khí Z</span> (đktc) gồm NO</span> vàN_{2}</span> có tỷ lệ mol tương ứng là 1:1. Làm bay hơi dung dịch Y</span> thu được m gam muối. Giá trị của m là:
+A. 44,688 		B. 46,888 		C. 48,686 		D. 48,666
+Câu 40: Hỗn hợp X</span> gồm Cu</span> và Fe_{3}O_{4} </span>. Hoà tan m gam hỗn hợp X</span> bằng dung dịch H_{2}SO_{4}</span> loãng dư thu được dung dịch Y</span> và\frac{8}{45}</span>m gam chất rắn không tan. Hoà tan m gam hỗn hợp X</span> bằng dung dịch HNO_{3}</span>dư thu được 0,05 molNO_{2} </span>(sản phẩm khử duy nhất). Giá trị của m là :
+A. 8,4 		B. 3,6 		C. 4,8 		D. 2,3
