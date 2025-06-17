@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, Inject } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, In } from 'typeorm';
+import { Repository, DataSource, In, IsNull } from 'typeorm';
 import { Cache } from 'cache-manager';
 import { BaseService } from '../../common/base.service';
 import { CauHoi } from '../../entities/cau-hoi.entity';
@@ -506,6 +506,132 @@ export class CauHoiService extends BaseService<CauHoi> {
             monHoc: cauHoi.Phan?.MonHoc,
             phan: cauHoi.Phan,
             clo: cauHoi.CLO
+        };
+    }
+
+    // Function to find group questions with their child questions and answers
+    async findGroupQuestions(paginationDto: PaginationDto): Promise<{ items: any[]; meta: any }> {
+        const { page = PAGINATION_CONSTANTS.DEFAULT_PAGE, limit = PAGINATION_CONSTANTS.DEFAULT_LIMIT } = paginationDto;
+
+        // Query parent questions that have SoCauHoiCon > 0 (group questions)
+        const [groupQuestions, total] = await this.cauHoiRepository.findAndCount({
+            where: {
+                MaCauHoiCha: IsNull(), // Use IsNull() instead of null
+                // We'll filter for SoCauHoiCon > 0 after fetching
+            },
+            skip: (page - 1) * limit,
+            take: limit,
+            order: {
+                NgayTao: 'DESC'
+            },
+            relations: ['CLO'] // Include CLO relation
+        });
+
+        // Filter only questions with SoCauHoiCon > 0
+        const actualGroupQuestions = groupQuestions.filter(q => q.SoCauHoiCon > 0);
+
+        // Get parent question IDs
+        const parentQuestionIds = actualGroupQuestions.map(q => q.MaCauHoi);
+
+        // If no group questions found, return empty result
+        if (parentQuestionIds.length === 0) {
+            return {
+                items: [],
+                meta: {
+                    total: 0,
+                    page,
+                    limit,
+                    totalPages: 0
+                }
+            };
+        }
+
+        // Find all child questions for these parent questions
+        const childQuestions = await this.cauHoiRepository.find({
+            where: {
+                MaCauHoiCha: In(parentQuestionIds)
+            },
+            relations: ['CLO']
+        });
+
+        // Group child questions by parent question ID
+        const childQuestionsMap = childQuestions.reduce<Record<string, any[]>>((map, question) => {
+            if (!map[question.MaCauHoiCha]) {
+                map[question.MaCauHoiCha] = [];
+            }
+            map[question.MaCauHoiCha].push(question);
+            return map;
+        }, {});
+
+        // Get all question IDs (parent and child)
+        const allQuestionIds = [
+            ...parentQuestionIds,
+            ...childQuestions.map(q => q.MaCauHoi)
+        ];
+
+        // Get all answers for all questions
+        const answers = await this.dataSource
+            .getRepository(CauTraLoi)
+            .find({
+                where: { MaCauHoi: In(allQuestionIds) },
+                order: { ThuTu: 'ASC' },
+            });
+
+        // Group answers by question ID
+        const answersMap = answers.reduce<Record<string, CauTraLoi[]>>((map, answer) => {
+            if (!map[answer.MaCauHoi]) {
+                map[answer.MaCauHoi] = [];
+            }
+            map[answer.MaCauHoi].push(answer);
+            return map;
+        }, {});
+
+        // Format the result with the structure requested
+        const items = actualGroupQuestions.map(question => {
+            // Format parent question
+            const formattedQuestion: Record<string, any> = {
+                MaCauHoi: question.MaCauHoi,
+                MaPhan: question.MaPhan,
+                MaSoCauHoi: question.MaSoCauHoi,
+                NoiDung: question.NoiDung,
+                HoanVi: question.HoanVi,
+                CapDo: question.CapDo,
+                SoCauHoiCon: question.SoCauHoiCon,
+                DoPhanCachCauHoi: question.DoPhanCachCauHoi,
+                MaCauHoiCha: question.MaCauHoiCha,
+                XoaTamCauHoi: question.XoaTamCauHoi,
+                SoLanDuocThi: question.SoLanDuocThi || 0,
+                SoLanDung: question.SoLanDung || 0,
+                NgayTao: question.NgayTao,
+                NgaySua: question.NgaySua,
+                MaCLO: question.MaCLO,
+                LaCauHoiNhom: question.SoCauHoiCon > 0,
+                TenCLO: question.CLO?.TenCLO
+            };
+
+            // Add child questions if available
+            if (childQuestionsMap[question.MaCauHoi]) {
+                formattedQuestion['CauHoiCon'] = childQuestionsMap[question.MaCauHoi].map(childQ => {
+                    return {
+                        MaCauHoi: childQ.MaCauHoi,
+                        MaSoCauHoi: childQ.MaSoCauHoi,
+                        NoiDung: childQ.NoiDung,
+                        CauTraLoi: answersMap[childQ.MaCauHoi] || []
+                    };
+                });
+            }
+
+            return formattedQuestion;
+        });
+
+        return {
+            items,
+            meta: {
+                total: total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
         };
     }
 }

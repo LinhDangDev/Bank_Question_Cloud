@@ -6,21 +6,24 @@ import * as Docxtemplater from 'docxtemplater';
 import * as mammoth from 'mammoth';
 import { v4 as uuidv4 } from 'uuid';
 import { MulterFile } from '../interfaces/multer-file.interface';
+import { randomUUID } from 'crypto';
 
-interface ParsedQuestion {
+export interface ParsedQuestion {
+    id: string;
     content: string;
-    type: string;
-    answers: Array<{
-        content: string;
-        isCorrect: boolean;
-        order: number;
-    }>;
-    files?: Array<{
-        type: string; // audio, image
-        path: string;
-    }>;
-    groupId?: string; // For grouped questions
-    inGroup?: boolean; // Flag to indicate this is part of a group
+    answers?: ParsedAnswer[];
+    type?: string;
+    childQuestions?: ParsedQuestion[];
+    files?: any[];
+    inGroup?: boolean;
+    groupId?: string;
+}
+
+export interface ParsedAnswer {
+    id: string;
+    content: string;
+    isCorrect: boolean;
+    order: number;
 }
 
 @Injectable()
@@ -129,9 +132,34 @@ export class DocxParserService {
             fs.writeFileSync(uploadPath, file.buffer);
             this.logger.log(`File saved to: ${uploadPath}`);
 
-            // Parse the file
-            const questions = await this.parseDocxToQuestions(uploadPath);
-            this.logger.log(`Successfully parsed ${questions.length} questions from file`);
+            // Use mammoth to process DOCX to HTML
+            const { value: html, messages } = await mammoth.convertToHtml({
+                path: uploadPath
+            }, {
+                // Extract image content and transform to base64
+                convertImage: mammoth.images.imgElement((image) => {
+                    return image.read()
+                        .then((imageBuffer) => {
+                            const base64 = imageBuffer.toString('base64');
+                            const mimeType = image.contentType;
+                            return {
+                                src: `data:${mimeType};base64,${base64}`
+                            };
+                        });
+                })
+            });
+
+            // Log any warnings or errors
+            messages.forEach(message => {
+                if (message.type === 'warning') {
+                    this.logger.warn(`Mammoth warning: ${message.message}`);
+                }
+            });
+
+            this.logger.log(`Processed DOCX with size ${html.length}`);
+
+            // Handle complex Word documents with multi-level structure
+            const questions = await this.parseDocxHtml(html);
 
             return {
                 questions,
@@ -309,7 +337,7 @@ export class DocxParserService {
             content = this.processLatex(content);
 
             // Extract answers
-            const answers: Array<{ content: string, isCorrect: boolean, order: number }> = [];
+            const answers: ParsedAnswer[] = [];
             const optionLines = cleanBlock.match(/[A-D]\.\s*.*(?:\n(?!\n|[A-D]\.).*)*/g);
 
             if (optionLines) {
@@ -335,6 +363,7 @@ export class DocxParserService {
                     answerContent = this.processLatex(answerContent);
 
                     answers.push({
+                        id: randomUUID(), // Add unique ID for each answer
                         content: answerContent,
                         isCorrect,
                         order: letter.charCodeAt(0) - 'A'.charCodeAt(0)
@@ -343,6 +372,7 @@ export class DocxParserService {
             }
 
             return {
+                id: uuidv4(),
                 content,
                 type,
                 answers
@@ -362,5 +392,140 @@ export class DocxParserService {
         return text.replace(/\$(.+?)\$/g, (match, formula) => {
             return `$${formula}$`;  // Keep the dollar signs for the frontend to process
         });
+    }
+
+    private async parseDocxHtml(html: string): Promise<ParsedQuestion[]> {
+        try {
+            const questions: ParsedQuestion[] = [];
+
+            // Split content by [<br>] which marks the end of a question
+            const questionBlocks = html.split(/\[\s*&lt;br&gt;\s*\]/gi);
+
+            // Process each block to extract questions
+            for (let block of questionBlocks) {
+                if (!block.trim()) continue;
+
+                // Check if it's a group question
+                const isGroup = block.includes('[&lt;sg&gt;]');
+
+                // Create basic question object
+                let question: ParsedQuestion = {
+                    id: randomUUID(),
+                    content: '',
+                    answers: [],
+                    type: 'single-choice'
+                };
+
+                if (isGroup) {
+                    // Handle group question
+                    question.type = 'group';
+
+                    // Extract group content (between [<sg>] and [<egc>])
+                    const sgRegex = /\[\s*&lt;sg&gt;\s*\]([\s\S]*?)\[\s*&lt;egc&gt;\s*\]/i;
+                    const sgMatch = block.match(sgRegex);
+
+                    if (sgMatch) {
+                        // Extract group content
+                        const groupContent = sgMatch[1].trim();
+                        question.content = groupContent;
+
+                        // Remove group content part from block for further processing
+                        block = block.replace(sgMatch[0], '');
+                    }
+
+                    // Parse child questions (look for pattern with (<number>) at start)
+                    question.childQuestions = [];
+
+                    // Look for child question pattern like (<1>) or (<2>)
+                    const childPattern = /\(\s*&lt;(\d+)&gt;\s*\)([\s\S]*?)(?=\(\s*&lt;\d+&gt;\s*\)|$)/g;
+                    let childMatch;
+
+                    while ((childMatch = childPattern.exec(block)) !== null) {
+                        const childQuestionNumber = childMatch[1];
+                        const childContent = childMatch[2].trim();
+
+                        // Create child question
+                        const childQuestion = this.parseQuestionContent(childContent);
+                        childQuestion.id = randomUUID();
+
+                        question.childQuestions.push(childQuestion);
+                    }
+
+                } else {
+                    // Regular question - parse content and answers
+                    Object.assign(question, this.parseQuestionContent(block));
+                }
+
+                questions.push(question);
+            }
+
+            return questions;
+
+        } catch (error) {
+            this.logger.error(`Error parsing HTML content: ${error.message}`, error.stack);
+            throw error;
+        }
+    }
+
+    private parseQuestionContent(content: string): ParsedQuestion {
+        const question: ParsedQuestion = {
+            id: randomUUID(),
+            content: '',
+            answers: [],
+            type: 'single-choice'
+        };
+
+        // Extract CLO information using regex
+        const cloRegex = /\(\s*CLO\d+\s*\)/i;
+        const cloMatch = content.match(cloRegex);
+
+        if (cloMatch) {
+            // Extract CLO but keep it in content for now
+            // We'll handle CLO tags in the frontend
+        }
+
+        // Split content by line breaks to separate question text and answers
+        const lines = content.split(/<\s*br\s*\/?\s*>/);
+
+        // First line should be the question text
+        if (lines.length > 0) {
+            question.content = lines[0].trim();
+
+            // Look for answers (lines starting with A., B., C., D.)
+            const answerLines = lines.filter(line =>
+                /^[A-D]\.\s/.test(line.trim())
+            );
+
+            // Process each answer
+            const parsedAnswers: ParsedAnswer[] = answerLines.map((line, index) => {
+                // Check if this is marked as correct (has underline or bold)
+                const isUnderlined = line.includes('<u>') || line.includes('</u>');
+                const isBold = line.includes('<strong>') || line.includes('</strong>');
+                const isCorrect = isUnderlined || isBold;
+
+                // Create answer object with required id property
+                return {
+                    id: randomUUID(), // Add unique ID for each answer
+                    // Clean up formatting but maintain the answer text
+                    content: line.replace(/<\/?[^>]+(>|$)/g, '').trim(),
+                    isCorrect,
+                    order: index
+                } as ParsedAnswer;
+            });
+
+            // Assign the properly formed answers array to the question
+            question.answers = parsedAnswers;
+
+            // Determine question type based on number of correct answers
+            const correctCount = question.answers.filter(a => a.isCorrect).length;
+            if (correctCount > 1) {
+                question.type = 'multi-choice';
+            } else if (correctCount === 0 && question.answers.length > 0) {
+                // If no correct answers found, mark the first one as correct
+                question.answers[0].isCorrect = true;
+            }
+        }
+
+        return question;
     }
 }

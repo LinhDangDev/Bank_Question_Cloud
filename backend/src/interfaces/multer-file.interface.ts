@@ -6,4 +6,5 @@ export interface MulterFile {
     mimetype: string;
     buffer: Buffer;
     size: number;
+    path?: string; // Add optional path property for direct file access
 }

@@ -170,4 +170,13 @@ export class CauHoiController {
     async restore(@Param('id') id: string): Promise<void> {
         return await this.cauHoiService.restoreCauHoi(id);
     }
+
+    @Get('group')
+    @ApiOperation({ summary: 'Get all group questions with child questions and answers' })
+    @ApiResponse({ status: 200, description: 'Return all group questions with child questions and answers' })
+    async findGroupQuestions(
+        @Query() paginationDto: PaginationDto
+    ) {
+        return await this.cauHoiService.findGroupQuestions(paginationDto);
+    }
 }

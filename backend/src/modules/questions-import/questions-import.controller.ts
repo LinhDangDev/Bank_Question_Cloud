@@ -34,6 +34,14 @@ export class QuestionsImportController {
                     type: 'string',
                     nullable: true,
                 },
+                processImages: {
+                    type: 'boolean',
+                    default: true,
+                },
+                limit: {
+                    type: 'number',
+                    default: 100,
+                }
             },
         },
     })
@@ -49,10 +57,15 @@ export class QuestionsImportController {
                 cb(null, `${uniqueSuffix}${ext}`);
             },
         }),
+        limits: {
+            fileSize: 50 * 1024 * 1024, // 50MB maximum file size
+        },
     }))
     async uploadFile(
         @UploadedFile() file: Express.Multer.File,
         @Body('maPhan') maPhan?: string,
+        @Body('processImages') processImages?: boolean,
+        @Body('limit') limit?: number,
     ) {
         if (!file) {
             throw new Error('No file uploaded');
@@ -65,10 +78,16 @@ export class QuestionsImportController {
             encoding: file.encoding,
             mimetype: file.mimetype,
             buffer: fs.readFileSync(file.path), // Read file from disk to get buffer
-            size: file.size
+            size: file.size,
+            path: file.path // Add path to allow direct file access
         };
 
-        return this.questionsImportService.parseAndSaveQuestions(multerFile, maPhan);
+        // Pass parsing options to the service
+        return this.questionsImportService.parseAndSaveQuestions(
+            multerFile,
+            maPhan,
+            { processImages: Boolean(processImages), limit: limit ? Number(limit) : 100 }
+        );
     }
 
     @Get('preview/:fileId')
@@ -77,18 +96,30 @@ export class QuestionsImportController {
         @Param('fileId') fileId: string,
         @Query() paginationDto: PaginationDto,
     ) {
-        return this.questionsImportService.getImportedQuestions(fileId, paginationDto);
+        // Extract and provide higher limit from query params
+        const limit = paginationDto.limit || 100;
+
+        return this.questionsImportService.getImportedQuestions(fileId, {
+            ...paginationDto,
+            limit
+        });
     }
 
     @Post('save')
     @ApiOperation({ summary: 'Save previewed questions to the database' })
     async saveQuestions(
-        @Body() payload: { fileId: string, questionIds: string[], maPhan?: string }
+        @Body() payload: {
+            fileId: string,
+            questionIds: string[],
+            maPhan?: string,
+            questionMetadata?: any[]  // Accept CLO metadata
+        }
     ) {
         return this.questionsImportService.saveQuestionsToDatabase(
             payload.fileId,
             payload.questionIds,
-            payload.maPhan
+            payload.maPhan,
+            payload.questionMetadata
         );
     }
 }
