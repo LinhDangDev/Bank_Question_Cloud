@@ -3,8 +3,24 @@ import { Button } from "@/components/ui/button";
 import { Edit } from 'lucide-react';
 import { useThemeStyles, cx } from "../utils/theme";
 import { renderLatex } from '@/utils/latex';
-import { ChildQuestion } from './QuestionItem';
 import { NavigateFunction } from 'react-router-dom';
+
+
+interface Answer {
+  MaCauTraLoi: string;
+  MaCauHoi: string;
+  NoiDung: string;
+  ThuTu: number;
+  LaDapAn: boolean;
+  HoanVi?: boolean;
+}
+
+interface ChildQuestion {
+  MaCauHoi: string;
+  MaSoCauHoi: number;
+  NoiDung: string;
+  CauTraLoi: Answer[];
+}
 
 interface ChildQuestionCardProps {
   childQuestion: ChildQuestion;
@@ -37,7 +53,7 @@ const ChildQuestionCard = ({ childQuestion, parentId, childIndex, navigate }: Ch
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
-        {childQuestion.CauTraLoi && childQuestion.CauTraLoi.map((answer, idx) => (
+        {childQuestion.CauTraLoi && childQuestion.CauTraLoi.map((answer: Answer, idx: number) => (
           <div
             key={answer.MaCauTraLoi}
             className={cx(

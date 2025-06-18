@@ -1,4 +1,5 @@
 import { useTheme } from '../context/ThemeContext';
+import { useMemo } from 'react';
 
 export function useThemeStyles() {
     const { theme } = useTheme();
@@ -118,3 +119,54 @@ export function useThemeStyles() {
 export function cx(...classes: Array<string | boolean | undefined | null>): string {
     return classes.filter(Boolean).join(' ');
 }
+
+// Use dark mode from system preference
+export const useThemeStylesMemo = () => {
+    const isDark = useMemo(() => {
+        if (typeof window === 'undefined') return false;
+        return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }, []);
+
+    return {
+        isDark,
+        primaryColor: isDark ? 'bg-blue-600' : 'bg-blue-500',
+        bgColor: isDark ? 'bg-gray-900' : 'bg-white',
+        textColor: isDark ? 'text-gray-100' : 'text-gray-900',
+        cardBg: isDark ? 'bg-gray-800' : 'bg-white',
+        outlineButton: isDark
+            ? 'border-gray-700 hover:bg-gray-800'
+            : 'border-gray-300 hover:bg-gray-100',
+    };
+};
+
+// Get CLO color based on CLO number
+export const getCloColor = (clo: string) => {
+    if (!clo) return "bg-gray-100 text-gray-800";
+
+    // Extract the number from CLO text (e.g., "CLO1" -> 1)
+    const cloNumber = clo.match(/\d+/)?.[0];
+    if (!cloNumber) return "bg-gray-100 text-gray-800";
+
+    // Return the appropriate color based on CLO number
+    switch (cloNumber) {
+        case '1': return "bg-green-100 text-green-700";
+        case '2': return "bg-blue-100 text-blue-700";
+        case '3': return "bg-purple-100 text-purple-700";
+        case '4': return "bg-orange-100 text-orange-700";
+        case '5': return "bg-yellow-100 text-yellow-700";
+        default: return "bg-indigo-100 text-indigo-800";
+    }
+};
+
+// Helper functions for displaying question difficulty
+export const getDifficultyColor = (level: number) => {
+    if (!level || level <= 2) return "bg-green-100 text-green-800";
+    if (level <= 4) return "bg-yellow-100 text-yellow-800";
+    return "bg-red-100 text-red-800";
+};
+
+export const getDifficultyText = (level: number) => {
+    if (!level || level <= 2) return "Dễ";
+    if (level <= 4) return "Trung bình";
+    return "Khó";
+};

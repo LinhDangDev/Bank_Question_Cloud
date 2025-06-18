@@ -22,6 +22,7 @@ import { v4 as uuidv4 } from 'uuid';
 // @ts-ignore - Import mammoth without type definitions
 import mammoth from 'mammoth';
 import { MathRenderer, MathJaxInitializer } from '../../components/MathRenderer';
+import QuestionItem from '../../components/QuestionItem';
 
 // Interface for parsed question
 interface ParsedQuestion {
@@ -184,22 +185,47 @@ const parseDocxWithMammoth = async (file: File): Promise<ParsedQuestion[]> => {
 
         // Process the HTML to extract questions
         // Split content by [<br>] which indicates end of a question
-        const questionBlocks = htmlContent.split('[&lt;br&gt;]');
+        const questionBlocks = htmlContent.split(/\[\s*&lt;\s*br\s*&gt;\s*\]/i);
 
         console.log(`Found ${questionBlocks.length} question blocks`);
 
-        // Enhanced answer detection function
+        // Enhanced answer detection function with stronger underline detection
         const detectCorrectAnswer = (text: string): boolean => {
           // Check various ways answers might be marked as correct
           return (
+            // Standard HTML underline markers
             text.includes('<u>') ||
             text.includes('</u>') ||
+
+            // CSS-based underline styles
             text.includes('text-decoration:underline') ||
             text.includes('text-decoration: underline') ||
+
+            // Class-based underline
             text.match(/<span\s+class="[^"]*underline[^"]*"/i) !== null ||
-            text.match(/<span\s+style="[^"]*text-decoration:\s*underline[^"]*"/i) !== null ||
-            text.includes('<strong>') || // Sometimes bold is used instead
-            text.match(/<span\s+style="[^"]*font-weight:\s*bold[^"]*"/i) !== null
+
+            // Inline style-based underline (enhanced patterns)
+            text.match(/<span\s+style="[^"]*text-decoration\s*:\s*underline[^"]*"/i) !== null ||
+            text.match(/style="[^"]*text-decoration[^:]*:[^"]*underline[^"]*"/i) !== null ||
+
+            // Word-specific underline attributes
+            text.match(/<span\s+data-underline="true"[^>]*>/i) !== null ||
+
+            // Special Word XML format for underline
+            text.match(/<w:u\s+[^>]*>/i) !== null ||
+
+            // Word XML namespace format
+            text.match(/<w:rPr[^>]*>.*?<w:u[^>]*>/i) !== null ||
+
+            // Sometimes bolding is used instead of underlining in some templates
+            // But check that it's not just the "A." part that's bold
+            (text.includes('<strong>') &&
+             !text.includes('<strong>Câu') &&
+             !/^<strong>[A-D]\.<\/strong>/.test(text)) ||
+
+            // Bold styling with additional pattern check
+            (text.match(/<span\s+style="[^"]*font-weight\s*:\s*bold[^"]*"/i) !== null &&
+             !/^<span[^>]*>[A-D]\.<\/span>/.test(text))
           );
         };
 
@@ -230,7 +256,7 @@ const parseDocxWithMammoth = async (file: File): Promise<ParsedQuestion[]> => {
             question.type = 'group';
 
             // Extract group content (between [<sg>] and [<egc>])
-            const sgMatch = block.match(/\[&lt;sg&gt;\]([\s\S]*?)\[&lt;egc&gt;\]/);
+            const sgMatch = block.match(/\[\s*&lt;\s*sg\s*&gt;\s*\]([\s\S]*?)\[\s*&lt;\s*egc\s*&gt;\s*\]/i);
             if (sgMatch) {
               question.groupContent = sgMatch[1].trim();
 
@@ -242,10 +268,11 @@ const parseDocxWithMammoth = async (file: File): Promise<ParsedQuestion[]> => {
             question.childQuestions = [];
 
             // Find child questions using pattern (<number>)
-            const childBlocks = block.split(/\(&lt;\d+&gt;\)/g).filter(b => b.trim());
+            const childBlocks = block.split(/\(\s*&lt;\s*\d+\s*&gt;\s*\)/i).filter(b => b.trim());
+            const childNumberMatches = block.match(/\(\s*&lt;\s*\d+\s*&gt;\s*\)/gi) || [];
 
             childBlocks.forEach((childBlock, childIdx) => {
-              if (!childBlock.trim()) return;
+              if (!childBlock.trim() || childIdx === 0) return; // Skip empty blocks or first split (before first marker)
 
               // Create child question
               const childQuestion: ParsedQuestion = {
@@ -259,18 +286,30 @@ const parseDocxWithMammoth = async (file: File): Promise<ParsedQuestion[]> => {
               const childCloMatch = childBlock.match(/\(CLO\d+\)/);
               if (childCloMatch) {
                 childQuestion.clo = childCloMatch[0].replace(/[()]/g, '');
+                childQuestion.content = childQuestion.content.replace(childCloMatch[0], '').trim();
               }
 
-              // Extract answers from child question with improved detection
-              const answerLines = childBlock.split(/<br\s*\/?>/g)
-                .filter(line => /^[A-D]\./.test(line.trim()));
+              // Extract the question content and answers separately
+              const contentAndAnswers = childQuestion.content.split(/<br\s*\/?>/i);
+
+              // First part is the question content
+              if (contentAndAnswers.length > 0) {
+                childQuestion.content = contentAndAnswers[0].trim();
+
+                // Extract answers - look for lines starting with A., B., C., D.
+                const answerLines = contentAndAnswers.filter(line =>
+                  /^[A-D]\./.test(line.trim())
+                );
 
               // Process each answer with enhanced detection
               answerLines.forEach((line, idx) => {
-                // Improved detection of correct answers
-                const isUnderlined = detectCorrectAnswer(line);
+                  // Use enhanced detection of correct answers
+                  const isCorrect = detectCorrectAnswer(line);
 
-                // Clean up the content while keeping the formatting for LaTeX
+                  // Extract the letter (A, B, C, D)
+                  const letter = line.trim().charAt(0);
+
+                  // Clean up the content - remove the A., B., etc. and formatting tags
                 const cleanContent = line
                   .replace(/^[A-D]\.\s*/, '') // Remove A., B. etc.
                   .replace(/<\/?u>/g, '') // Remove underline tags
@@ -280,10 +319,11 @@ const parseDocxWithMammoth = async (file: File): Promise<ParsedQuestion[]> => {
                 childQuestion.answers.push({
                   id: uuidv4(),
                   content: cleanContent,
-                  isCorrect: isUnderlined,
+                    isCorrect: isCorrect,
                   order: idx
                 });
               });
+              }
 
               // If no answer is marked as correct, default to first answer
               if (childQuestion.answers.length > 0 && !childQuestion.answers.some(a => a.isCorrect)) {
@@ -301,16 +341,32 @@ const parseDocxWithMammoth = async (file: File): Promise<ParsedQuestion[]> => {
             });
           } else {
             // Regular question
-            // Extract question content (everything before first A.)
-            const contentAndAnswers = block.split(/<br\s*\/?>/g);
+            // Extract question content and answers
+            const contentAndAnswers = block.split(/<br\s*\/?>/i);
 
-            // First line is the question content
-            question.content = contentAndAnswers[0].trim();
+            // First line is the question content (everything before first A.)
+            const questionLines = [];
+            let startedAnswers = false;
+
+            for (let i = 0; i < contentAndAnswers.length; i++) {
+              const line = contentAndAnswers[i].trim();
+              if (!startedAnswers && /^[A-D]\./.test(line)) {
+                startedAnswers = true;
+              }
+
+              if (!startedAnswers) {
+                questionLines.push(contentAndAnswers[i]);
+              }
+            }
+
+            // Join all question content lines
+            question.content = questionLines.join(' ').trim();
 
             // Extract CLO information from content if it exists
             const contentCloMatch = question.content.match(/\(CLO\d+\)/);
             if (contentCloMatch) {
               question.clo = contentCloMatch[0].replace(/[()]/g, '');
+              question.content = question.content.replace(contentCloMatch[0], '').trim();
             }
 
             // Extract answers with improved detection
@@ -318,10 +374,14 @@ const parseDocxWithMammoth = async (file: File): Promise<ParsedQuestion[]> => {
               /^[A-D]\./.test(line.trim())
             );
 
+            console.log(`Question ${index + 1} has ${answerLines.length} answer lines`);
+
             // Process each answer with enhanced detection
             answerLines.forEach((line, idx) => {
               // Use improved detection function
-              const isUnderlined = detectCorrectAnswer(line);
+              const isCorrect = detectCorrectAnswer(line);
+
+              console.log(`Answer ${idx + 1} is correct: ${isCorrect}, content: ${line.substring(0, 30)}...`);
 
               // Clean up the content while keeping the formatting for LaTeX
               const cleanContent = line
@@ -333,7 +393,7 @@ const parseDocxWithMammoth = async (file: File): Promise<ParsedQuestion[]> => {
               question.answers.push({
                 id: uuidv4(),
                 content: cleanContent,
-                isCorrect: isUnderlined,
+                isCorrect: isCorrect,
                 order: idx
               });
             });
@@ -741,7 +801,9 @@ const UploadQuestions = () => {
             >
               {/* Answer letter in a circle */}
               <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium mr-2.5 ${
-                answer.isCorrect ? 'bg-green-200 text-green-800' : 'bg-gray-200 text-gray-700'
+                answer.isCorrect
+                  ? 'bg-green-200 text-green-800'
+                  : 'bg-gray-200 text-gray-700'
               }`}>
                 {String.fromCharCode(65 + index)}
               </div>
@@ -764,471 +826,29 @@ const UploadQuestions = () => {
     );
   };
 
-  // Render single question as a card
-  const renderSingleQuestionCard = (question: any, index: number) => (
-    <div key={question.id} className="border rounded-lg overflow-hidden shadow-sm bg-white">
-      <div className="flex items-center gap-2 p-2 bg-gray-50 border-b">
-        <div className="flex items-center gap-2 flex-1">
-          <input
-            type="checkbox"
-            className="h-4 w-4"
-            checked={selectedQuestionIds.includes(question.id)}
-            onChange={(e) => handleSelectQuestion(question.id, e.target.checked)}
-          />
-          <div className="text-sm font-medium text-gray-700">#{index + 1}</div>
-          {question.clo && (
-            <span className={`${getCloColor(question.clo)} text-xs rounded px-2 py-0.5`}>
-              {question.clo}
-            </span>
-          )}
-          <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-            question.type === 'fill-blank'
-              ? 'bg-blue-100 text-blue-700'
-              : question.type === 'multi-choice'
-                ? 'bg-yellow-100 text-yellow-700'
-                : 'bg-green-100 text-green-700'
-          }`}>
-            {question.type === 'fill-blank'
-              ? 'Điền khuyết'
-              : question.type === 'multi-choice'
-                ? 'Nhiều lựa chọn'
-                : 'Đơn lựa chọn'}
-          </span>
-        </div>
+  // Modify how questions are rendered
+  const renderQuestions = () => {
+    if (!selectedQuestions.length) return null;
 
-        <div className="flex items-center gap-2">
-          <button
-            className="p-1 rounded-full hover:bg-gray-200"
-            onClick={() => handleViewQuestion(question)}
-          >
-            <Eye className="h-4 w-4 text-gray-500" />
-          </button>
-          <button
-            className="p-1 rounded-full hover:bg-gray-200"
-            onClick={() => handleEditQuestion(question)}
-          >
-            <Edit className="h-4 w-4 text-gray-500" />
-          </button>
-          <button
-            className="p-1 rounded-full hover:bg-gray-200"
-            onClick={() => handleDeleteQuestion(question.id)}
-          >
-            <Trash2 className="h-4 w-4 text-red-500" />
-          </button>
-        </div>
-      </div>
+    const filteredQuestions = filterQuestions(selectedQuestions);
 
-      <div className="p-4">
-        <div className="mb-3 text-gray-800">
-          {renderContent(question.content)}
-        </div>
-
-        {/* Display answers in 2x2 grid for better visual layout */}
-        {question.answers && question.answers.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {question.answers.map((answer: any, idx: number) => (
-              <div
-                key={idx}
-                className={`flex items-center p-2 rounded-md ${
-                  answer.isCorrect
-                    ? 'bg-green-50 border-2 border-green-300'
-                    : 'bg-gray-50 border border-gray-200'
-                }`}
-              >
-                <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium mr-2 ${
-                  answer.isCorrect
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-gray-200 text-gray-700'
-                }`}>
-                  {String.fromCharCode(65 + idx)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  {renderContent(answer.content)}
-                </div>
-                {answer.isCorrect && (
-                  <div className="flex-shrink-0 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded ml-2 font-medium">
-                    Đáp án
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="mt-2 pt-2 border-t text-xs text-gray-500 flex justify-between">
-          <div>Ngày tạo: {new Date().toLocaleDateString()}</div>
-        </div>
-      </div>
+    if (filteredQuestions.length === 0) {
+      return (
+        <div className="text-center py-10 text-gray-500">
+          Không tìm thấy câu hỏi nào phù hợp với bộ lọc
     </div>
   );
+    }
 
-  // Render group question with child questions
-  const renderGroupQuestionCard = (question: any, index: number) => (
-    <div key={question.id} className="border rounded-lg overflow-hidden shadow-sm bg-white">
-      <div className="flex items-center gap-2 p-2 bg-gray-50 border-b">
-        <div className="flex items-center gap-2 flex-1">
-          <input
-            type="checkbox"
-            className="h-4 w-4"
-            checked={selectedQuestionIds.includes(question.id)}
-            onChange={(e) => handleSelectQuestion(question.id, e.target.checked)}
-          />
-          <div className="text-sm font-medium text-gray-700">#{index + 1}</div>
-          {question.clo && (
-            <span className={`${getCloColor(question.clo)} text-xs rounded px-2 py-0.5`}>
-              {question.clo}
-            </span>
-          )}
-          <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-medium">
-            Câu hỏi nhóm
-          </span>
-          {question.childQuestions && (
-            <span className="text-xs text-gray-500">
-              ({question.childQuestions.length} câu hỏi con)
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            className="p-1 rounded-full hover:bg-gray-200"
-            onClick={() => handleViewQuestion(question)}
-          >
-            <Eye className="h-4 w-4 text-gray-500" />
-          </button>
-          <button
-            className="p-1 rounded-full hover:bg-gray-200"
-            onClick={() => handleEditQuestion(question)}
-          >
-            <Edit className="h-4 w-4 text-gray-500" />
-          </button>
-          <button
-            className="p-1 rounded-full hover:bg-gray-200"
-            onClick={() => handleDeleteQuestion(question.id)}
-          >
-            <Trash2 className="h-4 w-4 text-red-500" />
-          </button>
-        </div>
-      </div>
-
-      <div className="p-4">
-        <div className="mb-3 text-gray-800">
-          {renderContent(question.content)}
-        </div>
-
-        {question.groupContent && (
-          <div className="bg-gray-50 p-3 rounded-md border border-gray-200 mb-3">
-            {renderContent(question.groupContent)}
-          </div>
-        )}
-
-        {/* Button to toggle showing child questions */}
-        <button
-          onClick={() => toggleGroup(question.id)}
-          className="w-full border border-gray-200 flex items-center justify-between p-2 rounded-md bg-white hover:bg-gray-50"
-        >
-          <span className="text-sm">
-            {expandedGroups.includes(question.id) ? 'Ẩn câu hỏi con' : 'Xem câu hỏi con'}
-          </span>
-          {expandedGroups.includes(question.id) ? (
-            <ChevronDown className="h-4 w-4" />
-          ) : (
-            <ChevronRight className="h-4 w-4" />
-          )}
-        </button>
-
-        {/* Display child questions when expanded */}
-        {expandedGroups.includes(question.id) && question.childQuestions && (
-          <div className="mt-3 space-y-3 border-t pt-3">
-            {question.childQuestions.map((childQ: any, childIdx: number) => (
-              <div key={childIdx} className="border rounded-md bg-gray-50 p-3">
-                <div className="font-medium mb-2 flex items-center gap-2">
-                  <div className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs">
-                    Câu {childIdx + 1}
-                  </div>
-                  {childQ.clo && (
-                    <span className={`${getCloColor(childQ.clo)} text-xs rounded px-2 py-0.5`}>
-                      {childQ.clo}
-                    </span>
-                  )}
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                    childQ.type === 'fill-blank'
-                      ? 'bg-blue-100 text-blue-700'
-                      : childQ.type === 'multi-choice'
-                        ? 'bg-yellow-100 text-yellow-700'
-                        : 'bg-green-100 text-green-700'
-                  }`}>
-                    {childQ.type === 'fill-blank'
-                      ? 'Điền khuyết'
-                      : childQ.type === 'multi-choice'
-                        ? 'Nhiều lựa chọn'
-                        : 'Đơn lựa chọn'}
-                  </span>
-                </div>
-
-                <div className="mb-3 text-gray-800">
-                  {renderContent(childQ.content)}
-                </div>
-
-                {/* Display answers in 2x2 grid for group child questions */}
-                {childQ.answers && childQ.answers.length > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {childQ.answers.map((answer: any, idx: number) => (
-                      <div
-                        key={idx}
-                        className={`flex items-center p-2 rounded-md ${
-                          answer.isCorrect
-                            ? 'bg-green-50 border-2 border-green-300'
-                            : 'bg-gray-50 border border-gray-200'
-                        }`}
-                      >
-                        <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium mr-2 ${
-                          answer.isCorrect
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-gray-200 text-gray-700'
-                        }`}>
-                          {String.fromCharCode(65 + idx)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          {renderContent(answer.content)}
-                        </div>
-                        {answer.isCorrect && (
-                          <div className="flex-shrink-0 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded ml-2 font-medium">
-                            Đáp án
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="mt-2 pt-2 border-t text-xs text-gray-500 flex justify-between">
-          <div>Trung bình</div>
-          <div>Ngày tạo: {new Date().toLocaleDateString()}</div>
-        </div>
-      </div>
-    </div>
-  );
-
-  // Renders appropriate guide content based on type
-  const renderGuideContent = () => {
-    return (
-      <div className="space-y-4">
-        {/* Header */}
-        <div className="font-semibold text-lg sm:text-xl mb-4 border-b pb-2">
-          <h2>Hướng Dẫn Soạn Thảo Nội Dung Đề Thi Trắc Nghiệm</h2>
-        </div>
-
-        {/* Section 1: Hình thức */}
-        <div className="space-y-3">
-          <h3 className="font-semibold text-base sm:text-lg text-blue-600">1. Hình thức</h3>
-          <div className="space-y-2">
-            <p><strong>Phần mềm sử dụng:</strong> Microsoft Word</p>
-            <p><strong>Font chữ:</strong> Unicode - Times New Roman, cỡ chữ 13</p>
-            <p><strong>Trình bày:</strong></p>
-            <ul className="list-disc pl-4 sm:pl-6 space-y-1 text-sm sm:text-base">
-              <li>Mỗi phương án lựa chọn phải xuống dòng bằng phím Enter.</li>
-              <li>Không sử dụng bảng, Bullets and Numbering để đánh tự động.</li>
-              <li>Ký tự A, B, C, D phải là chữ in hoa, theo sau là dấu chấm (.), khoảng trắng, rồi đến nội dung lựa chọn.</li>
-              <li>Gạch chân đáp án đúng (kèm dấu chấm).</li>
-              <li>In nghiêng ký tự A, B, C, D ở các phương án không cho hoán vị.</li>
-              <li>Tên tập tin: Học phần - chương - chuẩn đầu ra</li>
-              <li>Định dạng hình ảnh: Chuyển thành Bitmap Image</li>
-              <li>Công thức: Sử dụng Equation</li>
-            </ul>
-          </div>
-        </div>
-
-        {/* Section 2: Các Dạng Câu Hỏi Trắc Nghiệm Khách Quan */}
-        <div className="space-y-3">
-          <h3 className="font-semibold text-base sm:text-lg text-blue-600">2. Các Dạng Câu Hỏi Trắc Nghiệm Khách Quan</h3>
-          <h4 className="font-semibold text-sm sm:text-base">Các ký hiệu quy ước kỹ thuật:</h4>
-
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse border border-gray-300 mt-2 text-xs sm:text-sm">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="border border-gray-300 px-2 py-1 sm:px-4 sm:py-2 text-left">Ký hiệu</th>
-                  <th className="border border-gray-300 px-2 py-1 sm:px-4 sm:py-2 text-left">Ý nghĩa</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td className="border border-gray-300 px-2 py-1 sm:px-4 sm:py-2 font-mono text-amber-600">[&lt;sg&gt;]</td>
-                  <td className="border border-gray-300 px-2 py-1 sm:px-4 sm:py-2">Ký hiệu bắt đầu nhóm</td>
-                </tr>
-                <tr className="bg-gray-50">
-                  <td className="border border-gray-300 px-2 py-1 sm:px-4 sm:py-2 font-mono text-amber-600">[&lt;/sg&gt;]</td>
-                  <td className="border border-gray-300 px-2 py-1 sm:px-4 sm:py-2">Ký hiệu kết thúc nhóm</td>
-                </tr>
-                    <tr>
-                  <td className="border border-gray-300 px-2 py-1 sm:px-4 sm:py-2 font-mono text-amber-600">[&lt;egc&gt;]</td>
-                  <td className="border border-gray-300 px-2 py-1 sm:px-4 sm:py-2">Ký hiệu kết thúc nội dung của nhóm</td>
-                </tr>
-                    <tr className="bg-gray-50">
-                  <td className="border border-gray-300 px-2 py-1 sm:px-4 sm:py-2 font-mono text-amber-600">[&lt;br&gt;]</td>
-                  <td className="border border-gray-300 px-2 py-1 sm:px-4 sm:py-2">Ký hiệu kết thúc một câu hỏi</td>
-                </tr>
-                <tr>
-                  <td className="border border-gray-300 px-2 py-1 sm:px-4 sm:py-2 font-mono text-purple-600">(&lt;n&gt;)</td>
-                  <td className="border border-gray-300 px-2 py-1 sm:px-4 sm:py-2">Ký hiệu số thứ tự tương ứng của câu hỏi trong nhóm</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          {/* Subsection 2.1: Câu Hỏi Đơn */}
-          <div className="space-y-3 mt-3">
-            <h4 className="font-medium text-sm sm:text-base text-blue-500">2.1. Câu Hỏi Đơn</h4>
-            <p className="text-sm sm:text-base">Mỗi câu hỏi có 04 phương án lựa chọn và kết thúc bằng ký hiệu [&lt;br&gt;].</p>
-            <p className="text-sm sm:text-base"><strong>Cú pháp chuẩn:</strong></p>
-            <CodeBlock>{`(CLO…) Câu hỏi:
-A. <lựa chọn 1>
-B. <lựa chọn 2>
-C. <lựa chọn 3>
-D. <lựa chọn 4>
-[<br>]`}</CodeBlock>
-            <p className="text-sm sm:text-base"><strong>Ví dụ:</strong></p>
-            <CodeBlock>{`(CLO1) When did the woman put her keys in her purse?
-A. When she came home.
-B. When she was driving the car.
-C. When she left school.
-D. When she opened the front door.
-[<br>]`}</CodeBlock>
-          </div>
-
-          {/* Subsection 2.2: Câu Hỏi Nhóm */}
-          <div className="space-y-3 mt-3">
-            <h4 className="font-medium text-sm sm:text-base text-blue-500">2.2. Câu Hỏi Nhóm</h4>
-            <p className="text-sm sm:text-base">Nhóm câu hỏi sử dụng các ký hiệu quy ước sau:</p>
-            <ul className="list-disc pl-4 sm:pl-6 text-sm sm:text-base">
-              <li><strong className="text-amber-600 font-mono">[&lt;sg&gt;]</strong>: Bắt đầu nhóm</li>
-              <li><strong className="text-amber-600 font-mono">[&lt;egc&gt;]</strong>: Kết thúc nội dung nhóm</li>
-              <li><strong className="text-amber-600 font-mono">[&lt;/sg&gt;]</strong>: Kết thúc nhóm</li>
-              <li><strong className="text-blue-600 font-mono">&#123;&lt;1&gt;&#125; – &#123;&lt;n&gt;&#125;</strong>: Thể hiện số thứ tự câu hỏi trong nhóm</li>
-            </ul>
-            <p className="text-sm sm:text-base"><strong>Cú pháp chuẩn:</strong></p>
-            <CodeBlock>{`[<sg>]
-Nội dung nhóm, dùng cho các câu từ {<1>} – {<n>}
-[<egc>]
-(<1>) (CLO1) Câu hỏi con 1
-A. Lựa chọn 1
-B. Lựa chọn 2
-C. Lựa chọn 3
-D. Lựa chọn 4
-[<br>]
-(<2>) (CLO2) Câu hỏi con 2
-A. Lựa chọn 1
-B. Lựa chọn 2
-C. Lựa chọn 3
-D. Lựa chọn 4
-[<br>]
-[</sg>]`}</CodeBlock>
-            <p className="text-sm sm:text-base"><strong>Ví dụ:</strong></p>
-            <CodeBlock>{`[<sg>]
-Questions {<1>} – {<3>} refer to the following passage.
-Probably the most important factor governing the severity of forest fires is weather. Hot, dry weather lowers the moisture content of fuels. Once a fire has started, wind is extremely critical because it influences the oxygen supply and the rate of spread...
-[<egc>]
-(<1>) (CLO1) In this passage, the author's main purpose is to …
-A. argue
-B. inform
-C. persuade
-D. entertain
-[<br>]
-(<2>) (CLO1) Which of the following best describes the organization of the passage?
-A. A comparison and contrast of the factors governing forest fires is followed by a list of causes.
-B. A description of the conditions affecting forest fires is followed by a description of the causes.
-C. An analysis of factors related to forest fires is followed by an argument against the causes of fires.
-D. Several generalizations about forest fires are followed by a series of conclusions.
-[<br>]
-[</sg>]`}</CodeBlock>
-          </div>
-
-          {/* Subsection 2.3: Câu Hỏi Điền Khuyết */}
-          <div className="space-y-3 mt-3">
-            <h4 className="font-medium text-sm sm:text-base text-blue-500">2.3. Câu Hỏi Điền Khuyết</h4>
-            <p className="text-sm sm:text-base">Dạng câu hỏi nhóm điền khuyết sử dụng cú pháp tương tự câu hỏi nhóm:</p>
-            <CodeBlock>{`[<sg>]
-Nội dung câu hỏi điền khuyết…
-[<egc>]
-(<1>) (CLO…)
-A. Lựa chọn 1
-B. Lựa chọn 2
-C. Lựa chọn 3
-D. Lựa chọn 4
-[<br>]
-[</sg>]`}</CodeBlock>
-            <p className="text-sm sm:text-base"><strong>Ví dụ:</strong></p>
-            <CodeBlock>{`[<sg>]
-Questions {<1>} – {<3>} refer to the following passage.
-Travelling to all corners of the world gets easier and easier. We live in a global village, but this {<1>} _____ mean that we all behave the same way...
-[<egc>]
-(<1>) (CLO…)
-A. doesn't
-B. didn't
-C. don't
-D. isn't
-[<br>]
-(<2>) (CLO…)
-A. may not
-B. shouldn't
-C. don't
-D. can't
-[<br>]
-[</sg>]`}</CodeBlock>
-          </div>
-
-          {/* Subsection 2.4: Câu Hỏi Dạng Nghe */}
-          <div className="space-y-3 mt-3">
-            <h4 className="font-medium text-sm sm:text-base text-blue-500">2.4. Câu Hỏi Dạng Nghe</h4>
-            <p className="text-sm sm:text-base">Sử dụng thêm ký hiệu <code className="text-green-600 font-mono">&lt;audio&gt;</code> và <code className="text-green-600 font-mono">&lt;/audio&gt;</code> để chỉ đường dẫn file âm thanh.</p>
-            <p className="text-sm sm:text-base"><strong>Cú pháp chuẩn:</strong></p>
-            <CodeBlock>{`[<sg>]
-Nội dung của phần LISTENING:
-<audio>đường dẫn file audio</audio>
-[<egc>]
-(<1>) (CLO…)
-A. Lựa chọn 1
-B. Lựa chọn 2
-C. Lựa chọn 3
-D. Lựa chọn 4
-[<br>]
-[</sg>]`}</CodeBlock>
-            <p className="text-sm sm:text-base"><strong>Ví dụ:</strong></p>
-            <CodeBlock>{`[<sg>]
-Questions <1> – <3>
-Nội dung của phần LISTENING:
-<audio>audio/1.mp3</audio>
-[<egc>]
-(<1>) (CLO...) What does the man keep in his wallet?
-A. ID card.
-B. Money.
-C. Credit cards.
-D. All are correct.
-[<br>]
-[</sg>]`}</CodeBlock>
-          </div>
-        </div>
-
-        {/* Section 3: Lưu Ý Quan Trọng */}
-        <div className="space-y-3">
-          <h3 className="font-semibold text-base sm:text-lg text-blue-600">3. Lưu Ý Quan Trọng</h3>
-          <ul className="list-disc pl-4 sm:pl-6 space-y-1 text-sm sm:text-base">
-            <li>Tập tin âm thanh phải nằm cùng thư mục hoặc thư mục con chứa tập tin Word.</li>
-            <li>Đảm bảo đúng các ký hiệu bắt đầu, kết thúc nhóm.</li>
-            <li>Định dạng đáp án đúng, không cho hoán vị theo hướng dẫn chi tiết trên.</li>
-            <li>Mỗi câu hỏi phải có đúng 4 phương án lựa chọn.</li>
-            <li>Các ký hiệu phải được gõ chính xác, bao gồm cả dấu ngoặc vuông.</li>
-            <li>Không được chèn bảng, hình ảnh, hoặc đối tượng khác vào giữa các phương án lựa chọn.</li>
-            <li>Tên file nên đặt theo quy ước để dễ dàng quản lý.</li>
-          </ul>
-        </div>
-      </div>
-    );
+    return filteredQuestions.map((question, index) => (
+      <QuestionItem
+        key={question.id}
+        question={question}
+        index={index}
+        selected={selectedQuestionIds.includes(question.id)}
+        onSelect={(id, selected) => handleSelectQuestion(id, selected)}
+      />
+    ));
   };
 
   // Implement collapse functionality for group questions
@@ -1504,6 +1124,77 @@ D. All are correct.
     }
   };
 
+  // Implement guide content rendering
+  const renderGuideContent = () => {
+    switch (guideType) {
+      case 'word':
+        return (
+          <div className="space-y-3">
+            <h3 className="font-medium">Hướng dẫn soạn câu hỏi</h3>
+            <div className="bg-gray-50 border rounded-md p-3 text-sm space-y-2">
+              <h4 className="font-medium">Câu hỏi đơn</h4>
+              <p>- Viết nội dung câu hỏi</p>
+              <p>- Liệt kê các phương án trả lời, mỗi phương án một dòng bắt đầu bằng A., B., C., D.</p>
+              <p>- <strong>Gạch chân</strong> đáp án đúng trong Word</p>
+            </div>
+
+            <div className="bg-gray-50 border rounded-md p-3 text-sm space-y-2">
+              <h4 className="font-medium">Câu hỏi nhóm</h4>
+              <p>- Bắt đầu nhóm với cú pháp: [&lt;sg&gt;]</p>
+              <p>- Nhập nội dung chung của nhóm câu hỏi</p>
+              <p>- Kết thúc nội dung chung: [&lt;egc&gt;]</p>
+              <p>- Nhập các câu hỏi con sử dụng cú pháp (&lt;1&gt;), (&lt;2&gt;), ...</p>
+              <p>- Kết thúc nhóm câu hỏi với cú pháp: [&lt;/sg&gt;]</p>
+            </div>
+
+            <div className="bg-gray-50 border rounded-md p-3 text-sm space-y-2">
+              <h4 className="font-medium">CLO và siêu dữ liệu</h4>
+              <p>- Thêm CLO vào đầu câu hỏi với cú pháp: (CLO1), (CLO2), ...</p>
+              <p>- Sử dụng [&lt;br&gt;] để ngăn cách giữa các câu hỏi</p>
+            </div>
+
+            <div className="mt-3">
+              <a
+                href="/template/huong-dan-soan-ngan-hang-cau-hoi-trac-nghiem.pdf"
+                target="_blank"
+                className="text-blue-600 hover:text-blue-800 inline-flex items-center"
+              >
+                <FileText className="w-4 h-4 mr-1" />
+                Tải hướng dẫn chi tiết
+              </a>
+            </div>
+          </div>
+        );
+
+      case 'excel':
+        return (
+          <div className="space-y-3">
+            <h3 className="font-medium">Hướng dẫn nhập từ Excel</h3>
+            <p className="text-sm">Chức năng đang được phát triển...</p>
+          </div>
+        );
+
+      case 'backup':
+        return (
+          <div className="space-y-3">
+            <h3 className="font-medium">Hướng dẫn khôi phục từ bản sao lưu</h3>
+            <p className="text-sm">Chức năng đang được phát triển...</p>
+          </div>
+        );
+
+      case 'package':
+        return (
+          <div className="space-y-3">
+            <h3 className="font-medium">Hướng dẫn nhập gói câu hỏi</h3>
+            <p className="text-sm">Chức năng đang được phát triển...</p>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="container mx-auto py-6 px-4 max-w-screen-2xl">
       <MathJaxInitializer />
@@ -1770,11 +1461,7 @@ D. All are correct.
 
             {/* Questions */}
             <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-              {filterQuestions(selectedQuestions).map((question, index) => (
-                question.type === 'group'
-                  ? renderGroupQuestionCard(question, index)
-                  : renderSingleQuestionCard(question, index)
-              ))}
+              {renderQuestions()}
             </div>
           </div>
         )}

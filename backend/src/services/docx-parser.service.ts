@@ -7,6 +7,11 @@ import * as mammoth from 'mammoth';
 import { v4 as uuidv4 } from 'uuid';
 import { MulterFile } from '../interfaces/multer-file.interface';
 import { randomUUID } from 'crypto';
+import { promisify } from 'util';
+import { exec } from 'child_process';
+import * as os from 'os';
+
+const execPromise = promisify(exec);
 
 export interface ParsedQuestion {
     id: string;
@@ -24,6 +29,11 @@ export interface ParsedAnswer {
     content: string;
     isCorrect: boolean;
     order: number;
+}
+
+interface ParseOptions {
+    processImages?: boolean;
+    extractStyles?: boolean;
 }
 
 @Injectable()
@@ -527,5 +537,423 @@ export class DocxParserService {
         }
 
         return question;
+    }
+
+    // Parse a DOCX file and extract questions, answers, and correct answers
+    async parseDocx(filePath: string, options: ParseOptions = {}): Promise<any> {
+        try {
+            // First try using Python (if available) for better parsing
+            try {
+                return await this.parseDOCXWithPython(filePath, options);
+            } catch (pythonError) {
+                this.logger.warn(`Python parsing failed, falling back to default parser: ${pythonError.message}`);
+                // Implement a fallback parser here if needed
+                throw new Error('No fallback parser implemented');
+            }
+        } catch (error) {
+            this.logger.error(`Failed to parse DOCX: ${error.message}`, error.stack);
+            throw new Error(`Failed to parse DOCX: ${error.message}`);
+        }
+    }
+
+    // Use Python for better DOCX parsing with python-docx
+    private async parseDOCXWithPython(filePath: string, options: ParseOptions = {}): Promise<any> {
+        const tempDir = path.join(os.tmpdir(), 'docx_parser');
+
+        // Create temp directory if it doesn't exist
+        if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+        }
+
+        const outputFile = path.join(tempDir, `${uuidv4()}.json`);
+        const scriptPath = path.join(__dirname, '..', '..', 'docx_parser.py');
+
+        if (!fs.existsSync(scriptPath)) {
+            // If the script doesn't exist, create it
+            await this.createParserScript(scriptPath);
+        }
+
+        // Run Python script
+        const command = `python3 "${scriptPath}" "${filePath}" "${outputFile}" ${options.processImages ? '--process-images' : ''} ${options.extractStyles ? '--extract-styles' : ''}`;
+
+        try {
+            this.logger.log(`Running command: ${command}`);
+
+            const { stdout, stderr } = await execPromise(command);
+
+            if (stderr && !stderr.includes('DEBUG:')) {
+                this.logger.warn(`Python parser warning: ${stderr}`);
+            }
+
+            if (!fs.existsSync(outputFile)) {
+                throw new Error('Python parsing failed: No output file generated');
+            }
+
+            // Read and parse the output file
+            const jsonData = fs.readFileSync(outputFile, 'utf8');
+            const result = JSON.parse(jsonData);
+
+            // Clean up temp file
+            fs.unlinkSync(outputFile);
+
+            return result;
+        } catch (error) {
+            this.logger.error(`Python parsing failed: ${error.message}`, error.stack);
+            throw error;
+        }
+    }
+
+    // Create Python parser script if it doesn't exist
+    private async createParserScript(scriptPath: string): Promise<void> {
+        const scriptContent = `#!/usr/bin/env python3
+import argparse
+import json
+import os
+import re
+import sys
+from typing import Dict, List, Optional, Tuple, Union
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger('docx_parser')
+
+try:
+    import docx
+    from docx.document import Document
+    from docx.oxml.text.paragraph import CT_P
+    from docx.text.paragraph import Paragraph
+    from docx.text.run import Run
+except ImportError:
+    logger.error("python-docx not installed. Run: pip install python-docx")
+    sys.exit(1)
+
+class DocxParser:
+    def __init__(self, docx_path: str, process_images: bool = False, extract_styles: bool = False):
+        self.docx_path = docx_path
+        self.process_images = process_images
+        self.extract_styles = extract_styles
+        self.document = self._load_document()
+
+    def _load_document(self) -> Document:
+        """Load the document using python-docx"""
+        try:
+            return docx.Document(self.docx_path)
+        except Exception as e:
+            logger.error(f"Error loading document: {e}")
+            raise
+
+    def _get_paragraph_text_with_formatting(self, paragraph: Paragraph) -> Dict:
+        """Extract text and formatting from paragraph"""
+        text = ""
+        runs_data = []
+
+        for run in paragraph.runs:
+            run_data = {
+                "text": run.text,
+                "bold": run.bold,
+                "italic": run.italic,
+                "underline": run.underline,
+                "style": run.style.name if run.style else None
+            }
+
+            runs_data.append(run_data)
+            text += run.text
+
+        return {
+            "text": text,
+            "runs": runs_data if self.extract_styles else None
+        }
+
+    def _is_answer_correct(self, paragraph: Dict) -> bool:
+        """Determine if the answer is marked as correct (underlined)"""
+        if not paragraph.get("runs"):
+            return False
+
+        # Check if any run is underlined (correct answer)
+        for run in paragraph["runs"]:
+            if run.get("underline", False):
+                return True
+
+        return False
+
+    def _is_answer_line(self, text: str) -> bool:
+        """Check if line is an answer option (starts with A., B., C., or D.)"""
+        return bool(re.match(r"^[A-D]\.", text.strip()))
+
+    def _extract_question_content(self, paragraphs: List[Dict]) -> Tuple[str, List[Dict], Optional[str]]:
+        """Extract question content, answers and CLO from paragraphs"""
+        question_text = ""
+        answers = []
+        clo = None
+
+        # Extract CLO if present
+        clo_match = re.search(r"\(CLO\d+\)", paragraphs[0]["text"])
+        if clo_match:
+            clo = clo_match.group(0).strip("()")
+            paragraphs[0]["text"] = paragraphs[0]["text"].replace(clo_match.group(0), "").strip()
+
+        in_question = True
+
+        for p in paragraphs:
+            if self._is_answer_line(p["text"]):
+                in_question = False
+
+                # Extract answer letter and content
+                match = re.match(r"^([A-D])\.\s*(.*)", p["text"].strip())
+                if match:
+                    letter = match.group(1)
+                    content = match.group(2)
+
+                    # Check if answer is correct (underlined)
+                    is_correct = self._is_answer_correct(p)
+
+                    answers.append({
+                        "letter": letter,
+                        "content": content,
+                        "isCorrect": is_correct
+                    })
+            elif in_question:
+                # Still in question content
+                if question_text:
+                    question_text += " "
+                question_text += p["text"]
+
+        return question_text, answers, clo
+
+    def _parse_group_question(self, block: List[Dict]) -> Dict:
+        """Parse a group question with its child questions"""
+        group_question = {
+            "type": "group",
+            "content": "",
+            "groupContent": "",
+            "clo": None,
+            "childQuestions": []
+        }
+
+        # Extract group content between [<sg>] and [<egc>]
+        group_content_blocks = []
+        child_question_blocks = []
+        current_block = []
+
+        in_group_content = False
+        past_group_content = False
+        current_child_idx = -1
+
+        for p in block:
+            text = p["text"].strip()
+
+            # Start of group content
+            if "[<sg>]" in text:
+                in_group_content = True
+                # Remove the marker and add remaining text
+                text = text.replace("[<sg>]", "").strip()
+                if text:
+                    group_content_blocks.append({"text": text, "runs": p.get("runs")})
+                continue
+
+            # End of group content
+            if "[<egc>]" in text:
+                in_group_content = False
+                past_group_content = True
+                # Remove the marker and add remaining text
+                text = text.replace("[<egc>]", "").strip()
+                if text:
+                    current_block.append({"text": text, "runs": p.get("runs")})
+                continue
+
+            # End of group
+            if "[</sg>]" in text:
+                # Process any remaining block
+                if current_block:
+                    child_question_blocks.append(current_block)
+                break
+
+            # If in group content, add to group content blocks
+            if in_group_content:
+                group_content_blocks.append({"text": text, "runs": p.get("runs")})
+            else:
+                # Look for child question markers
+                child_match = re.search(r"\\(<(\d+)>\\)", text)
+                if child_match:
+                    # Save previous block if exists
+                    if current_block:
+                        child_question_blocks.append(current_block)
+
+                    # Start new block
+                    current_child_idx = int(child_match.group(1))
+                    current_block = []
+
+                    # Add text without marker
+                    clean_text = text.replace(child_match.group(0), "").strip()
+                    if clean_text:
+                        current_block.append({"text": clean_text, "runs": p.get("runs")})
+                else:
+                    # Continue building current block
+                    current_block.append({"text": text, "runs": p.get("runs")})
+
+        # Process any remaining block
+        if current_block:
+            child_question_blocks.append(current_block)
+
+        # Process group content
+        if group_content_blocks:
+            group_content_text = " ".join([b["text"] for b in group_content_blocks])
+            group_question["groupContent"] = group_content_text.strip()
+
+        # Extract CLO from first paragraph if present
+        if block and block[0]["text"]:
+            clo_match = re.search(r"\\(CLO\d+\\)", block[0]["text"])
+            if clo_match:
+                group_question["clo"] = clo_match.group(0).strip("()")
+
+        # Process child questions
+        for child_block in child_question_blocks:
+            if not child_block:
+                continue
+
+            question_text, answers, clo = self._extract_question_content(child_block)
+
+            child_question = {
+                "type": "single-choice" if len([a for a in answers if a["isCorrect"]]) <= 1 else "multi-choice",
+                "content": question_text,
+                "clo": clo,
+                "answers": answers
+            }
+
+            group_question["childQuestions"].append(child_question)
+
+        return group_question
+
+    def _parse_single_question(self, block: List[Dict]) -> Dict:
+        """Parse a single question"""
+        question_text, answers, clo = self._extract_question_content(block)
+
+        return {
+            "type": "single-choice" if len([a for a in answers if a["isCorrect"]]) <= 1 else "multi-choice",
+            "content": question_text,
+            "clo": clo,
+            "answers": answers
+        }
+
+    def parse_questions(self) -> List[Dict]:
+        """Parse all questions from the document"""
+        questions = []
+        current_block = []
+
+        # First pass: Extract all paragraphs with formatting
+        all_paragraphs = []
+        for paragraph in self.document.paragraphs:
+            formatted_paragraph = self._get_paragraph_text_with_formatting(paragraph)
+            if formatted_paragraph["text"].strip():  # Skip empty paragraphs
+                all_paragraphs.append(formatted_paragraph)
+
+        # Second pass: Process blocks separated by [<br>]
+        for paragraph in all_paragraphs:
+            text = paragraph["text"]
+
+            if "[<br>]" in text:
+                # End of question block
+                parts = text.split("[<br>]")
+
+                # Add first part to current block
+                if parts[0].strip():
+                    current_block.append({
+                        "text": parts[0],
+                        "runs": paragraph.get("runs")
+                    })
+
+                # Process the current block
+                if current_block:
+                    # Check if it's a group question
+                    is_group = any("[<sg>]" in p["text"] for p in current_block)
+
+                    if is_group:
+                        question = self._parse_group_question(current_block)
+                    else:
+                        question = self._parse_single_question(current_block)
+
+                    questions.append(question)
+
+                # Start a new block with remaining parts
+                current_block = []
+                for part in parts[1:]:
+                    if part.strip():
+                        current_block.append({
+                            "text": part,
+                            "runs": paragraph.get("runs")
+                        })
+            else:
+                # Continue building the current block
+                current_block.append(paragraph)
+
+        # Process any remaining block
+        if current_block:
+            # Check if it's a group question
+            is_group = any("[<sg>]" in p["text"] for p in current_block)
+
+            if is_group:
+                question = self._parse_group_question(current_block)
+            else:
+                question = self._parse_single_question(current_block)
+
+            questions.append(question)
+
+        # Add unique IDs to questions and answers
+        for question in questions:
+            question["id"] = uuidv4()
+
+            if question.get("answers"):
+                for i, answer in enumerate(question["answers"]):
+                    answer["id"] = uuidv4()
+                    answer["order"] = i
+
+            if question.get("childQuestions"):
+                for child in question["childQuestions"]:
+                    child["id"] = uuidv4()
+                    for i, answer in enumerate(child.get("answers", [])):
+                        answer["id"] = uuidv4()
+                        answer["order"] = i
+
+        return questions
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Parse DOCX file and extract questions')
+    parser.add_argument('input_file', help='Path to input DOCX file')
+    parser.add_argument('output_file', help='Path to output JSON file')
+    parser.add_argument('--process-images', action='store_true', help='Process images in document')
+    parser.add_argument('--extract-styles', action='store_true', help='Extract detailed styling information')
+    return parser.parse_args()
+
+def main():
+    args = parse_args()
+
+    try:
+        # Check if input file exists
+        if not os.path.exists(args.input_file):
+            logger.error(f"Input file not found: {args.input_file}")
+            sys.exit(1)
+
+        # Parse document
+        parser = DocxParser(args.input_file, args.process_images, args.extract_styles)
+        questions = parser.parse_questions()
+
+        # Write results to output file
+        with open(args.output_file, 'w', encoding='utf-8') as f:
+            json.dump(questions, f, ensure_ascii=False, indent=2)
+
+        logger.info(f"Successfully parsed {len(questions)} questions")
+
+    except Exception as e:
+        logger.error(f"Error: {e}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
+`;
+
+        fs.writeFileSync(scriptPath, scriptContent);
+        fs.chmodSync(scriptPath, '755'); // Make executable
+
+        this.logger.log(`Created parser script at ${scriptPath}`);
     }
 }

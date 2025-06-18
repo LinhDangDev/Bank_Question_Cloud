@@ -10,9 +10,10 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import 'katex/dist/katex.min.css'
 import katex from 'katex'
 import { API_BASE_URL } from '@/config'
-import QuestionItem, { Question as QuestionType } from '@/components/QuestionItem'
+import QuestionItem, { Question as FrontendQuestionType } from '@/components/QuestionItem'
 import PaginationBar from '@/components/PaginationBar'
 import Filters from '@/components/Filters'
+import { renderLatex } from '@/utils/latex'
 
 // Define the Answer interface based on the API response
 interface Answer {
@@ -24,8 +25,8 @@ interface Answer {
   HoanVi: boolean;
 }
 
-// Updated Question interface to support group questions
-interface Question {
+// Updated Question interface to support group questions - using backend structure
+interface BackendQuestion {
   MaCauHoi: string;
   MaPhan: string;
   MaSoCauHoi: number;
@@ -60,7 +61,7 @@ interface ChildQuestion {
 }
 
 interface ApiResponse {
-  items: QuestionType[];
+  items: BackendQuestion[];
   meta: {
     total: number;
     page: string;
@@ -76,7 +77,6 @@ const typeColors: Record<string, string> = {
   'CLO 3': 'bg-purple-100 text-purple-700',
   'CLO 4': 'bg-orange-100 text-orange-700',
   'CLO 5': 'bg-yellow-100 text-yellow-700',
-
 }
 
 const statusColors: Record<string, string> = {
@@ -84,27 +84,45 @@ const statusColors: Record<string, string> = {
   'deleted': 'text-red-500',
 }
 
-// Define helper functions for displaying question difficulty
-const getDifficultyColor = (level: number) => {
-  if (!level || level <= 2) return "bg-green-100 text-green-800";
-  if (level <= 4) return "bg-yellow-100 text-yellow-800";
-  return "bg-red-100 text-red-800";
-}
 
-const getDifficultyText = (level: number) => {
-  if (!level || level <= 2) return "Dễ";
-  if (level <= 4) return "Trung bình";
-  return "Khó";
-}
+// Utility function to convert backend question to frontend question format
+const convertToFrontendQuestion = (backendQuestion: BackendQuestion): FrontendQuestionType => {
+  return {
+    id: backendQuestion.MaCauHoi,
+    content: backendQuestion.NoiDung,
+    type: backendQuestion.LaCauHoiNhom ? 'group' : 'single-choice',
+    clo: backendQuestion.cloInfo?.TenCLO || backendQuestion.TenCLO,
+    capDo: backendQuestion.CapDo,
+    answers: (backendQuestion.answers || []).map(answer => ({
+      id: answer.MaCauTraLoi,
+      content: answer.NoiDung,
+      isCorrect: answer.LaDapAn,
+      order: answer.ThuTu
+    })),
+    childQuestions: backendQuestion.CauHoiCon?.map(child => ({
+      id: child.MaCauHoi,
+      content: child.NoiDung,
+      type: 'single-choice',
+      answers: (child.CauTraLoi || []).map(answer => ({
+        id: answer.MaCauTraLoi,
+        content: answer.NoiDung,
+        isCorrect: answer.LaDapAn,
+        order: answer.ThuTu
+      }))
+    })),
+    groupContent: backendQuestion.DoPhanCachCauHoi ? String(backendQuestion.DoPhanCachCauHoi) : undefined
+  };
+};
 
 const Questions = () => {
   const styles = useThemeStyles();
   const navigate = useNavigate();
-  const [questions, setQuestions] = useState<QuestionType[]>([]);
+  const [backendQuestions, setBackendQuestions] = useState<BackendQuestion[]>([]);
+  const [frontendQuestions, setFrontendQuestions] = useState<FrontendQuestionType[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState<number>(1);
-  const [limit, setLimit] = useState<number>(100);
+  const [limit, setLimit] = useState<number>(20);
   const [totalPages, setTotalPages] = useState<number>(1);
   const [totalItems, setTotalItems] = useState<number>(0);
   const [availableLimits, setAvailableLimits] = useState<number[]>([5, 10, 20, 50, 100]);
@@ -134,9 +152,6 @@ const Questions = () => {
               return {
                 ...question,
                 ...details.question,
-                // khoa: details.khoa,
-                // monHoc: details.monHoc,
-                // phan: details.phan,
                 cloInfo: details.clo,
                 answers: details.answers || question.answers,
               };
@@ -158,7 +173,7 @@ const Questions = () => {
 
       // Process group questions to add metadata and child questions with answers
       const groupQuestionsWithDetails = await Promise.all(
-        groupData.items.map(async (groupQuestion: any) => {
+          groupData.items.map(async (groupQuestion: BackendQuestion) => {
           try {
             // Fetch full details for the group question
             const detailsResponse = await fetch(`${API_BASE_URL}/cau-hoi/${groupQuestion.MaCauHoi}/full-details`);
@@ -174,9 +189,6 @@ const Questions = () => {
               return {
                 ...groupQuestion,
                 ...details.question,
-                // khoa: details.khoa,
-                // monHoc: details.monHoc,
-                // phan: details.phan,
                 cloInfo: details.clo,
                 LaCauHoiNhom: true,
                 CauHoiCon: []
@@ -208,9 +220,6 @@ const Questions = () => {
             return {
               ...groupQuestion,
               ...details.question,
-            //   khoa: details.khoa,
-            //   monHoc: details.monHoc,
-            //   phan: details.phan,
               cloInfo: details.clo,
               LaCauHoiNhom: true,
               CauHoiCon: childQuestionsWithAnswers
@@ -222,26 +231,37 @@ const Questions = () => {
         })
       );
 
-        // Combine regular and group questions
-      const allQuestions = [...regularQuestionsWithDetails, ...groupQuestionsWithDetails];
+        // Combine regular and group questions and sort by creation date
+        const allQuestionsBackend = [...regularQuestionsWithDetails, ...groupQuestionsWithDetails]
+          .sort((a, b) => new Date(b.NgayTao).getTime() - new Date(a.NgayTao).getTime());
 
-        setQuestions(allQuestions);
+        // Store backend questions for API operations
+        setBackendQuestions(allQuestionsBackend);
+
+        // Convert to frontend format for rendering
+        const allQuestionsFrontend = allQuestionsBackend.map(convertToFrontendQuestion);
+        setFrontendQuestions(allQuestionsFrontend);
+
+        // Update pagination data
       setTotalPages(Math.max(data.meta.totalPages, groupData.meta.totalPages));
-        setTotalItems(data.meta.total + groupData.meta.total);
-        setAvailableLimits(data.meta.availableLimits);
+        setTotalItems(data.meta.total + groupData.meta.total); // Approximate count
+        setAvailableLimits(data.meta.availableLimits || [5, 10, 20, 50, 100]);
+
         setLoading(false);
-      } catch (err) {
-        console.error('Error fetching questions:', err);
-        setError('Failed to load questions. Please try again later.');
+        setError(null);
+      } catch (err: any) {
         setLoading(false);
+        setError('Error loading questions: ' + (err.message || 'Unknown error'));
+        console.error("Error fetching questions:", err);
       }
   }, [page, limit]);
 
+  // Fetch questions when component mounts or dependencies change
   useEffect(() => {
     fetchQuestions();
   }, [fetchQuestions]);
 
-  // Toggle group question expansion
+  // Function to toggle expanded state for group questions
   const toggleGroup = (questionId: string) => {
     setExpandedGroups(prev =>
       prev.includes(questionId)
@@ -250,25 +270,191 @@ const Questions = () => {
     );
   };
 
+  // Functions for searching and filtering
   const handleSearch = (query: string) => {
     setSearchQuery(query);
-    // TODO: Implement search functionality
-    console.log('Search query:', query);
+    // Implement search functionality
   };
 
   const handleFilter = () => {
-    // TODO: Implement filter functionality
-    console.log('Filter button clicked');
+    // Implement filter functionality
+  };
+
+  // Function to render a single question
+  const renderQuestion = (question: BackendQuestion, index: number) => {
+    const isExpanded = expandedGroups.includes(question.MaCauHoi);
+    const isGroupQuestion = question.SoCauHoiCon > 0 || question.LaCauHoiNhom;
+    return (
+      <Card key={question.MaCauHoi} className="mb-3">
+        <CardHeader className="p-3 pb-0">
+          <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              <Badge variant="outline" className="rounded-full text-xs bg-gray-100">
+                #{(page - 1) * limit + index + 1}
+              </Badge>
+
+              <Badge variant="outline" className="text-xs bg-gray-100 text-gray-700">
+                Tạo: {new Date(question.NgayTao).toLocaleDateString('vi-VN')}
+              </Badge>
+
+              <Badge variant="outline" className="text-xs bg-gray-100 text-gray-700">
+                Sửa: {new Date(question.NgaySua).toLocaleDateString('vi-VN')}
+              </Badge>
+
+              {question.cloInfo?.TenCLO && (
+                <Badge variant="outline" className={`text-xs ${typeColors[question.cloInfo.TenCLO] || 'bg-gray-100'}`}>
+                  {question.cloInfo.TenCLO}
+                </Badge>
+              )}
+
+              <Badge variant="outline" className={`text-xs ${isGroupQuestion ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
+                {isGroupQuestion ? 'Nhóm' : 'Đơn'}
+              </Badge>
+
+              <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700">
+                Đã sử dụng: {question.SoLanDuocThi || 0}
+              </Badge>
+
+              {isGroupQuestion && (
+                <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700">
+                  {question.CauHoiCon?.length || question.SoCauHoiCon || 0} câu con
+                </Badge>
+              )}
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Button variant="outline" size="sm" onClick={() => navigate(`/questions/${question.MaCauHoi}`)}>
+                <Eye className="h-4 w-4 text-gray-500" />
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => navigate(`/questions/edit/${question.MaCauHoi}`)}>
+                <Edit className="h-4 w-4 text-blue-500" />
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => console.log('Delete question', question.MaCauHoi)}>
+                <Trash2 className="h-4 w-4 text-red-500" />
+              </Button>
+
+              {isGroupQuestion && (
+                <Button variant="outline" size="sm" onClick={() => toggleGroup(question.MaCauHoi)}>
+                  {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-3">
+          {/* Render content differently based on question type */}
+          {isGroupQuestion ? (
+            <>
+              {/* Group question content only shown once */}
+              <div className="mb-3" dangerouslySetInnerHTML={{ __html: renderLatex(question.NoiDung) }}></div>
+
+              {/* Only show child questions if expanded */}
+              {isExpanded && question.CauHoiCon && question.CauHoiCon.length > 0 && (
+                <div className="mt-4 space-y-4 border-t pt-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="text-sm font-medium text-purple-700">
+                      Câu hỏi nhóm - {question.CauHoiCon.length} câu con
+                    </div>
+                  </div>
+                  {question.CauHoiCon.map((childQ, childIdx) => (
+                    <div key={childQ.MaCauHoi} className="border-l-4 border-l-purple-300 rounded-md bg-gray-50 p-3">
+                      <div className="font-medium mb-2 flex items-center gap-2">
+                        <Badge className="rounded-full text-xs bg-purple-100 text-purple-700">
+                          Câu {childIdx + 1}
+                        </Badge>
+                      </div>
+
+                      <div className="mb-3">
+                        <div dangerouslySetInnerHTML={{ __html: renderLatex(childQ.NoiDung) }}></div>
+                      </div>
+
+                      {childQ.CauTraLoi && childQ.CauTraLoi.length > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {childQ.CauTraLoi.map((answer, idx) => (
+                            <div
+                              key={answer.MaCauTraLoi}
+                              className={`flex items-center p-2 rounded-md ${
+                                answer.LaDapAn
+                                  ? 'bg-green-50 border border-green-300'
+                                  : 'bg-gray-50 border border-gray-200'
+                              }`}
+                            >
+                              <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium mr-2 ${
+                                answer.LaDapAn
+                                  ? 'bg-green-100 text-green-700'
+                                  : 'bg-gray-200 text-gray-700'
+                              }`}>
+                                {String.fromCharCode(65 + idx)}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div dangerouslySetInnerHTML={{ __html: renderLatex(answer.NoiDung) }}></div>
+                              </div>
+                              {answer.LaDapAn && (
+                                <div className="flex-shrink-0 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded ml-2 font-medium">
+                                  Đáp án
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {/* Standard question content */}
+              <div className="mb-3" dangerouslySetInnerHTML={{ __html: renderLatex(question.NoiDung) }}></div>
+
+              {/* Render answers for non-group questions */}
+              {question.answers && question.answers.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+                  {question.answers.map((answer, idx) => (
+                    <div
+                      key={answer.MaCauTraLoi}
+                      className={`flex items-center p-2 rounded-md ${
+                        answer.LaDapAn
+                          ? 'bg-green-50 border border-green-300'
+                          : 'bg-gray-50 border border-gray-200'
+                      }`}
+                    >
+                      <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium mr-2 ${
+                        answer.LaDapAn
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-200 text-gray-700'
+                      }`}>
+                        {String.fromCharCode(65 + idx)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div dangerouslySetInnerHTML={{ __html: renderLatex(answer.NoiDung) }}></div>
+                      </div>
+                      {answer.LaDapAn && (
+                        <div className="flex-shrink-0 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded ml-2 font-medium">
+                          Đáp án
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+    );
   };
 
   return (
-    <div className="flex flex-col h-screen max-h-screen overflow-hidden">
+    <div className="flex flex-col h-[calc(94vh-56px)] overflow-hidden">
       {/* Fixed Header */}
       <div className="flex justify-between items-center mb-3 px-4 pt-4 pb-2">
-        <h1 className={cx("text-xl font-bold", styles.isDark ? 'text-gray-200' : '')}>Danh sách câu hỏi</h1>
+        <h1 className={cx("text-xl font-bold", styles.textHeading)}>Ngân hàng câu hỏi</h1>
         <Button
           variant="primary"
-          className="h-9 px-3"
+          className="h-9 px-3 bg-blue-600 hover:bg-blue-700 text-white"
           onClick={() => navigate('/questions/create')}
         >
           <Plus className="w-4 h-4 mr-1" />
@@ -282,91 +468,78 @@ const Questions = () => {
       </div>
 
       {/* Scrollable Question List Container */}
-      <div className="flex-1 overflow-hidden border-t border-b">
-        <div className="h-full overflow-y-auto">
+      <div className="flex-1 overflow-hidden border-t border-b" style={{ maxHeight: 'calc(100% - 120px)' }}>
+        <div className="h-full overflow-y-auto p-4">
         {loading ? (
             <div className="flex justify-center items-center py-8">
               <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
           </div>
         ) : error ? (
           <div className="text-center py-8 text-red-500">{error}</div>
-          ) : questions.length === 0 ? (
+          ) : backendQuestions.length === 0 ? (
             <div className="text-center py-8 text-gray-500">Không có câu hỏi nào</div>
           ) : (
-            <div className="divide-y">
-              {questions.map((question, index) => (
-                <QuestionItem
-                  key={question.MaCauHoi}
-                  question={question}
-                  index={index}
-                  page={page}
-                  limit={limit}
-                  expandedGroups={expandedGroups}
-                  toggleGroup={toggleGroup}
-                  refetchQuestions={fetchQuestions}
-                />
-                          ))}
+            <div className="space-y-2">
+              {backendQuestions.map((question, index) => renderQuestion(question, index))}
                         </div>
                       )}
                     </div>
       </div>
 
       {/* Fixed Pagination Bar */}
-      <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-t shadow-sm">
+      <div className="px-4 py-3 bg-gray-50 border-t shadow-sm">
         <PaginationBar
           page={page}
           totalPages={totalPages}
+          onPageChange={setPage}
           limit={limit}
-          totalItems={totalItems}
+          onLimitChange={setLimit}
           availableLimits={availableLimits}
-          onPageChange={(newPage) => setPage(newPage)}
-          onLimitChange={(newLimit) => {
-            setLimit(newLimit);
-            setPage(1); // Reset to first page when changing limit
-          }}
+          totalItems={totalItems}
         />
       </div>
 
+      {/* KaTeX Styles for LaTeX */}
       <style>{`
-        .katex-formula .katex {
-          display: inline-block;
-          font-size: 1em;
-        }
-
-        /* Additional styles for better LaTeX rendering */
         .katex-display {
           display: block;
-          margin: 0.5em 0;
+          margin: 1em 0;
           text-align: center;
+          overflow-x: auto;
+          overflow-y: hidden;
         }
 
-        /* Fix for fractions */
+        .katex {
+          font-size: 1.1em;
+        }
+
+        /* Cải thiện hiển thị cho phân số */
         .katex .mfrac .frac-line {
           border-bottom-width: 1px;
         }
 
-        /* Fix for matrices */
+        /* Cải thiện hiển thị cho ma trận */
         .katex .mord.mtable {
           vertical-align: middle;
         }
 
-        /* Fix for chemical formulas */
+        /* Cải thiện hiển thị cho công thức hóa học */
         .katex .msupsub {
           text-align: left;
         }
 
-        /* Fix for superscripts */
+        /* Cải thiện hiển thị cho lũy thừa */
         .katex .msup {
           vertical-align: baseline;
         }
 
-        /* Fix for subscripts */
+        /* Cải thiện hiển thị cho chỉ số dưới */
         .katex .msub {
           vertical-align: baseline;
         }
       `}</style>
     </div>
-  )
-}
+  );
+};
 
-export default Questions
+export default Questions;

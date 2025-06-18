@@ -131,6 +131,13 @@ const EditQuestion = () => {
   const [latexMode, setLatexMode] = useState<boolean>(false);
   const [parentQuestion, setParentQuestion] = useState<Question | null>(null);
   const [loadingParent, setLoadingParent] = useState(false);
+  const [maKhoa, setMaKhoa] = useState<string | null>(null);
+  const [monHocList, setMonHocList] = useState<any[]>([]);
+  const [maMonHoc, setMaMonHoc] = useState<string | null>(null);
+  const [phanList, setPhanList] = useState<any[]>([]);
+  const [maPhan, setMaPhan] = useState<string | null>(null);
+  const [maCLO, setMaCLO] = useState<string | null>(null);
+  const [selectedCLOName, setSelectedCLOName] = useState<string>('');
 
   // Nếu là tạo mới, lấy type từ query param
   const type = searchParams.get('type');
@@ -155,6 +162,40 @@ const EditQuestion = () => {
 
           setQuestion(detailsData.question);
           setQuestionDetails(detailsData);
+
+          // Set faculty, subject, chapter and CLO data if available
+          if (detailsData.khoa) {
+            setMaKhoa(detailsData.khoa.MaKhoa);
+
+            // If we have a khoa, load the monHoc list for that khoa
+            fetch(`${API_BASE_URL}/mon-hoc/khoa/${detailsData.khoa.MaKhoa}`)
+              .then(res => res.json())
+              .then(monHocData => {
+                setMonHocList(monHocData);
+              })
+              .catch(err => console.error("Error loading monHoc list:", err));
+          }
+
+          if (detailsData.monHoc) {
+            setMaMonHoc(detailsData.monHoc.MaMonHoc);
+
+            // If we have a monHoc, load the phan list for that monHoc
+            fetch(`${API_BASE_URL}/phan/mon-hoc/${detailsData.monHoc.MaMonHoc}`)
+              .then(res => res.json())
+              .then(phanData => {
+                setPhanList(phanData);
+              })
+              .catch(err => console.error("Error loading phan list:", err));
+          }
+
+          if (detailsData.phan) {
+            setMaPhan(detailsData.phan.MaPhan);
+          }
+
+          if (detailsData.clo) {
+            setMaCLO(detailsData.clo.MaCLO);
+            setSelectedCLOName(detailsData.clo.TenCLO || '');
+          }
 
           // Automatically enable LaTeX mode if content contains LaTeX
           if (detailsData.question?.NoiDung &&

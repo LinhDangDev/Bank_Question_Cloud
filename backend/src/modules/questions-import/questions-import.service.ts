@@ -1,13 +1,13 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { CauHoi } from '../../entities/cau-hoi.entity';
 import { CauTraLoi } from '../../entities/cau-tra-loi.entity';
-import { DocxParserService } from '../../services/docx-parser.service';
-import { PaginationDto } from '../../dto/pagination.dto';
-import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
+import { v4 as uuidv4 } from 'uuid';
+import { DocxParserService } from '../../services/docx-parser.service';
+import { PaginationDto } from '../../dto/pagination.dto';
 import { MulterFile } from '../../interfaces/multer-file.interface';
 
 interface ParseOptions {
@@ -31,6 +31,7 @@ export interface ImportedQuestion {
         path: string;
     }[];
     childQuestions?: ImportedQuestion[];
+    groupContent?: string;
 }
 
 interface ImportSession {
@@ -54,118 +55,102 @@ export class QuestionsImportService {
         private readonly cauTraLoiRepository: Repository<CauTraLoi>,
         private readonly docxParserService: DocxParserService,
     ) {
-        // Clean up expired sessions periodically
-        setInterval(() => this.cleanupExpiredSessions(), 5 * 60 * 1000); // Every 5 minutes
+        // Start a cleanup timer
+        setInterval(() => this.cleanupExpiredSessions(), 5 * 60 * 1000); // Cleanup every 5 minutes
     }
 
-    /**
-     * Parse questions from uploaded file and temporarily store them
-     */
     async parseAndSaveQuestions(
         file: MulterFile,
         maPhan?: string,
         options: ParseOptions = { processImages: true, limit: 100 }
     ): Promise<{ fileId: string; count: number }> {
-        if (!file) {
-            throw new BadRequestException('File is required');
+        // Create a unique ID for this import session
+        const fileId = uuidv4();
+
+        // Create a dedicated directory for this import
+        const uploadDir = path.join(process.cwd(), 'uploads', 'questions');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
         }
 
-        // Check file type
-        const ext = path.extname(file.originalname).toLowerCase();
-        if (ext !== '.docx') {
-            throw new BadRequestException('Only DOCX files are supported');
-        }
+        // Save the uploaded file
+        const filePath = path.join(uploadDir, `${fileId}${path.extname(file.originalname)}`);
+        fs.writeFileSync(filePath, file.buffer);
 
         try {
-            // Parse the file with options
-            this.logger.log(`Processing DOCX file with options: ${JSON.stringify(options)}`);
-            const { questions, filePath } = await this.docxParserService.processUploadedFile(file);
+            // Parse the DOCX file using our enhanced parser
+            const questions = await this.parseDocxWithEnhancedParser(filePath, options);
 
-            // Generate a unique ID for this import session
-            const fileId = randomUUID();
-
-            // Add CLO information and process properly
-            const processedQuestions: ImportedQuestion[] = questions.map(q => {
-                // Extract CLO information from content using regex
-                const cloRegex = /\((CLO\d+)\)/;
-                const cloMatch = q.content?.match(cloRegex);
-                const clo = cloMatch ? cloMatch[1] : null;
-
-                // Process child questions for group questions
-                const childQuestions = q.childQuestions?.map(child => {
-                    // Extract CLO from child questions
-                    const childCloMatch = child.content?.match(cloRegex);
-                    const childClo = childCloMatch ? childCloMatch[1] : null;
-
-                    return {
-                        ...child,
-                        clo: childClo
-                    };
-                });
-
-                return {
-                    ...q,
-                    clo,
-                    childQuestions: childQuestions || q.childQuestions
-                };
-            });
-
-            // Apply limit if specified
-            const limitedQuestions = options.limit ?
-                processedQuestions.slice(0, options.limit) :
-                processedQuestions;
-
-            this.logger.log(`Successfully processed ${limitedQuestions.length} questions from total ${processedQuestions.length}`);
-
-            // Store in memory (in production, you'd want to use Redis or similar)
+            // Store the parsed questions in the import session
             this.importSessions.set(fileId, {
                 fileId,
                 filePath,
-                questions: limitedQuestions,
+                questions,
                 maPhan,
-                createdAt: new Date()
+                createdAt: new Date(),
             });
+
+            this.logger.log(`Parsed ${questions.length} questions for file ID ${fileId}`);
 
             return {
                 fileId,
-                count: limitedQuestions.length
+                count: questions.length,
             };
         } catch (error) {
-            this.logger.error(`Error parsing questions from file: ${error.message}`, error.stack);
-            throw new BadRequestException(`Failed to parse questions: ${error.message}`);
+            this.logger.error(`Error parsing DOCX file: ${error.message}`, error.stack);
+            // Clean up the file if parsing failed
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+            }
+            throw error;
         }
     }
 
-    /**
-     * Get imported questions with pagination
-     */
+    // Use our enhanced parser for better question detection
+    private async parseDocxWithEnhancedParser(
+        filePath: string,
+        options: ParseOptions
+    ): Promise<ImportedQuestion[]> {
+        try {
+            // Try to use the Python-based enhanced parser first
+            const result = await this.docxParserService.parseDocx(filePath, {
+                processImages: options.processImages,
+                extractStyles: true
+            });
+
+            this.logger.log(`Successfully parsed ${result.length} questions from ${path.basename(filePath)}`);
+            return result;
+        } catch (error) {
+            this.logger.warn(`Enhanced parser failed: ${error.message}, falling back to default...`);
+
+            // If the enhanced parser fails, fall back to the original parser or throw
+            throw new Error(`Document parsing failed: ${error.message}`);
+        }
+    }
+
     async getImportedQuestions(fileId: string, paginationDto: PaginationDto) {
         const session = this.importSessions.get(fileId);
         if (!session) {
-            throw new NotFoundException('Import session not found or has expired');
+            throw new Error(`Import session ${fileId} not found or expired`);
         }
 
-        const { page = 1, limit = 100 } = paginationDto;
-        const startIdx = (page - 1) * limit;
-        const endIdx = startIdx + limit;
+        const { page = 1, limit = 10 } = paginationDto;
+        const startIndex = (page - 1) * limit;
+        const endIndex = page * limit;
 
-        const items = session.questions.slice(startIdx, endIdx);
-        const total = session.questions.length;
+        const paginatedQuestions = session.questions.slice(startIndex, endIndex);
 
         return {
-            items,
+            items: paginatedQuestions,
             meta: {
-                total,
+                total: session.questions.length,
                 page,
                 limit,
-                totalPages: Math.ceil(total / limit)
+                totalPages: Math.ceil(session.questions.length / limit)
             }
         };
     }
 
-    /**
-     * Save selected questions to the database
-     */
     async saveQuestionsToDatabase(
         fileId: string,
         questionIds: string[],
@@ -174,162 +159,152 @@ export class QuestionsImportService {
     ): Promise<{ success: boolean; savedCount: number }> {
         const session = this.importSessions.get(fileId);
         if (!session) {
-            throw new NotFoundException('Import session not found or has expired');
+            throw new Error(`Import session ${fileId} not found or expired`);
         }
 
-        // Use the maPhan from the request, or fall back to the one provided during upload
-        const sectionId = maPhan || session.maPhan;
-        if (!sectionId) {
-            throw new BadRequestException('Section ID (maPhan) is required to save questions');
+        // Use the section from the session if not provided
+        if (!maPhan && session.maPhan) {
+            maPhan = session.maPhan;
         }
 
-        // Filter questions by the provided IDs
+        if (!maPhan) {
+            throw new Error('Section (maPhan) is required to save questions');
+        }
+
+        // Filter the questions to save based on the provided IDs
         const questionsToSave = session.questions.filter(q => questionIds.includes(q.id));
 
         if (questionsToSave.length === 0) {
-            throw new BadRequestException('No valid questions to save');
+            return { success: true, savedCount: 0 };
         }
 
-        let savedCount = 0;
+        const queryRunner = this.cauHoiRepository.manager.connection.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
 
         try {
-            // Use a transaction to ensure data consistency
-            await this.cauHoiRepository.manager.transaction(async transactionalEntityManager => {
-                for (const question of questionsToSave) {
-                    // Find metadata for this question if provided
-                    const metadata = questionMetadata?.find(m => m.id === question.id);
+            let savedCount = 0;
 
-                    // Create the question
-                    const cauHoi = new CauHoi();
-                    cauHoi.MaCauHoi = randomUUID();
-                    cauHoi.NoiDung = question.content;
-                    cauHoi.MaPhan = sectionId;
+            // Process each question
+            for (const question of questionsToSave) {
+                // Check if metadata exists for this question
+                const metadata = questionMetadata?.find(meta => meta.id === question.id);
+                const clo = metadata?.clo || question.clo;
 
-                    // Use CLO from metadata if available, otherwise from question
-                    if (metadata?.clo) {
-                        // Extract just the number from CLO string (e.g. "CLO1" -> "1")
-                        const cloNumber = metadata.clo.replace(/\D/g, '');
-                        // If a valid CLO number is found, use it
-                        if (cloNumber) {
-                            cauHoi.MaCLO = cloNumber;
-                        }
-                    } else if (question.clo) {
-                        const cloNumber = question.clo.replace(/\D/g, '');
-                        if (cloNumber) {
-                            cauHoi.MaCLO = cloNumber;
+                if (question.type === 'group' && question.childQuestions) {
+                    // Create parent group question
+                    const parentQuestion = await queryRunner.manager.create(CauHoi, {
+                        MaCauHoi: uuidv4(),
+                        NoiDung: question.content || '',
+                        MaPhan: maPhan,
+                        MaCLO: clo || null,
+                        SoCauHoiCon: question.childQuestions.length,
+                        HoanVi: true, // Default to true for group questions
+                        MaCauHoiCha: null,
+                        XoaTamCauHoi: false,
+                        NgayTao: new Date(),
+                        DoPhanCachCauHoi: question.groupContent || ''
+                    } as any);
+
+                    const savedParent = await queryRunner.manager.save(parentQuestion);
+                    savedCount++;
+
+                    // Process child questions
+                    for (const childQuestion of question.childQuestions) {
+                        // Check if child has metadata
+                        const childMeta = questionMetadata?.find(meta =>
+                            meta.childQuestions?.some(child => child.id === childQuestion.id)
+                        )?.childQuestions?.find(child => child.id === childQuestion.id);
+
+                        const childClo = childMeta?.clo || childQuestion.clo;
+
+                        // Create child question
+                        const childQuestionEntity = await queryRunner.manager.create(CauHoi, {
+                            MaCauHoi: uuidv4(),
+                            NoiDung: childQuestion.content || '',
+                            MaPhan: maPhan,
+                            MaCLO: childClo || null,
+                            HoanVi: true, // Default to true
+                            MaCauHoiCha: savedParent.MaCauHoi,
+                            XoaTamCauHoi: false,
+                            NgayTao: new Date()
+                        } as any);
+
+                        const savedChild = await queryRunner.manager.save(childQuestionEntity);
+
+                        // Create answers for child question
+                        if (childQuestion.answers && childQuestion.answers.length > 0) {
+                            for (const answer of childQuestion.answers) {
+                                const answerEntity = await queryRunner.manager.create(CauTraLoi, {
+                                    MaCauTraLoi: uuidv4(),
+                                    MaCauHoi: savedChild.MaCauHoi,
+                                    NoiDung: answer.content || '',
+                                    ThuTu: answer.order || 0,
+                                    LaDapAn: answer.isCorrect || false
+                                } as any);
+
+                                await queryRunner.manager.save(answerEntity);
+                            }
                         }
                     }
+                } else {
+                    // Create regular question
+                    const regularQuestion = await queryRunner.manager.create(CauHoi, {
+                        MaCauHoi: uuidv4(),
+                        NoiDung: question.content || '',
+                        MaPhan: maPhan,
+                        MaCLO: clo || null,
+                        HoanVi: true, // Default to true
+                        XoaTamCauHoi: false,
+                        NgayTao: new Date()
+                    } as any);
 
-                    cauHoi.CapDo = 1; // Default to easy
-                    cauHoi.HoanVi = true; // Default to shuffle
-                    cauHoi.XoaTamCauHoi = false;
-                    cauHoi.NgayTao = new Date();
+                    const savedQuestion = await queryRunner.manager.save(regularQuestion);
+                    savedCount++;
 
-                    // Assign a random question number if not provided
-                    cauHoi.MaSoCauHoi = Math.floor(Math.random() * 9000) + 1000;
-
-                    // Save the question
-                    await transactionalEntityManager.save(cauHoi);
-
-                    // Save answers if they exist
+                    // Create answers
                     if (question.answers && question.answers.length > 0) {
                         for (const answer of question.answers) {
-                            const cauTraLoi = new CauTraLoi();
-                            cauTraLoi.MaCauTraLoi = randomUUID();
-                            cauTraLoi.MaCauHoi = cauHoi.MaCauHoi;
-                            cauTraLoi.NoiDung = answer.content;
-                            cauTraLoi.LaDapAn = answer.isCorrect;
-                            cauTraLoi.ThuTu = answer.order;
-                            cauTraLoi.HoanVi = cauHoi.HoanVi;
+                            const answerEntity = await queryRunner.manager.create(CauTraLoi, {
+                                MaCauTraLoi: uuidv4(),
+                                MaCauHoi: savedQuestion.MaCauHoi,
+                                NoiDung: answer.content || '',
+                                ThuTu: answer.order || 0,
+                                LaDapAn: answer.isCorrect || false
+                            } as any);
 
-                            await transactionalEntityManager.save(cauTraLoi);
+                            await queryRunner.manager.save(answerEntity);
                         }
                     }
-
-                    // Process child questions if this is a group question
-                    if (question.childQuestions && question.childQuestions.length > 0) {
-                        for (const childQuestion of question.childQuestions) {
-                            // Find metadata for this child question
-                            const childMetadata = metadata?.childQuestions?.find(c => c.id === childQuestion.id);
-
-                            const childCauHoi = new CauHoi();
-                            childCauHoi.MaCauHoi = randomUUID();
-                            childCauHoi.NoiDung = childQuestion.content;
-                            childCauHoi.MaPhan = sectionId;
-                            childCauHoi.MaCauHoiCha = cauHoi.MaCauHoi; // Link to parent question
-
-                            // Use CLO from metadata if available, otherwise from question
-                            if (childMetadata?.clo) {
-                                const cloNumber = childMetadata.clo.replace(/\D/g, '');
-                                if (cloNumber) {
-                                    childCauHoi.MaCLO = cloNumber;
-                                }
-                            } else if (childQuestion.clo) {
-                                const cloNumber = childQuestion.clo.replace(/\D/g, '');
-                                if (cloNumber) {
-                                    childCauHoi.MaCLO = cloNumber;
-                                }
-                            }
-
-                            childCauHoi.CapDo = 1;
-                            childCauHoi.HoanVi = true;
-                            childCauHoi.XoaTamCauHoi = false;
-                            childCauHoi.NgayTao = new Date();
-                            childCauHoi.MaSoCauHoi = Math.floor(Math.random() * 9000) + 1000;
-
-                            await transactionalEntityManager.save(childCauHoi);
-
-                            // Save child answers
-                            if (childQuestion.answers && childQuestion.answers.length > 0) {
-                                for (const answer of childQuestion.answers) {
-                                    const cauTraLoi = new CauTraLoi();
-                                    cauTraLoi.MaCauTraLoi = randomUUID();
-                                    cauTraLoi.MaCauHoi = childCauHoi.MaCauHoi;
-                                    cauTraLoi.NoiDung = answer.content;
-                                    cauTraLoi.LaDapAn = answer.isCorrect;
-                                    cauTraLoi.ThuTu = answer.order;
-                                    cauTraLoi.HoanVi = childCauHoi.HoanVi;
-
-                                    await transactionalEntityManager.save(cauTraLoi);
-                                }
-                            }
-                        }
-                    }
-
-                    savedCount++;
                 }
-            });
+            }
 
-            return {
-                success: true,
-                savedCount
-            };
+            await queryRunner.commitTransaction();
+            return { success: true, savedCount };
         } catch (error) {
+            await queryRunner.rollbackTransaction();
             this.logger.error(`Error saving questions: ${error.message}`, error.stack);
-            throw new BadRequestException(`Failed to save questions: ${error.message}`);
+            throw error;
+        } finally {
+            await queryRunner.release();
         }
     }
 
-    /**
-     * Clean up expired import sessions
-     */
     private cleanupExpiredSessions() {
         const now = Date.now();
-        for (const [id, session] of this.importSessions.entries()) {
-            const sessionAge = now - session.createdAt.getTime();
-            if (sessionAge > this.sessionExpiryMs) {
-                // Delete the temporary file if it exists
-                if (session.filePath && fs.existsSync(session.filePath)) {
+        for (const [fileId, session] of this.importSessions.entries()) {
+            if (now - session.createdAt.getTime() > this.sessionExpiryMs) {
+                // Delete the file
+                if (fs.existsSync(session.filePath)) {
                     try {
                         fs.unlinkSync(session.filePath);
                     } catch (error) {
-                        this.logger.error(`Error deleting file ${session.filePath}: ${error.message}`);
+                        this.logger.warn(`Error deleting file ${session.filePath}: ${error.message}`);
                     }
                 }
-
                 // Remove the session
-                this.importSessions.delete(id);
-                this.logger.log(`Cleaned up expired import session: ${id}`);
+                this.importSessions.delete(fileId);
+                this.logger.log(`Cleaned up expired import session ${fileId}`);
             }
         }
     }

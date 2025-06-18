@@ -2,6 +2,8 @@ import 'katex/dist/katex.min.css';
 import katex from 'katex';
 
 export const renderLatex = (content: string): string => {
+    if (!content) return '';
+
     try {
         // Handle LaTeX with HTML style attributes (like colored math)
         const styledLatexRegex = /(\\[a-zA-Z]+\{[^}]*\})"?\s*style="([^"]+)">(\\[a-zA-Z]+\{[^}]*\})/g;
@@ -58,6 +60,54 @@ export const renderLatex = (content: string): string => {
             }
         });
 
+        // Cải thiện xử lý cho các mẫu ma trận
+        // Xác định các ma trận với các loại dấu ngoặc khác nhau và xử lý đặc biệt
+        // Xử lý ma trận trong $$ ... $$ hoặc trong \[ ... \] hoặc trong $ ... $
+        const matrixPatterns = [
+            // Các mẫu ma trận
+            /\\\[\s*\\begin\{(p|b|v|V|)matrix\}[\s\S]*?\\end\{(p|b|v|V|)matrix\}\s*\\\]/g,
+            /\$\$\s*\\begin\{(p|b|v|V|)matrix\}[\s\S]*?\\end\{(p|b|v|V|)matrix\}\s*\$\$/g,
+            /\$\s*\\begin\{(p|b|v|V|)matrix\}[\s\S]*?\\end\{(p|b|v|V|)matrix\}\s*\$/g,
+
+            // Xử lý ma trận độc lập
+            /\\begin\{(p|b|v|V|)matrix\}[\s\S]*?\\end\{(p|b|v|V|)matrix\}/g,
+        ];
+
+        // Xử lý từng loại ma trận
+        matrixPatterns.forEach(pattern => {
+            processedContent = processedContent.replace(pattern, (match) => {
+                try {
+                    // Chuẩn hóa ma trận để KaTeX có thể xử lý tốt hơn
+                    let normalizedMatrix = match
+                        // Đảm bảo dấu ngắt dòng thích hợp trong ma trận
+                        .replace(/\\\\(?!\n)/g, '\\\\\n')
+                        // Đảm bảo khoảng cách thích hợp trong ma trận
+                        .replace(/&(?!\s)/g, '& ');
+
+                    // Xác định nếu đây là ma trận hiển thị (trong $$ hoặc \[)
+                    const isDisplayMode = match.startsWith('$$') || match.startsWith('\\[');
+
+                    // Biến đổi ma trận để nó hiển thị đúng
+                    const rendered = katex.renderToString(
+                        // Nếu ma trận chưa được bao trong $ $ hoặc \[ \], thêm vào
+                        match.startsWith('\\begin') ? `\\displaystyle ${normalizedMatrix}` : normalizedMatrix,
+                        {
+                            throwOnError: false,
+                            output: 'html',
+                            displayMode: isDisplayMode,
+                            strict: false,
+                            trust: true
+                        }
+                    );
+
+                    return `<div class="${isDisplayMode ? 'katex-display' : 'katex-formula'}">${rendered}</div>`;
+                } catch (e) {
+                    console.error('Error rendering matrix:', match, e);
+                    return match;
+                }
+            });
+        });
+
         // Pre-process chemical formulas to make them more compatible with KaTeX
         // Replace chemical formulas like C_6H_12O_6 with proper LaTeX: C_{6}H_{12}O_{6}
         processedContent = processedContent.replace(/([A-Z][a-z]?)_(\d+)/g, '$1_{$2}');
@@ -68,69 +118,86 @@ export const renderLatex = (content: string): string => {
         // Fix specific patterns seen in the screenshots
         processedContent = processedContent.replace(/\\sqrt\{([a-z0-9])(\^)(\d+)\}/g, '\\sqrt{$1^{$3}}');
 
+        // Cải thiện xử lý các biểu thức trong cặp $ ... $ và $$ ... $$
+        const dollarPatterns = [
+            /\$\$(.*?)\$\$/g,  // $$ ... $$ (display mode)
+            /\$([^\$]+?)\$/g,  // $ ... $ (inline mode)
+            /\\\[(.*?)\\\]/g,  // \[ ... \] (display mode)
+            /\\\((.*?)\\\)/g,  // \( ... \) (inline mode)
+        ];
+
+        dollarPatterns.forEach((pattern, index) => {
+            const isDisplayMode = index === 0 || index === 2; // $$ ... $$ or \[ ... \]
+
+            processedContent = processedContent.replace(pattern, (match, formula) => {
+                try {
+                    // Xử lý ma trận trong các biểu thức
+                    if (formula.includes('\\begin{matrix}') ||
+                        formula.includes('\\begin{pmatrix}') ||
+                        formula.includes('\\begin{bmatrix}') ||
+                        formula.includes('\\begin{vmatrix}') ||
+                        formula.includes('\\begin{Vmatrix}')) {
+
+                        // Đã xử lý ở trên với matrixPatterns
+                        return match;
+                    }
+
+                    const rendered = katex.renderToString(formula, {
+                        throwOnError: false,
+                        output: 'html',
+                        displayMode: isDisplayMode,
+                        strict: false
+                    });
+
+                    return `<div class="${isDisplayMode ? 'katex-display' : 'katex-formula'}">${rendered}</div>`;
+                } catch (e) {
+                    console.error(`Error rendering LaTeX formula: ${match}`, e);
+                    return match;
+                }
+            });
+        });
+
         // Comprehensive regex to match various LaTeX patterns
         const latexPatterns = [
             // Basic math commands
-            /\\[a-zA-Z]+\{.*?\}/g,
-            /\\[a-zA-Z]+_[a-zA-Z0-9]+/g,
-            /\\[a-zA-Z]+_\{.*?\}/g,
-            /\\[a-zA-Z]+\^\{.*?\}/g,
-            /\\[a-zA-Z]+/g,
-
-            // Matrix notation (with special handling)
-            /\\begin\{pmatrix\}[\s\S]*?\\end\{pmatrix\}/g,
-            /\\begin\{matrix\}[\s\S]*?\\end\{matrix\}/g,
-            /\\begin\{bmatrix\}[\s\S]*?\\end\{bmatrix\}/g,
-            /\\begin\{vmatrix\}[\s\S]*?\\end\{vmatrix\}/g,
-            /\\begin\{Vmatrix\}[\s\S]*?\\end\{Vmatrix\}/g,
-
-            // Specific math expressions
-            /\\exists.*?\\in.*?\\mathbb\{[A-Z]\}.*?[<>=]/g,
-            /\\forall.*?\\ge 0/g,
-            /\\sum.*?\\frac\{.*?\}\{.*?\}/g,
-            /\\log_.*?\\iff/g,
-            /\\lim_.*?= 1/g,
-            /\\mathcal\{L\}.*?dt/g,
-            /\\vec\{.*?\}/g,
-            /\\binom\{.*?\}\{.*?\}/g,
-
-            // Chemical formulas (enhanced)
-            /[A-Z][a-z]?_\{[0-9]+\}[A-Z][a-z]?_\{[0-9]+\}[A-Z]?[a-z]?_?\{?[0-9]*\}?/g,
-            /[A-Z][a-z]?\{.*?\}\d*/g,
-
-            // Integrals
+            /\\sum_\{.*?\}\^\{.*?\}/g,
+            /\\prod_\{.*?\}\^\{.*?\}/g,
+            /\\lim_\{.*?\}/g,
             /\\int_\{.*?\}\^\{.*?\}/g,
-            /\\int_\{.*?\}/g,
-            /\\int\^\{.*?\}/g,
-            /\\int/g,
+            /\\oint_\{.*?\}\^\{.*?\}/g,
 
-            // Fractions
+            // Phân số
             /\\frac\{.*?\}\{.*?\}/g,
 
-            // Subscripts and superscripts (enhanced)
+            // Căn bậc
+            /\\sqrt\{.*?\}/g,
+            /\\sqrt\[[0-9]+\]\{.*?\}/g,
+
+            // Ma trận - đã được xử lý ở trên
+
+            // Chỉ số và lũy thừa
             /[A-Za-z0-9]_\{.*?\}\^\{.*?\}/g,
             /[A-Za-z0-9]_\{.*?\}/g,
             /[A-Za-z0-9]\^\{.*?\}/g,
-            /[A-Za-z0-9]_[0-9a-zA-Z]/g,
-            /[A-Za-z0-9]\^[0-9a-zA-Z]/g,
 
-            // Greek letters
-            /\\[a-zA-Z]+/g,
+            // Các hàm toán học
+            /\\[a-z]+\{.*?\}/g,
 
-            // Special functions
-            /\\sqrt\{.*?\}/g,
+            // Các chữ cái Hy Lạp
+            /\\[a-zA-Z]+(?![a-zA-Z])/g,
+
+            // Các biểu tượng toán học
+            /\\(times|div|pm|mp|cdot|leq|geq|neq|equiv|approx|in|notin|subset|subseteq|cup|cap)/g,
+
+            // Các biểu thức logic
+            /\\(rightarrow|Rightarrow|leftrightarrow|Leftrightarrow|forall|exists)/g,
+
+            // Các biến đổi và vector
+            /\\vec\{.*?\}/g,
+            /\\overrightarrow\{.*?\}/g,
+            /\\overleftarrow\{.*?\}/g,
             /\\overline\{.*?\}/g,
             /\\underline\{.*?\}/g,
-
-            // Sets and logic
-            /\\in|\\subset|\\subseteq|\\cup|\\cap|\\emptyset|\\rightarrow|\\Rightarrow|\\Leftrightarrow|\\land|\\lor|\\neg/g,
-
-            // Additional patterns for the specific cases in screenshots
-            /\\sqrt\{[^}]+\}/g,
-            /\\sqrt\{[a-z0-9]\^[0-9]+\}/g,
-            /\\sqrt\{[a-z0-9]\^\{[0-9]+\}\}/g,
-            /\\sqrt\{[a-z0-9]\^[0-9]+ \+ [a-z0-9]\^[0-9]+\}/g,
-            /\\sqrt\{[a-z0-9]\^\{[0-9]+\} \+ [a-z0-9]\^\{[0-9]+\}\}/g
         ];
 
         // Find all matches from all patterns
@@ -156,15 +223,18 @@ export const renderLatex = (content: string): string => {
                     return;
                 }
 
+                // Skip if match is already wrapped in katex-formula
+                if (processedContent.includes(`<span class="katex-formula">${match}</span>`)) {
+                    return;
+                }
+
                 // Special handling for matrices to ensure proper rendering
                 let latexToRender = match;
 
                 // Fix common matrix issues
                 if (latexToRender.includes('\\begin{') && latexToRender.includes('\\end{')) {
-                    // Ensure proper line breaks in matrices
-                    latexToRender = latexToRender.replace(/\\\\(?!\n)/g, '\\\\\n');
-                    // Ensure proper spacing in matrices
-                    latexToRender = latexToRender.replace(/&(?!\s)/g, '& ');
+                    // Đã xử lý ở trên
+                    return;
                 }
 
                 const rendered = katex.renderToString(latexToRender, {
@@ -179,6 +249,21 @@ export const renderLatex = (content: string): string => {
                 processedContent = processedContent.replace(safePattern, `<span class="katex-formula">${rendered}</span>`);
             } catch (e) {
                 console.error('Error rendering specific LaTeX:', match, e);
+            }
+        });
+
+        // Xử lý đặc biệt cho các công thức cụ thể trong ảnh mà bạn gửi
+        // Mẫu trong \sum_{d}^{adsa}
+        processedContent = processedContent.replace(/\\sum_\{([^}]+)\}\^\{([^}]+)\}/g, (match, lower, upper) => {
+            try {
+                const rendered = katex.renderToString(`\\sum_{${lower}}^{${upper}}`, {
+                    throwOnError: false,
+                    output: 'html',
+                    displayMode: false,
+                });
+                return `<span class="katex-formula">${rendered}</span>`;
+            } catch (e) {
+                return match;
             }
         });
 

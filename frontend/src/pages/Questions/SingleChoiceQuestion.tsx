@@ -158,9 +158,9 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
   const [cloList, setCloList] = useState<CLO[]>([]);
   const [maKhoa, setMaKhoa] = useState(question?.khoa?.MaKhoa || '');
   const [maMonHoc, setMaMonHoc] = useState(question?.monHoc?.MaMonHoc || '');
-  const [maPhan, setMaPhan] = useState(question?.MaPhan || '');
-  const [maCLO, setMaCLO] = useState(question?.MaCLO || '');
-  const [selectedCLOName, setSelectedCLOName] = useState('');
+  const [maPhan, setMaPhan] = useState(question?.MaPhan || question?.phan?.MaPhan || '');
+  const [maCLO, setMaCLO] = useState(question?.MaCLO || question?.clo?.MaCLO || '');
+  const [selectedCLOName, setSelectedCLOName] = useState(question?.clo?.TenCLO || '');
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [uploadingAudio, setUploadingAudio] = useState(false);
@@ -173,6 +173,59 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
       : Array(defaultAnswers.length).fill(true)
   );
   const [subQuestions, setSubQuestions] = useState<SubQuestion[]>([]);
+
+  // Enhanced effect to populate dropdowns when question props change
+  useEffect(() => {
+    if (question) {
+      // Update form fields based on question data
+      setContent(question.NoiDung || '');
+
+      if (question.answers && question.answers.length > 0) {
+        setAnswers(question.answers.map(a => ({
+          text: a.NoiDung || '',
+          correct: a.LaDapAn
+        })));
+      }
+
+      setLevel(question.CapDo?.toString() || '');
+      setFixedOrder(question.HoanVi === false);
+
+      // Handle faculty data
+      if (question.khoa?.MaKhoa) {
+        setMaKhoa(question.khoa.MaKhoa);
+
+        // Fetch subjects for this faculty
+        fetch(`${API_BASE_URL}/mon-hoc/khoa/${question.khoa.MaKhoa}`)
+          .then(res => res.json())
+          .then(data => setMonHocList(data))
+          .catch(err => console.error("Error fetching subjects:", err));
+      }
+
+      // Handle subject data
+      if (question.monHoc?.MaMonHoc) {
+        setMaMonHoc(question.monHoc.MaMonHoc);
+
+        // Fetch chapters for this subject
+        fetch(`${API_BASE_URL}/phan/mon-hoc/${question.monHoc.MaMonHoc}`)
+          .then(res => res.json())
+          .then(data => setPhanList(data))
+          .catch(err => console.error("Error fetching chapters:", err));
+      }
+
+      // Handle chapter data
+      if (question.phan?.MaPhan || question.MaPhan) {
+        setMaPhan(question.phan?.MaPhan || question.MaPhan || '');
+      }
+
+      // Handle CLO data
+      if (question.clo?.MaCLO || question.MaCLO) {
+        setMaCLO(question.clo?.MaCLO || question.MaCLO || '');
+        if (question.clo?.TenCLO) {
+          setSelectedCLOName(question.clo.TenCLO);
+        }
+      }
+    }
+  }, [question]);
 
   // Fetch CLO list from backend
   useEffect(() => {
@@ -1356,7 +1409,7 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
             {/* Always show dropdown menus for all questions */}
             <div className="space-y-3">
                 <div>
-                  <label className="block text-sm mb-1 text-left text-gray-700 font-medium flex items-center gap-1">
+                  <label className=" text-sm mb-1 text-left text-gray-700 font-medium flex items-center gap-1">
                     <Building2 className="w-4 h-4 text-blue-500" /> Khoa <span className="text-red-500">*</span>
                   </label>
                   <div className="relative bg-blue-50 rounded-lg p-3">
@@ -1381,7 +1434,7 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm mb-1 text-left text-gray-700 font-medium flex items-center gap-1">
+                  <label className=" text-sm mb-1 text-left text-gray-700 font-medium flex items-center gap-1">
                     <BookOpen className="w-4 h-4 text-green-500" /> Môn học <span className="text-red-500">*</span>
                   </label>
                   <div className="relative bg-green-50 rounded-lg p-3">
@@ -1406,7 +1459,7 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm mb-1 text-left text-gray-700 font-medium flex items-center gap-1">
+                  <label className=" text-sm mb-1 text-left text-gray-700 font-medium flex items-center gap-1">
                     <Layers className="w-4 h-4 text-yellow-600" /> Phần <span className="text-red-500">*</span>
                   </label>
                   <div className="relative bg-yellow-50 rounded-lg p-3">
@@ -1427,7 +1480,7 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm mb-1 text-left text-gray-700 font-medium flex items-center gap-1">
+                  <label className=" text-sm mb-1 text-left text-gray-700 font-medium flex items-center gap-1">
                     <Target className="w-4 h-4 text-purple-500" /> CLO <span className="text-red-500">*</span>
                   </label>
                   <div className="relative bg-purple-50 rounded-lg p-3">
