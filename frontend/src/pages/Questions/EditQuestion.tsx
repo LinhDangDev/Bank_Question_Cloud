@@ -1,8 +1,8 @@
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import {  useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 // import { Input } from '@/components/ui/input';
-import { useThemeStyles } from '../../utils/theme';
+import { useThemeStyles, cx } from '../../utils/theme';
 import SingleChoiceQuestion from './SingleChoiceQuestion';
 import MultiChoiceQuestion from './MultiChoiceQuestion';
 import FillBlankQuestion from './FillBlankQuestion';
@@ -10,9 +10,20 @@ import EssayQuestion from './EssayQuestion';
 import ImageQuestion from './ImageQuestion';
 import AudioQuestion from './AudioQuestion';
 import GroupQuestion from './GroupQuestion';
-import { ChevronLeft } from 'lucide-react';
-import { AlertTriangle } from 'lucide-react';
+import { ChevronLeft, AlertTriangle, Sigma } from 'lucide-react';
 import { API_BASE_URL } from '@/config';
+import { MathRenderer } from '@/components/MathRenderer';
+
+// Add interface definitions for the props of each question component
+interface LatexProps {
+  latexMode?: boolean;
+  toggleLatexMode?: () => void;
+  parentId?: string | null;
+}
+
+interface SingleChoiceQuestionProps extends LatexProps {
+  question?: any;
+}
 
 interface Answer {
   MaCauTraLoi: string;
@@ -73,6 +84,41 @@ interface QuestionDetails {
   };
 }
 
+// Need to update SingleChoiceQuestion type definition to match what we're passing in
+// This is the format that SingleChoiceQuestion expects
+interface ExtendedQuestionProps {
+  MaCauHoi?: string;
+  NoiDung?: string;
+  MaPhan?: string;
+  MaCLO?: string;
+  CapDo?: number;
+  HoanVi?: boolean;
+  answers?: Array<{
+    MaCauTraLoi: string;
+    NoiDung: string;
+    ThuTu: number;
+    LaDapAn: boolean;
+    HoanVi?: boolean;
+  }>;
+  khoa?: {
+    MaKhoa: string;
+    TenKhoa: string;
+  };
+  monHoc?: {
+    MaMonHoc: string;
+    TenMonHoc: string;
+  };
+  phan?: {
+    MaPhan: string;
+    TenPhan: string;
+  };
+  clo?: {
+    MaCLO: string;
+    TenCLO: string;
+  };
+  parentQuestion?: Question;
+}
+
 const EditQuestion = () => {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -82,9 +128,13 @@ const EditQuestion = () => {
   const [questionDetails, setQuestionDetails] = useState<QuestionDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [latexMode, setLatexMode] = useState<boolean>(false);
+  const [parentQuestion, setParentQuestion] = useState<Question | null>(null);
+  const [loadingParent, setLoadingParent] = useState(false);
 
   // Nếu là tạo mới, lấy type từ query param
   const type = searchParams.get('type');
+  const parentId = searchParams.get('parentId');
 
   useEffect(() => {
     if (id && id !== 'new') {
@@ -105,6 +155,15 @@ const EditQuestion = () => {
 
           setQuestion(detailsData.question);
           setQuestionDetails(detailsData);
+
+          // Automatically enable LaTeX mode if content contains LaTeX
+          if (detailsData.question?.NoiDung &&
+              (detailsData.question.NoiDung.includes('$$') ||
+               detailsData.question.NoiDung.includes('\\(') ||
+               detailsData.question.NoiDung.includes('\\['))) {
+            setLatexMode(true);
+          }
+
           setLoading(false);
         })
         .catch(err => {
@@ -115,27 +174,53 @@ const EditQuestion = () => {
     }
   }, [id]);
 
+  // Fetch parent question if this is a child question
+  useEffect(() => {
+    if (parentId) {
+      setLoadingParent(true);
+      fetch(`${API_BASE_URL}/cau-hoi/${parentId}`)
+        .then(async (response) => {
+          if (!response.ok) throw new Error('Không tìm thấy câu hỏi cha!');
+          const parentData = await response.json();
+          setParentQuestion(parentData);
+        })
+        .catch(err => {
+          console.error('Error fetching parent question:', err);
+        })
+        .finally(() => {
+          setLoadingParent(false);
+        });
+    }
+  }, [parentId]);
+
+  const toggleLatexMode = () => {
+    setLatexMode(!latexMode);
+  };
+
   if (id === 'new' && !type) {
     return (
-      <div className="p-8 bg-red-50 text-red-500 font-semibold rounded-lg border border-red-200 shadow-sm">
-        Không xác định được loại câu hỏi!
+      <div className="p-6 bg-red-50 text-red-500 font-semibold rounded-lg border border-red-200 shadow-md">
+        <div className="flex items-center">
+          <AlertTriangle className="w-6 h-6 mr-3" />
+          <span>Không xác định được loại câu hỏi!</span>
+        </div>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="p-8 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-        <span className="ml-3 text-gray-500 font-semibold">Đang tải câu hỏi...</span>
+      <div className="p-6 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
+        <span className="ml-4 text-gray-500 font-semibold">Đang tải câu hỏi...</span>
       </div>
     );
   }
 
   if (id !== 'new' && error) {
     return (
-      <div className="p-8 bg-red-50 text-red-500 font-semibold rounded-lg border border-red-200 shadow-sm flex items-center">
-        <AlertTriangle className="w-5 h-5 mr-2" />
+      <div className="p-6 bg-red-50 text-red-500 font-semibold rounded-lg border border-red-200 shadow-md flex items-center">
+        <AlertTriangle className="w-6 h-6 mr-3" />
         {error}
       </div>
     );
@@ -146,60 +231,69 @@ const EditQuestion = () => {
     if (id === 'new') {
       switch (type) {
         case 'single-choice':
-          return <SingleChoiceQuestion />;
+          // @ts-ignore - Component accepts these props but TypeScript definitions need updating
+          return <SingleChoiceQuestion latexMode={latexMode} toggleLatexMode={toggleLatexMode} parentId={parentId} />;
         case 'multi-choice':
-          return <MultiChoiceQuestion />;
+          // @ts-ignore - Component accepts these props but TypeScript definitions need updating
+          return <MultiChoiceQuestion latexMode={latexMode} toggleLatexMode={toggleLatexMode} parentId={parentId} />;
         case 'fill-blank':
-          return <FillBlankQuestion />;
+          // @ts-ignore - Component accepts these props but TypeScript definitions need updating
+          return <FillBlankQuestion latexMode={latexMode} toggleLatexMode={toggleLatexMode} parentId={parentId} />;
         case 'essay':
-          return <EssayQuestion />;
+          // @ts-ignore - Component accepts these props but TypeScript definitions need updating
+          return <EssayQuestion latexMode={latexMode} toggleLatexMode={toggleLatexMode} parentId={parentId} />;
         case 'image':
-          return <ImageQuestion />;
+          // @ts-ignore - Component accepts these props but TypeScript definitions need updating
+          return <ImageQuestion latexMode={latexMode} toggleLatexMode={toggleLatexMode} parentId={parentId} />;
         case 'audio':
-          return <AudioQuestion />;
+          // @ts-ignore - Component accepts these props but TypeScript definitions need updating
+          return <AudioQuestion latexMode={latexMode} toggleLatexMode={toggleLatexMode} parentId={parentId} />;
         case 'group':
-          return <GroupQuestion />;
+          // @ts-ignore - Component accepts these props but TypeScript definitions need updating
+          return <SingleChoiceQuestion isGroup={true} latexMode={latexMode} toggleLatexMode={toggleLatexMode} />;
         default:
-          return <div className="p-8 text-red-500 font-semibold">Loại câu hỏi không hỗ trợ!</div>;
+          return <div className="p-6 text-red-500 font-semibold">Loại câu hỏi không hỗ trợ!</div>;
       }
+    } else if (question) {
+      // Check if this is a group question with parent-child structure
+      const isGroupQuestion = question.SoCauHoiCon > 0;
+      return (
+        <SingleChoiceQuestion
+          question={question}
+          isGroup={isGroupQuestion}
+          latexMode={latexMode}
+          toggleLatexMode={toggleLatexMode}
+          parentId={parentId}
+        />
+      );
     }
-
-    if (!question) return null;
-
-    // If we have questionsDetails, pass the complete object to SingleChoiceQuestion
-    return <SingleChoiceQuestion
-      question={questionDetails ? {
-        ...question,
-        answers: questionDetails.answers || [],
-        khoa: questionDetails.khoa,
-        monHoc: questionDetails.monHoc,
-        phan: questionDetails.phan,
-        clo: questionDetails.clo
-      } : question}
-    />;
   };
 
   return (
-    <div className="max-w-full px-4 py-6">
-      <div className="flex items-center gap-2 mb-6">
-        {id === 'new' && (
-          <Button
-            variant="outline"
-            className="flex items-center justify-center h-9 w-9 p-0 rounded-full"
-            onClick={() => navigate('/questions/create')}
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </Button>
-        )}
-        {/* <h2 className={cx("text-2xl font-bold", styles.isDark ? 'text-gray-200' : '')}>
-          {id === 'new' ? 'Tạo câu hỏi mới' : 'Chỉnh sửa câu hỏi'}
-        </h2> */}
-      </div>
+    <div className="bg-gray-50 dark:bg-gray-900 min-h-screen p-6">
+      <div className="max-w-7xl mx-auto bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
 
-      <div>
-        {renderForm()}
+          {/* Parent question breadcrumb if editing a child question */}
+          {parentQuestion && (
+            <div className="mt-4 flex items-center text-sm bg-blue-50 dark:bg-blue-900/30 px-4 py-2 rounded-md">
+              <span className="text-blue-600 dark:text-blue-400">Câu hỏi con thuộc:</span>
+              <Button
+                variant="text"
+                size="sm"
+                className="ml-2 text-blue-700 dark:text-blue-300"
+                onClick={() => navigate(`/questions/edit/${parentQuestion.MaCauHoi}`)}
+              >
+                Câu hỏi nhóm #{parentQuestion.MaSoCauHoi}
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Question form container */}
+        <div className="p-6">
+          {renderForm()}
+        </div>
       </div>
-    </div>
   );
 };
 

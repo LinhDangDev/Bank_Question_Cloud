@@ -15,6 +15,7 @@ export const useModal = (options: UseModalOptions = {}) => {
     } = options;
 
     const [isOpen, setIsOpen] = useState(false);
+    const [modalContent, setModalContent] = useState<React.ReactNode>(null);
     const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
     useEffect(() => {
@@ -55,13 +56,26 @@ export const useModal = (options: UseModalOptions = {}) => {
         onClose?.();
     }, [onClose]);
 
+    // Add showModal and hideModal methods for compatibility with SingleChoiceQuestion component
+    const showModal = useCallback((content: React.ReactNode) => {
+        setModalContent(content);
+        setIsOpen(true);
+    }, []);
+
+    const hideModal = useCallback(() => {
+        setIsOpen(false);
+        onClose?.();
+        // Optional: clear content after animation finishes
+        setTimeout(() => setModalContent(null), 300);
+    }, [onClose]);
+
     const handleOverlayClick = useCallback((e: React.MouseEvent) => {
         if (closeOnOverlayClick && e.target === e.currentTarget) {
             close();
         }
     }, [closeOnOverlayClick, close]);
 
-    const renderModal = (content: React.ReactNode) => {
+    const renderModal = useCallback(() => {
         if (!isOpen || !portalContainer) return null;
 
         return createPortal(
@@ -69,16 +83,18 @@ export const useModal = (options: UseModalOptions = {}) => {
                 className="fixed inset-0 bg-black bg-opacity-50 z-[9999] flex items-center justify-center"
                 onClick={handleOverlayClick}
             >
-                {content}
+                {modalContent}
             </div>,
             portalContainer
         );
-    };
+    }, [isOpen, portalContainer, handleOverlayClick, modalContent]);
 
     return {
         isOpen,
         open,
         close,
+        showModal,
+        hideModal,
         renderModal,
     };
 };

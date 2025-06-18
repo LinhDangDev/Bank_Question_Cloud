@@ -25,7 +25,7 @@ const Layout = () => {
           zIndex: 1
         }}
       >
-        <div className="p-6">
+        <div className="p-6 ">
           <Outlet />
         </div>
       </main>

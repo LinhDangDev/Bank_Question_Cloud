@@ -1,14 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useThemeStyles, cx } from '../../utils/theme';
-import { Eye, Plus, Trash2, Info, X, Save, ArrowLeft, CheckCircle, Building2, BookOpen, Layers, Target, Upload, Music } from 'lucide-react';
+import { Eye, Plus, Trash2, Info, X, Save, ArrowLeft, CheckCircle, Building2, BookOpen, Layers, Target, Upload, Music, ChevronLeft, AlertTriangle, Sigma, GripVertical } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { Editor } from '@tinymce/tinymce-react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '@/config';
+import { Select } from '@/components/ui/select';
+import { Dialog } from '@/components/ui/dialog';
+import MathModal from '../../components/Modal/MathModal';
+import { useModal } from '../../hooks/useModal';
+import { MathRenderer } from '../../components/MathRenderer';
 
 // @ts-ignore
 declare global {
@@ -41,16 +48,28 @@ function splitAnswers(answers: { text: string; correct: boolean }[], columns: nu
 
 const EditorAny = Editor as any;
 
+// Answer interfaces
 interface AnswerForm {
   text: string;
   correct: boolean;
 }
 
+interface Answer {
+  MaCauTraLoi: string;
+  MaCauHoi: string;
+  NoiDung: string;
+  ThuTu: number;
+  LaDapAn: boolean;
+  HoanVi: boolean;
+}
+
+// Base question interfaces
 interface Khoa { MaKhoa: string; TenKhoa: string; }
 interface MonHoc { MaMonHoc: string; TenMonHoc: string; }
 interface Phan { MaPhan: string; TenPhan: string; }
 interface CLO { MaCLO: string; TenCLO: string; }
 
+// For regular single-choice questions
 interface SingleChoiceQuestionProps {
   question?: {
     MaCauHoi?: string;
@@ -84,9 +103,34 @@ interface SingleChoiceQuestionProps {
       TenCLO: string;
     };
   };
+  isGroup?: boolean; // Whether this is a group question or not
+  latexMode?: boolean;
+  toggleLatexMode?: () => void;
+  parentId?: string | null;
 }
 
-const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
+// For group questions (parent + child questions)
+interface SubQuestion {
+  MaCauHoi: string;
+  MaPhan?: string;
+  MaSoCauHoi: number;
+  NoiDung: string;
+  HoanVi: boolean;
+  CapDo?: number;
+  SoCauHoiCon: number;
+  DoPhanCachCauHoi?: number | null;
+  MaCauHoiCha: string | null;
+  XoaTamCauHoi?: boolean;
+  SoLanDuocThi?: number;
+  SoLanDung?: number;
+  NgayTao?: string;
+  NgaySua?: string;
+  MaCLO?: string;
+  answers: Answer[];
+}
+
+// Combined props interface that works for both question types
+const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, toggleLatexMode, parentId }: SingleChoiceQuestionProps) => {
   const styles = useThemeStyles();
   const navigate = useNavigate();
   const location = useLocation();
@@ -121,6 +165,14 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [uploadingAudio, setUploadingAudio] = useState(false);
   const audioInputRef = useRef<HTMLInputElement>(null);
+  const { showModal, hideModal } = useModal();
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [shuffleSpecificAnswers, setShuffleSpecificAnswers] = useState<boolean[]>(
+    question?.answers
+      ? question.answers.map(a => a.HoanVi ?? true)
+      : Array(defaultAnswers.length).fill(true)
+  );
+  const [subQuestions, setSubQuestions] = useState<SubQuestion[]>([]);
 
   // Fetch CLO list from backend
   useEffect(() => {
@@ -239,7 +291,46 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
     }
   }, [question]);
 
+  // Initialize sub questions if editing a group question
+  useEffect(() => {
+    if (isGroup && question?.MaCauHoi) {
+      // Fetch child questions for this group question
+      fetch(`${API_BASE_URL}/cau-hoi/cau-hoi-cha/${question.MaCauHoi}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.items && Array.isArray(data.items)) {
+            // Transform to SubQuestion format
+            const fetchedSubQuestions = data.items.map((item: any) => ({
+              MaCauHoi: item.MaCauHoi,
+              MaSoCauHoi: item.MaSoCauHoi,
+              NoiDung: item.NoiDung,
+              HoanVi: item.HoanVi,
+              SoCauHoiCon: item.SoCauHoiCon,
+              MaCauHoiCha: item.MaCauHoiCha,
+              CapDo: item.CapDo,
+              answers: item.answers || []
+            }));
+            setSubQuestions(fetchedSubQuestions);
+          }
+        })
+        .catch(err => console.error("Error fetching sub questions:", err));
+    } else if (isGroup && !subQuestions.length) {
+      // If creating a new group question, add initial sub question
+      addSubQuestion();
+    }
+  }, [isGroup, question?.MaCauHoi]);
+
   const handleAnswerChange = (idx: number, value: string) => {
+    // Kiểm tra nếu nội dung có chứa thẻ <em> hoặc <i> (in nghiêng)
+    const hasItalicText = /<(em|i)>.*?<\/(em|i)>/.test(value);
+
+    // Nếu có in nghiêng, tự động đánh dấu đáp án này không hoán vị
+    if (hasItalicText && shuffleSpecificAnswers[idx]) {
+      setShuffleSpecificAnswers(prev =>
+        prev.map((val, i) => i === idx ? false : val)
+      );
+    }
+
     setAnswers(ans => ans.map((a, i) => (i === idx ? { ...a, text: value } : a)));
   };
   const handleCorrectChange = (idx: number) => {
@@ -247,10 +338,12 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
   };
   const handleRemoveAnswer = (idx: number) => {
     if (answers.length <= 2) return;
-    setAnswers(ans => ans.filter((_, i) => i !== idx));
+    setAnswers(prev => prev.filter((_, i) => i !== idx));
+    setShuffleSpecificAnswers(prev => prev.filter((_, i) => i !== idx));
   };
   const handleAddAnswer = () => {
-    setAnswers(ans => [...ans, { text: '', correct: false }]);
+    setAnswers(prev => [...prev, { text: '', correct: false }]);
+    setShuffleSpecificAnswers(prev => [...prev, true]);
   };
 
   const handleAudioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -306,174 +399,347 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
     }
   }, [showPreview, content, answers, explanation]);
 
+  useEffect(() => {
+    if (window.MathJax && showPreview) {
+      setTimeout(() => {
+        window.MathJax.typeset && window.MathJax.typeset();
+      }, 100);
+    }
+  }, [content, showPreview, answers]);
+
   const handleSave = async () => {
     setSaving(true);
     setMessage(null);
     setErrorMsg(null);
 
     try {
-      if (question) {
-        // Update existing question
-        const mappedAnswers = answers.map((a, idx) => ({
-          MaCauTraLoi: question.answers?.[idx]?.MaCauTraLoi || undefined,
-          MaCauHoi: question.MaCauHoi,
-          NoiDung: a.text,
-          ThuTu: idx + 1,
-          LaDapAn: a.correct,
-          HoanVi: false
-        }));
+      // Common validation for all question types
+      if (!maKhoa) {
+        setErrorMsg('Vui lòng chọn Khoa!');
+        setSaving(false);
+        return;
+      }
+      if (!maMonHoc) {
+        setErrorMsg('Vui lòng chọn Môn học!');
+        setSaving(false);
+        return;
+      }
+      if (!maPhan) {
+        setErrorMsg('Vui lòng chọn Phần!');
+        setSaving(false);
+        return;
+      }
+      if (!maCLO) {
+        setErrorMsg('Vui lòng chọn CLO!');
+        setSaving(false);
+        return;
+      }
+      if (!content) {
+        setErrorMsg('Vui lòng nhập nội dung câu hỏi!');
+        setSaving(false);
+        return;
+      }
 
-        // Create a copy of the question without the answers property
-        const { answers: _, ...questionWithoutAnswers } = question;
+      if (isGroup) {
+        // Group question validation
+        if (subQuestions.length === 0) {
+          setErrorMsg('Câu hỏi nhóm phải có ít nhất 1 câu hỏi con!');
+          setSaving(false);
+          return;
+        }
 
-        const payload = {
-          question: {
-            ...questionWithoutAnswers,
+        // Validate each sub-question
+        for (let i = 0; i < subQuestions.length; i++) {
+          const subQ = subQuestions[i];
+          if (!subQ.NoiDung) {
+            setErrorMsg(`Câu hỏi con #${i + 1} không được để trống!`);
+            setSaving(false);
+            return;
+          }
+          if (subQ.answers.length === 0) {
+            setErrorMsg(`Câu hỏi con #${i + 1} phải có ít nhất 1 đáp án!`);
+            setSaving(false);
+            return;
+          }
+          if (!subQ.answers.some(a => a.LaDapAn)) {
+            setErrorMsg(`Câu hỏi con #${i + 1} phải có ít nhất 1 đáp án đúng!`);
+            setSaving(false);
+            return;
+          }
+        }
+
+        // Create or update group question
+        if (question && question.MaCauHoi) {
+          // Update existing group question
+          const parentQuestion = {
+            MaCauHoi: question.MaCauHoi,
             NoiDung: content,
             MaPhan: maPhan,
             MaCLO: maCLO,
+            CapDo: parseInt(level) || 1,
             HoanVi: !fixedOrder,
-            CapDo: parseInt(level) || 1
-          },
-          answers: mappedAnswers
-        };
+            SoCauHoiCon: subQuestions.length,
+          };
 
-        const res = await fetch(`${API_BASE_URL}/cau-hoi/${question.MaCauHoi}/with-answers`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
+          // Update parent question
+          const parentRes = await fetch(`${API_BASE_URL}/cau-hoi/${question.MaCauHoi}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(parentQuestion)
+          });
 
-        if (!res.ok) {
-          const errorData = await res.json().catch(() => ({}));
-          console.error("API error response:", errorData);
-          throw new Error('Lưu thất bại!');
-        }
-        setMessage('Lưu thành công!');
-
-        // If there's a new audio file, upload it
-        if (audioFile) {
-          await handleAudioUpload();
-        }
-
-        // Check if we came from a specific chapter page
-        const searchParams = new URLSearchParams(location.search);
-        const maPhanParam = searchParams.get('maPhan');
-
-        setTimeout(() => {
-          if (maPhanParam) {
-            navigate(`/chapter-questions/${maPhanParam}`);
-          } else {
-            navigate('/questions');
+          if (!parentRes.ok) {
+            throw new Error('Lưu câu hỏi nhóm thất bại!');
           }
-        }, 1200);
+
+          // Update each sub-question
+          for (const subQ of subQuestions) {
+            const isNew = subQ.MaCauHoi.startsWith('temp-');
+            const endpoint = isNew
+              ? `${API_BASE_URL}/cau-hoi/with-answers`
+              : `${API_BASE_URL}/cau-hoi/${subQ.MaCauHoi}/with-answers`;
+            const method = isNew ? 'POST' : 'PUT';
+
+            const subQuestionData = {
+              question: {
+                ...(isNew ? {} : { MaCauHoi: subQ.MaCauHoi }),
+                NoiDung: subQ.NoiDung,
+                MaPhan: maPhan,
+                MaCLO: maCLO,
+                CapDo: parseInt(level) || 1,
+                HoanVi: subQ.HoanVi,
+                SoCauHoiCon: 0,
+                MaCauHoiCha: question.MaCauHoi,
+                XoaTamCauHoi: false,
+              },
+              answers: subQ.answers.map((a, idx) => ({
+                ...(isNew ? {} : { MaCauTraLoi: a.MaCauTraLoi }),
+                NoiDung: a.NoiDung,
+                ThuTu: idx + 1,
+                LaDapAn: a.LaDapAn,
+                HoanVi: a.HoanVi
+              }))
+            };
+
+            const subRes = await fetch(endpoint, {
+              method,
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(subQuestionData)
+            });
+
+            if (!subRes.ok) {
+              console.error("Failed to save sub-question", await subRes.json());
+              throw new Error(`Lưu câu hỏi con ${subQ.MaSoCauHoi} thất bại!`);
+            }
+          }
+
+          setMessage('Lưu câu hỏi nhóm thành công!');
+          setTimeout(() => navigate('/group-questions'), 1200);
+        } else {
+          // Create new group question
+          // First, create the parent question
+          const parentQuestion = {
+            MaPhan: maPhan,
+            MaSoCauHoi: Math.floor(Math.random() * 9000) + 1000,
+            NoiDung: content,
+            HoanVi: !fixedOrder,
+            CapDo: parseInt(level) || 1,
+            SoCauHoiCon: subQuestions.length,
+            MaCLO: maCLO,
+            XoaTamCauHoi: false,
+            SoLanDuocThi: 0,
+            SoLanDung: 0
+          };
+
+          const parentRes = await fetch(`${API_BASE_URL}/cau-hoi`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(parentQuestion)
+          });
+
+          if (!parentRes.ok) {
+            throw new Error('Tạo câu hỏi nhóm thất bại!');
+          }
+
+          const parentData = await parentRes.json();
+          const parentId = parentData.MaCauHoi;
+
+          // Then create each sub-question
+          for (const subQ of subQuestions) {
+            const subQuestionData = {
+              question: {
+                NoiDung: subQ.NoiDung,
+                MaPhan: maPhan,
+                MaCLO: maCLO,
+                CapDo: parseInt(level) || 1,
+                HoanVi: subQ.HoanVi,
+                SoCauHoiCon: 0,
+                MaCauHoiCha: parentId,
+                XoaTamCauHoi: false,
+              },
+              answers: subQ.answers.map((a, idx) => ({
+                NoiDung: a.NoiDung,
+                ThuTu: idx + 1,
+                LaDapAn: a.LaDapAn,
+                HoanVi: a.HoanVi
+              }))
+            };
+
+            const subRes = await fetch(`${API_BASE_URL}/cau-hoi/with-answers`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(subQuestionData)
+            });
+
+            if (!subRes.ok) {
+              console.error("Failed to save sub-question", await subRes.json());
+              throw new Error(`Tạo câu hỏi con ${subQ.MaSoCauHoi} thất bại!`);
+            }
+          }
+
+          setMessage('Tạo câu hỏi nhóm thành công!');
+          setTimeout(() => navigate('/group-questions'), 1200);
+        }
       } else {
-        // Validate các trường bắt buộc
-        if (!maKhoa) {
-          setErrorMsg('Vui lòng chọn Khoa!');
-          setSaving(false);
-          return;
-        }
-        if (!maMonHoc) {
-          setErrorMsg('Vui lòng chọn Môn học!');
-          setSaving(false);
-          return;
-        }
-        if (!maPhan) {
-          setErrorMsg('Vui lòng chọn Phần!');
-          setSaving(false);
-          return;
-        }
-        if (!maCLO) {
-          setErrorMsg('Vui lòng chọn CLO!');
-          setSaving(false);
-          return;
-        }
-        if (!content) {
-          setErrorMsg('Vui lòng nhập nội dung câu hỏi!');
-          setSaving(false);
-          return;
-        }
+        // Single choice question (existing code)
         if (!answers.some(a => a.correct)) {
           setErrorMsg('Vui lòng chọn ít nhất một đáp án đúng!');
           setSaving(false);
           return;
         }
 
-        // Create the question object first
-        const questionData = {
-          MaPhan: maPhan,
-          MaSoCauHoi: Math.floor(Math.random() * 9000) + 1000, // Generate a random question number
-          NoiDung: content,
-          HoanVi: !fixedOrder,
-          CapDo: parseInt(level) || 1,
-          SoCauHoiCon: 0,
-          MaCLO: maCLO,
-          XoaTamCauHoi: false, // Explicitly set to false
-          SoLanDuocThi: 0,     // Explicitly set to 0
-          SoLanDung: 0         // Explicitly set to 0
-        };
+        if (question) {
+          // Update existing question
+          const mappedAnswers = answers.map((a, idx) => ({
+            MaCauTraLoi: question.answers?.[idx]?.MaCauTraLoi || undefined,
+            MaCauHoi: question.MaCauHoi,
+            NoiDung: a.text,
+            ThuTu: idx + 1,
+            LaDapAn: a.correct,
+            HoanVi: shuffleSpecificAnswers[idx]
+          }));
 
-        // For the answers, we don't need to include MaCauHoi
-        // The backend will assign the correct MaCauHoi after creating the question
-        const mappedAnswers = answers.map((a, idx) => ({
-          NoiDung: a.text,
-          ThuTu: idx + 1,
-          LaDapAn: a.correct,
-          HoanVi: false
-        }));
+          // Create a copy of the question without the answers property
+          const { answers: _, ...questionWithoutAnswers } = question;
 
-        const payload = {
-          question: questionData,
-          answers: mappedAnswers
-        };
+          const payload = {
+            question: {
+              ...questionWithoutAnswers,
+              NoiDung: content,
+              MaPhan: maPhan,
+              MaCLO: maCLO,
+              HoanVi: !fixedOrder,
+              CapDo: parseInt(level) || 1
+            },
+            answers: mappedAnswers
+          };
 
-        console.log("Sending payload:", JSON.stringify(payload, null, 2));
-
-        const res = await fetch(`${API_BASE_URL}/cau-hoi/with-answers`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        if (!res.ok) {
-          const errorData = await res.json();
-          console.error("API error response:", errorData);
-          throw new Error('Tạo câu hỏi thất bại!');
-        }
-
-        // Get the newly created question ID
-        const createdQuestion = await res.json();
-
-        // If there's an audio file, upload it with the new question ID
-        if (audioFile && createdQuestion.question.MaCauHoi) {
-          const formData = new FormData();
-          formData.append('file', audioFile);
-          formData.append('maCauHoi', createdQuestion.question.MaCauHoi);
-
-          const uploadRes = await fetch(`${API_BASE_URL}/files/upload`, {
-            method: 'POST',
-            body: formData,
+          const res = await fetch(`${API_BASE_URL}/cau-hoi/${question.MaCauHoi}/with-answers`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
           });
 
-          if (!uploadRes.ok) {
-            console.error("Error uploading audio:", await uploadRes.json());
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            console.error("API error response:", errorData);
+            throw new Error('Lưu thất bại!');
           }
+          setMessage('Lưu thành công!');
+
+          // If there's a new audio file, upload it
+          if (audioFile) {
+            await handleAudioUpload();
+          }
+
+          // Check if we came from a specific chapter page
+          const searchParams = new URLSearchParams(location.search);
+          const maPhanParam = searchParams.get('maPhan');
+
+          setTimeout(() => {
+            if (maPhanParam) {
+              navigate(`/chapter-questions/${maPhanParam}`);
+            } else {
+              navigate('/questions');
+            }
+          }, 1200);
+        } else {
+          // Create new question
+          // Create the question object first
+          const questionData = {
+            MaPhan: maPhan,
+            MaSoCauHoi: Math.floor(Math.random() * 9000) + 1000, // Generate a random question number
+            NoiDung: content,
+            HoanVi: !fixedOrder,
+            CapDo: parseInt(level) || 1,
+            SoCauHoiCon: 0,
+            MaCLO: maCLO,
+            XoaTamCauHoi: false, // Explicitly set to false
+            SoLanDuocThi: 0,     // Explicitly set to 0
+            SoLanDung: 0         // Explicitly set to 0
+          };
+
+          // For the answers, we don't need to include MaCauHoi
+          // The backend will assign the correct MaCauHoi after creating the question
+          const mappedAnswers = answers.map((a, idx) => ({
+            NoiDung: a.text,
+            ThuTu: idx + 1,
+            LaDapAn: a.correct,
+            HoanVi: shuffleSpecificAnswers[idx]
+          }));
+
+          const payload = {
+            question: questionData,
+            answers: mappedAnswers
+          };
+
+          console.log("Sending payload:", JSON.stringify(payload, null, 2));
+
+          const res = await fetch(`${API_BASE_URL}/cau-hoi/with-answers`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          if (!res.ok) {
+            const errorData = await res.json();
+            console.error("API error response:", errorData);
+            throw new Error('Tạo câu hỏi thất bại!');
+          }
+
+          // Get the newly created question ID
+          const createdQuestion = await res.json();
+
+          // If there's an audio file, upload it with the new question ID
+          if (audioFile && createdQuestion.question.MaCauHoi) {
+            const formData = new FormData();
+            formData.append('file', audioFile);
+            formData.append('maCauHoi', createdQuestion.question.MaCauHoi);
+
+            const uploadRes = await fetch(`${API_BASE_URL}/files/upload`, {
+              method: 'POST',
+              body: formData,
+            });
+
+            if (!uploadRes.ok) {
+              console.error("Error uploading audio:", await uploadRes.json());
+            }
+          }
+
+          setMessage('Tạo câu hỏi thành công!');
+
+          // Check if we came from a specific chapter page
+          const searchParams = new URLSearchParams(location.search);
+          const maPhanParam = searchParams.get('maPhan');
+
+          setTimeout(() => {
+            if (maPhanParam) {
+              navigate(`/chapter-questions/${maPhanParam}`);
+            } else {
+              navigate('/questions');
+            }
+          }, 1200);
         }
-
-        setMessage('Tạo câu hỏi thành công!');
-
-        // Check if we came from a specific chapter page
-        const searchParams = new URLSearchParams(location.search);
-        const maPhanParam = searchParams.get('maPhan');
-
-        setTimeout(() => {
-          if (maPhanParam) {
-            navigate(`/chapter-questions/${maPhanParam}`);
-          } else {
-            navigate('/questions');
-          }
-        }, 1200);
       }
     } catch (err) {
       console.error("Error saving question:", err);
@@ -497,7 +763,7 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
           NoiDung: a.text,
           ThuTu: idx + 1,
           LaDapAn: a.correct,
-          HoanVi: false
+          HoanVi: shuffleSpecificAnswers[idx]
         }));
 
         // Create a copy of the question without the answers property
@@ -579,7 +845,7 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
           NoiDung: a.text,
           ThuTu: idx + 1,
           LaDapAn: a.correct,
-          HoanVi: false
+          HoanVi: shuffleSpecificAnswers[idx]
         }));
 
         const payload = {
@@ -618,6 +884,133 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
     }
   };
 
+  const handleShowMathModal = () => {
+    showModal(
+      <MathModal
+        onClose={hideModal}
+        onInsert={(latex) => {
+          setContent(prev => prev + ' ' + latex + ' ');
+        }}
+      />
+    );
+  };
+
+  const handleTogglePreview = () => {
+    setShowPreview(!showPreview);
+    // Force MathJax to process the content when showing preview
+    if (!showPreview && window.MathJax) {
+      setTimeout(() => {
+        if (previewRef.current) {
+          window.MathJax.typeset([previewRef.current]);
+        }
+      }, 100);
+    }
+  };
+
+  const handleToggleSpecificShuffle = (idx: number) => {
+    setShuffleSpecificAnswers(prev =>
+      prev.map((value, i) => i === idx ? !value : value)
+    );
+  };
+
+  // Function to render LaTeX in preview
+  const renderLatex = (text: string) => {
+    if (!text) return '';
+    return text;
+  };
+
+  // For group questions - add/remove/update sub questions
+  const addSubQuestion = () => {
+    const newSubQuestion: SubQuestion = {
+      MaCauHoi: `temp-${Date.now()}`,
+      MaSoCauHoi: subQuestions.length + 1,
+      NoiDung: "",
+      HoanVi: false,
+      SoCauHoiCon: 0,
+      MaCauHoiCha: question?.MaCauHoi || null,
+      answers: [
+        {
+          MaCauTraLoi: `temp-answer-${Date.now()}-1`,
+          MaCauHoi: `temp-${Date.now()}`,
+          NoiDung: "",
+          ThuTu: 1,
+          LaDapAn: true,
+          HoanVi: false,
+        },
+        {
+          MaCauTraLoi: `temp-answer-${Date.now()}-2`,
+          MaCauHoi: `temp-${Date.now()}`,
+          NoiDung: "",
+          ThuTu: 2,
+          LaDapAn: false,
+          HoanVi: false,
+        },
+      ],
+    };
+
+    setSubQuestions(prev => [...prev, newSubQuestion]);
+  };
+
+  const removeSubQuestion = (index: number) => {
+    setSubQuestions(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const updateSubQuestion = (index: number, field: string, value: any) => {
+    setSubQuestions(prev => prev.map((subQ, i) =>
+      i === index ? { ...subQ, [field]: value } : subQ
+    ));
+  };
+
+  const addAnswerToSubQuestion = (subQuestionIndex: number) => {
+    const subQuestion = subQuestions[subQuestionIndex];
+    const newAnswer: Answer = {
+      MaCauTraLoi: `temp-answer-${Date.now()}`,
+      MaCauHoi: subQuestion.MaCauHoi,
+      NoiDung: "",
+      ThuTu: subQuestion.answers.length + 1,
+      LaDapAn: false,
+      HoanVi: false,
+    };
+
+    setSubQuestions(prev => prev.map((subQ, i) =>
+      i === subQuestionIndex ? { ...subQ, answers: [...subQ.answers, newAnswer] } : subQ
+    ));
+  };
+
+  const removeAnswerFromSubQuestion = (subQuestionIndex: number, answerIndex: number) => {
+    setSubQuestions(prev => prev.map((subQ, i) =>
+      i === subQuestionIndex
+        ? { ...subQ, answers: subQ.answers.filter((_, j) => j !== answerIndex) }
+        : subQ
+    ));
+  };
+
+  const updateSubQuestionAnswer = (subQuestionIndex: number, answerIndex: number, field: string, value: any) => {
+    setSubQuestions(prev => prev.map((subQ, i) =>
+      i === subQuestionIndex
+        ? {
+            ...subQ,
+            answers: subQ.answers.map((ans, j) =>
+              j === answerIndex ? { ...ans, [field]: value } : ans
+            )
+          }
+        : subQ
+    ));
+  };
+
+  const setSubQuestionCorrectAnswer = (subQuestionIndex: number, answerIndex: number) => {
+    setSubQuestions(prev => prev.map((subQ, i) =>
+      i === subQuestionIndex
+        ? {
+            ...subQ,
+            answers: subQ.answers.map((ans, j) =>
+              ({ ...ans, LaDapAn: j === answerIndex })
+            )
+          }
+        : subQ
+    ));
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 max-w-full mx-auto min-h-screen py-8 bg-gradient-to-br from-blue-50 to-white text-[15px]">
       {/* Left: Main form */}
@@ -627,9 +1020,12 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
             <div className="bg-blue-600 text-white p-2 rounded-lg">
               <Info className="w-5 h-5" />
             </div>
-            <h2 className="text-lg font-bold text-blue-800">Câu hỏi trắc nghiệm 1 đáp án</h2>
+            <h2 className="text-lg font-bold text-blue-800">
+              {isGroup ? 'Câu hỏi nhóm' : 'Câu hỏi trắc nghiệm 1 đáp án'}
+            </h2>
           </div>
 
+          {/* Content Area */}
           <div className="mb-6">
             <label className="font-semibold mb-2 flex items-center gap-2 text-gray-800 text-sm">
               <span className="text-blue-600">Câu hỏi</span>
@@ -654,14 +1050,6 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
                   ],
                   toolbar:
                     'bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | fontselect fontsizeselect formatselect | forecolor backcolor removeformat | subscript superscript | link image media table codesample blockquote | mathjax',
-                  setup: (editor: any) => {
-                    editor.on('focus', () => {
-                      editor.theme.panel && editor.theme.panel.show();
-                    });
-                    editor.on('blur', () => {
-                      editor.theme.panel && editor.theme.panel.hide();
-                    });
-                  },
                   mathjax: {
                     lib: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js',
                   },
@@ -672,93 +1060,207 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
             </div>
           </div>
 
-          <div className="mb-5 space-y-4">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-bold text-blue-800">Các đáp án</h3>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleAddAnswer}
-                className="text-blue-700 flex items-center gap-2 border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-lg px-3 py-1.5 font-semibold text-sm shadow-sm"
-              >
-                <Plus className="w-4 h-4" /> Thêm đáp án
-              </Button>
-            </div>
+          {/* Answers Section */}
+          {isGroup ? (
+            // Group Questions UI
+            <div className="space-y-4">
+              {subQuestions.map((subQuestion, subIdx) => (
+                <div key={subQuestion.MaCauHoi} className="border border-blue-200 rounded-xl p-4 bg-blue-50/30 shadow-sm">
+                  <div className="flex justify-between items-center mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="bg-blue-600 text-white h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold">
+                        {subIdx + 1}
+                      </div>
+                      <h3 className="font-medium text-blue-800">Câu hỏi con #{subIdx + 1}</h3>
+                    </div>
 
-            {answers.map((a, idx) => (
-              <div
-                key={idx}
-                className={cx(
-                  "group transition-all duration-200 rounded-xl border bg-white shadow-sm p-4 flex gap-3 items-start hover:shadow-md",
-                  a.correct ? "border-green-300 bg-green-50/30" : "border-gray-200 hover:border-blue-300"
-                )}
-              >
-                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-800 font-bold">
-                  {String.fromCharCode(65 + idx)}
-                </div>
-
-                <div className="flex-1">
-                  <ReactQuill
-                    theme="snow"
-                    value={a.text}
-                    onChange={value => handleAnswerChange(idx, value)}
-                    style={{
-                      minHeight: 80,
-                      maxHeight: 120,
-                      overflowY: 'auto',
-                      backgroundColor: a.correct ? '#f0fdf4' : '#ffffff',
-                      borderRadius: 8,
-                      fontSize: 14,
-                      border: a.correct ? '1px solid #86efac' : '1px solid #e5e7eb'
-                    }}
-                  />
-                </div>
-
-                <div className="flex flex-col items-center gap-3 pt-1">
-                  <div className="flex items-center justify-center">
-                    <input
-                      type="radio"
-                      name="correct"
-                      checked={a.correct}
-                      onChange={() => handleCorrectChange(idx)}
-                      className="sr-only"
-                      id={`answer-${idx}`}
-                    />
-                    <label
-                      htmlFor={`answer-${idx}`}
-                      className={cx(
-                        "w-8 h-8 flex items-center justify-center rounded-full cursor-pointer transition-all",
-                        a.correct
-                          ? "bg-green-500 text-white border-2 border-green-600"
-                          : "bg-gray-100 text-gray-400 border-2 border-gray-300 hover:bg-gray-200"
-                      )}
+                    <button
+                      onClick={() => removeSubQuestion(subIdx)}
+                      className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50"
                     >
-                      {a.correct ? <CheckCircle className="w-5 h-5" /> : null}
-                    </label>
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleRemoveAnswer(idx)}
-                    disabled={answers.length <= 2}
-                    className={cx(
-                      "rounded-full w-8 h-8 p-0 flex items-center justify-center",
-                      answers.length <= 2
-                        ? "text-gray-300 border-gray-200"
-                        : "text-red-400 hover:text-red-600 hover:bg-red-50 border-red-200"
-                    )}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nội dung câu hỏi con</label>
+                    <div className="rounded-lg border border-blue-200 bg-white p-1.5 shadow-sm">
+                      <EditorAny
+                        apiKey="6gjaodohdncfz36azjc7q49f26yrhh881rljxqshfack7cax"
+                        value={subQuestion.NoiDung}
+                        onEditorChange={(content: string) => updateSubQuestion(subIdx, 'NoiDung', content)}
+                        init={{
+                          height: 80,
+                          menubar: false,
+                          plugins: ['advlist autolink lists link image charmap', 'searchreplace', 'table', 'mathjax'],
+                          toolbar: 'bold italic | bullist numlist | link image | mathjax',
+                          mathjax: {
+                            lib: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js',
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mb-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-gray-700">Đáp án</label>
+                      <button
+                        onClick={() => addAnswerToSubQuestion(subIdx)}
+                        className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs px-2 py-1 border border-blue-200 rounded-md hover:bg-blue-50"
+                      >
+                        <Plus className="w-3 h-3" /> Thêm đáp án
+                      </button>
+                    </div>
+
+                    <div className="space-y-2">
+                      {subQuestion.answers.map((answer, ansIdx) => (
+                        <div key={`${subQuestion.MaCauHoi}-ans-${ansIdx}`} className={`flex items-center gap-2 p-2 rounded-lg border ${answer.LaDapAn ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`}>
+                          <div className="flex items-center justify-center">
+                            <input
+                              type="radio"
+                              name={`ans-correct-${subQuestion.MaCauHoi}`}
+                              checked={answer.LaDapAn}
+                              onChange={() => setSubQuestionCorrectAnswer(subIdx, ansIdx)}
+                              className="w-4 h-4 accent-green-600"
+                            />
+                          </div>
+
+                          <div className="flex-1">
+                            <input
+                              type="text"
+                              value={answer.NoiDung}
+                              onChange={(e) => updateSubQuestionAnswer(subIdx, ansIdx, 'NoiDung', e.target.value)}
+                              className={`w-full border-0 focus:ring-0 ${answer.LaDapAn ? 'bg-green-50' : 'bg-white'}`}
+                              placeholder={`Đáp án ${String.fromCharCode(65 + ansIdx)}`}
+                            />
+                          </div>
+
+                          {subQuestion.answers.length > 2 && (
+                            <button
+                              onClick={() => removeAnswerFromSubQuestion(subIdx, ansIdx)}
+                              className="text-red-500 hover:text-red-700 p-1"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      id={`hoanvi-${subQuestion.MaCauHoi}`}
+                      checked={subQuestion.HoanVi}
+                      onChange={(e) => updateSubQuestion(subIdx, 'HoanVi', e.target.checked)}
+                      className="w-4 h-4 accent-blue-600"
+                    />
+                    <label htmlFor={`hoanvi-${subQuestion.MaCauHoi}`} className="text-gray-600">
+                      Hoán vị đáp án
+                    </label>
+                  </div>
                 </div>
+              ))}
+
+              <button
+                onClick={addSubQuestion}
+                className="w-full flex items-center justify-center gap-2 border border-dashed border-blue-300 rounded-xl p-3 text-blue-600 hover:bg-blue-50 transition-colors"
+              >
+                <Plus className="w-4 h-4" /> Thêm câu hỏi con
+              </button>
+            </div>
+          ) : (
+            // Single Choice Question UI
+            <div className="mb-5 space-y-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-bold text-blue-800">Các đáp án</h3>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddAnswer}
+                  className="text-blue-700 flex items-center gap-2 border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-lg px-3 py-1.5 font-semibold text-sm shadow-sm"
+                >
+                  <Plus className="w-4 h-4" /> Thêm đáp án
+                </Button>
               </div>
-            ))}
-          </div>
+
+              {answers.map((a, idx) => (
+                <div
+                  key={idx}
+                  className={cx(
+                    "group transition-all duration-200 rounded-xl border bg-white shadow-sm p-4 flex gap-3 items-start hover:shadow-md",
+                    a.correct ? "border-green-300 bg-green-50/30" : "border-gray-200 hover:border-blue-300"
+                  )}
+                >
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-800 font-bold">
+                    {String.fromCharCode(65 + idx)}
+                  </div>
+
+                  <div className="flex-1">
+                    <ReactQuill
+                      theme="snow"
+                      value={a.text}
+                      onChange={value => handleAnswerChange(idx, value)}
+                      style={{
+                        minHeight: 80,
+                        maxHeight: 120,
+                        overflowY: 'auto',
+                        backgroundColor: a.correct ? '#f0fdf4' : '#ffffff',
+                        borderRadius: 8,
+                        fontSize: 14,
+                        border: a.correct ? '1px solid #86efac' : '1px solid #e5e7eb'
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex flex-col items-center gap-3 pt-1">
+                    <div className="flex items-center justify-center">
+                      <input
+                        type="radio"
+                        name="correct"
+                        checked={a.correct}
+                        onChange={() => handleCorrectChange(idx)}
+                        className="sr-only"
+                        id={`answer-${idx}`}
+                      />
+                      <label
+                        htmlFor={`answer-${idx}`}
+                        className={cx(
+                          "w-8 h-8 flex items-center justify-center rounded-full cursor-pointer transition-all",
+                          a.correct
+                            ? "bg-green-500 text-white border-2 border-green-600"
+                            : "bg-gray-100 text-gray-400 border-2 border-gray-300 hover:bg-gray-200"
+                        )}
+                      >
+                        {a.correct ? <CheckCircle className="w-5 h-5" /> : null}
+                      </label>
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRemoveAnswer(idx)}
+                      disabled={answers.length <= 2}
+                      className={cx(
+                        "rounded-full w-8 h-8 p-0 flex items-center justify-center",
+                        answers.length <= 2
+                          ? "text-gray-300 border-gray-200"
+                          : "text-red-400 hover:text-red-600 hover:bg-red-50 border-red-200"
+                      )}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Right: Info panel */}
+      {/* Right sidebar */}
       <div className="lg:col-span-4 p-4">
         <div className="bg-white rounded-xl shadow-md h-fit text-left border border-blue-100 sticky top-6 overflow-hidden">
           {/* Action buttons */}
@@ -810,35 +1312,37 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
             </div>
           )}
 
-          {/* Bố cục đáp án */}
-          <div className="p-4 border-b border-gray-100 bg-gradient-to-b from-gray-50 to-white">
-            <label className="block font-bold mb-2 text-gray-800 text-sm">Bố cục đáp án <span className="text-red-500">*</span></label>
-            <div className="relative mb-3">
-              <select
-                className="w-full border rounded-lg p-2 pr-8 bg-white shadow-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 text-gray-800 text-sm font-semibold appearance-none h-10"
-                value={layout}
-                onChange={e => setLayout(Number(e.target.value))}
-              >
-                {layoutOptions.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </span>
-            </div>
+          {/* Layout options - only for single choice questions */}
+          {!isGroup && (
+            <div className="p-4 border-b border-gray-100 bg-gradient-to-b from-gray-50 to-white">
+              <label className="block font-bold mb-2 text-gray-800 text-sm">Bố cục đáp án <span className="text-red-500">*</span></label>
+              <div className="relative mb-3">
+                <select
+                  className="w-full border rounded-lg p-2 pr-8 bg-white shadow-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 text-gray-800 text-sm font-semibold appearance-none h-10"
+                  value={layout}
+                  onChange={e => setLayout(Number(e.target.value))}
+                >
+                  {layoutOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </span>
+              </div>
 
-            <div className="flex items-center gap-2 mb-1 bg-blue-50 p-2 rounded-lg">
-              <input
-                type="checkbox"
-                id="fixedOrder"
-                checked={fixedOrder}
-                onChange={e => setFixedOrder(e.target.checked)}
-                className="accent-blue-600 w-4 h-4"
-              />
-              <label htmlFor="fixedOrder" className="text-gray-700 text-sm cursor-pointer">Cố định thứ tự đáp án</label>
+              <div className="flex items-center gap-2 mb-1 bg-blue-50 p-2 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="fixedOrder"
+                  checked={fixedOrder}
+                  onChange={e => setFixedOrder(e.target.checked)}
+                  className="accent-blue-600 w-4 h-4"
+                />
+                <label htmlFor="fixedOrder" className="text-gray-700 text-sm cursor-pointer">Cố định thứ tự đáp án</label>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Thông tin câu hỏi */}
           <div className="p-4">
@@ -942,6 +1446,7 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
                     </span>
                   </div>
                 </div>
+
               </div>
             </div>
         </div>
@@ -971,38 +1476,69 @@ const SingleChoiceQuestion = ({ question }: SingleChoiceQuestionProps) => {
               <h3 className="text-lg font-bold text-blue-700">Xem trước câu hỏi</h3>
             </div>
 
-            <div className="mb-6 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-              <div className="font-medium mb-4 text-left" dangerouslySetInnerHTML={{ __html: content || '<span class=\"italic text-gray-400\">[Chưa nhập nội dung câu hỏi]</span>' }} />
-
-              <div className="space-y-3">
-                {splitAnswers(answers, layout).map((row, rowIdx) => (
-                  <div key={rowIdx} className="flex flex-wrap gap-4 mb-2">
-                    {row.map((a: { text: string; correct: boolean }, idx: number) => {
-                      const answerIdx = rowIdx * layout + idx;
-                      return (
-                        <div key={answerIdx} className="flex items-center gap-3 bg-white p-2 rounded-lg border border-gray-100 shadow-sm flex-1 min-w-[200px]">
-                          <span className={cx(
-                            'inline-flex items-center justify-center w-8 h-8 rounded-full border font-semibold',
-                            a.correct ? 'bg-green-100 border-green-400 text-green-700' : 'bg-gray-100 border-gray-300 text-gray-700'
-                          )}>
-                            {String.fromCharCode(65 + answerIdx)}
-                          </span>
-                          <span className={cx('flex-1', a.text ? '' : 'italic text-gray-400')} dangerouslySetInnerHTML={{ __html: a.text || '[Chưa nhập đáp án]' }} />
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {explanation && (
-              <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
-                <div className="font-semibold mb-2 text-blue-700 text-left flex items-center gap-2">
-                  <Info className="w-4 h-4" />
-                  Hướng dẫn giải
+            {isGroup ? (
+              // Group question preview
+              <div>
+                <div className="mb-4 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                  <div className="font-medium mb-4 text-left" dangerouslySetInnerHTML={{ __html: content }} />
                 </div>
-                <div dangerouslySetInnerHTML={{ __html: explanation }} />
+
+                <div className="space-y-4">
+                  {subQuestions.map((subQ, idx) => (
+                    <div key={subQ.MaCauHoi} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="bg-blue-600 text-white h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold">
+                          {idx + 1}
+                        </div>
+                        <h4 className="font-medium text-gray-900">Câu hỏi {idx + 1}</h4>
+                      </div>
+
+                      <div className="mb-3" dangerouslySetInnerHTML={{ __html: subQ.NoiDung }} />
+
+                      <div className="space-y-2">
+                        {subQ.answers.map((ans, ansIdx) => (
+                          <div
+                            key={ans.MaCauTraLoi}
+                            className={`flex items-center gap-2 p-2 rounded-lg border ${ans.LaDapAn ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`}
+                          >
+                            <div className={`w-6 h-6 flex items-center justify-center rounded-full ${ans.LaDapAn ? 'bg-green-100 border border-green-300 text-green-700' : 'bg-gray-100 border border-gray-300 text-gray-700'}`}>
+                              {String.fromCharCode(65 + ansIdx)}
+                            </div>
+                            <div className="flex-1" dangerouslySetInnerHTML={{ __html: ans.NoiDung }} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              // Single choice question preview
+              <div>
+                <div className="mb-6 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                  <div className="font-medium mb-4 text-left" dangerouslySetInnerHTML={{ __html: content || '<span class=\"italic text-gray-400\">[Chưa nhập nội dung câu hỏi]</span>' }} />
+
+                  <div className="space-y-3">
+                    {splitAnswers(answers, layout).map((row, rowIdx) => (
+                      <div key={rowIdx} className="flex flex-wrap gap-4 mb-2">
+                        {row.map((a: { text: string; correct: boolean }, idx: number) => {
+                          const answerIdx = rowIdx * layout + idx;
+                          return (
+                            <div key={answerIdx} className="flex items-center gap-3 bg-white p-2 rounded-lg border border-gray-100 shadow-sm flex-1 min-w-[200px]">
+                              <span className={cx(
+                                'inline-flex items-center justify-center w-8 h-8 rounded-full border font-semibold',
+                                a.correct ? 'bg-green-100 border-green-400 text-green-700' : 'bg-gray-100 border-gray-300 text-gray-700'
+                              )}>
+                                {String.fromCharCode(65 + answerIdx)}
+                              </span>
+                              <span className={cx('flex-1', a.text ? '' : 'italic text-gray-400')} dangerouslySetInnerHTML={{ __html: a.text || '[Chưa nhập đáp án]' }} />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </div>

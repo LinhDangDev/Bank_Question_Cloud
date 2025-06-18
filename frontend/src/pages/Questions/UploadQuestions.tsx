@@ -21,6 +21,7 @@ import { API_BASE_URL } from '@/config';
 import { v4 as uuidv4 } from 'uuid';
 // @ts-ignore - Import mammoth without type definitions
 import mammoth from 'mammoth';
+import { MathRenderer, MathJaxInitializer } from '../../components/MathRenderer';
 
 // Interface for parsed question
 interface ParsedQuestion {
@@ -143,26 +144,36 @@ const parseDocxWithMammoth = async (file: File): Promise<ParsedQuestion[]> => {
 
         const arrayBuffer = loadEvent.target.result as ArrayBuffer;
 
-        // Use mammoth to convert DOCX to HTML with style preservation
+        // Enhanced mammoth options with better style preservation
         const options = {
           arrayBuffer,
-          // Use convertToHtml options to preserve styles
+          // Enhanced style map for better formatting detection
           styleMap: [
-            "u => u",
+            "u => u", // Preserve underline
             "strong => strong",
             "b => strong",
             "i => em",
             "strike => s",
             "p[style-name='Heading 1'] => h1:fresh",
             "p[style-name='Heading 2'] => h2:fresh",
-            "p[style-name='Heading 3'] => h3:fresh"
-          ]
+            "p[style-name='Heading 3'] => h3:fresh",
+            // Handle all types of underlined text - Word has multiple ways to apply underline
+            "w:rPr/w:u => u",  // Word's native underline
+            'w:rPr[w:u] => u', // Another Word underline format
+            "span[style-text-decoration='underline'] => u"  // Style-based underline
+          ],
+          // Preserve the HTML structure and formatting
+          preserveStyles: true,
+          includeEmbeddedStyleMap: true,
+          ignoreEmptyParagraphs: false
         };
 
+        console.log('Starting DOCX conversion with enhanced options');
         const result = await mammoth.convertToHtml(options);
         const htmlContent = result.value;
 
         console.log('HTML content loaded, length:', htmlContent.length);
+        console.log('Sample HTML:', htmlContent.substring(0, 500)); // Log sample for debugging
 
         // Create a DOM parser to work with the HTML
         const parser = new DOMParser();
@@ -177,7 +188,22 @@ const parseDocxWithMammoth = async (file: File): Promise<ParsedQuestion[]> => {
 
         console.log(`Found ${questionBlocks.length} question blocks`);
 
-        // Process each question block
+        // Enhanced answer detection function
+        const detectCorrectAnswer = (text: string): boolean => {
+          // Check various ways answers might be marked as correct
+          return (
+            text.includes('<u>') ||
+            text.includes('</u>') ||
+            text.includes('text-decoration:underline') ||
+            text.includes('text-decoration: underline') ||
+            text.match(/<span\s+class="[^"]*underline[^"]*"/i) !== null ||
+            text.match(/<span\s+style="[^"]*text-decoration:\s*underline[^"]*"/i) !== null ||
+            text.includes('<strong>') || // Sometimes bold is used instead
+            text.match(/<span\s+style="[^"]*font-weight:\s*bold[^"]*"/i) !== null
+          );
+        };
+
+        // Process each question block with enhanced detection
         questionBlocks.forEach((block, index) => {
           if (!block.trim()) return; // Skip empty blocks
 
@@ -235,21 +261,14 @@ const parseDocxWithMammoth = async (file: File): Promise<ParsedQuestion[]> => {
                 childQuestion.clo = childCloMatch[0].replace(/[()]/g, '');
               }
 
-              // Extract answers from child question
+              // Extract answers from child question with improved detection
               const answerLines = childBlock.split(/<br\s*\/?>/g)
                 .filter(line => /^[A-D]\./.test(line.trim()));
 
-              // Process each answer
+              // Process each answer with enhanced detection
               answerLines.forEach((line, idx) => {
-                // Enhanced detection of correct answers marked by underline
-                const isUnderlined = Boolean(
-                  line.includes('<u>') ||
-                  line.includes('</u>') ||
-                  line.includes('<strong>') ||
-                  line.includes('text-decoration:underline') ||
-                  line.includes('text-decoration: underline') ||
-                  line.match(/<span\s+class="[^"]*underline[^"]*"/i)
-                );
+                // Improved detection of correct answers
+                const isUnderlined = detectCorrectAnswer(line);
 
                 // Clean up the content while keeping the formatting for LaTeX
                 const cleanContent = line
@@ -280,7 +299,6 @@ const parseDocxWithMammoth = async (file: File): Promise<ParsedQuestion[]> => {
                 question.childQuestions.push(childQuestion);
               }
             });
-
           } else {
             // Regular question
             // Extract question content (everything before first A.)
@@ -295,22 +313,15 @@ const parseDocxWithMammoth = async (file: File): Promise<ParsedQuestion[]> => {
               question.clo = contentCloMatch[0].replace(/[()]/g, '');
             }
 
-            // Extract answers
+            // Extract answers with improved detection
             const answerLines = contentAndAnswers.filter(line =>
               /^[A-D]\./.test(line.trim())
             );
 
-            // Process each answer
+            // Process each answer with enhanced detection
             answerLines.forEach((line, idx) => {
-              // Enhanced detection of correct answers marked by underline
-              const isUnderlined = Boolean(
-                line.includes('<u>') ||
-                line.includes('</u>') ||
-                line.includes('<strong>') ||
-                line.includes('text-decoration:underline') ||
-                line.includes('text-decoration: underline') ||
-                line.match(/<span\s+class="[^"]*underline[^"]*"/i)
-              );
+              // Use improved detection function
+              const isUnderlined = detectCorrectAnswer(line);
 
               // Clean up the content while keeping the formatting for LaTeX
               const cleanContent = line
@@ -337,6 +348,15 @@ const parseDocxWithMammoth = async (file: File): Promise<ParsedQuestion[]> => {
               question.type = 'multi-choice';
             }
           }
+
+          // Add debug information to help identify issues
+          console.log(`Question ${index + 1} parsed:`, {
+            content: question.content.substring(0, 50) + '...',
+            type: question.type,
+            answerCount: question.answers.length,
+            correctAnswers: question.answers.filter(a => a.isCorrect).length,
+            childQuestions: question.childQuestions?.length || 0
+          });
 
           questions.push(question);
         });
@@ -384,6 +404,13 @@ const UploadQuestions = () => {
   const [recentFiles, setRecentFiles] = useState<{name: string, date: string, id: string}[]>([]);
   const [availableTemplates, setAvailableTemplates] = useState<{name: string, id: string}[]>([]);
   const [showTemplates, setShowTemplates] = useState(false);
+  // Add these new state variables inside the UploadQuestions component
+  const [viewingQuestion, setViewingQuestion] = useState<ParsedQuestion | null>(null);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [editingQuestion, setEditingQuestion] = useState<ParsedQuestion | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [questionToDelete, setQuestionToDelete] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Toggle group expansion
   const toggleGroup = (questionId: string) => {
@@ -644,7 +671,7 @@ const UploadQuestions = () => {
     }
   };
 
-  // Function to render LaTeX in question content
+  // Update the renderContent function to use MathRenderer for LaTeX
   const renderContent = (content: string) => {
     if (!content) return <div></div>;
 
@@ -685,75 +712,8 @@ const UploadQuestions = () => {
     const hasLatex = /\$|\\\(|\\\[|\\begin\{equation\}/.test(processedContent);
 
     if (hasLatex) {
-      try {
-        // Extract and process all LaTeX expressions with different delimiters
-        let latexExpressions: string[] = [];
-        let latexCount = 0;
-
-        // Helper function to replace LaTeX with placeholders
-        const saveLaTeX = (match: string, group: string, offset: number, fullString: string) => {
-          const placeholder = `LATEX_PLACEHOLDER_${latexCount++}`;
-          latexExpressions.push(match);
-          return placeholder;
-        };
-
-        // Replace all LaTeX expressions with placeholders
-        // Handle both inline and display math with various delimiters
-        processedContent = processedContent
-          .replace(/\$\$(.*?)\$\$/gs, saveLaTeX)
-          .replace(/\$([^$\n]+?)\$/g, saveLaTeX) // Changed to non-greedy to avoid issues
-          .replace(/\\\[(.*?)\\\]/gs, saveLaTeX)
-          .replace(/\\\((.*?)\\\)/gs, saveLaTeX)
-          .replace(/\\begin\{equation\}(.*?)\\end\{equation\}/gs, saveLaTeX);
-
-        // Render HTML content
-        let result = processedContent;
-
-        // Replace placeholders with rendered LaTeX
-        for (let i = 0; i < latexCount; i++) {
-          const placeholder = `LATEX_PLACEHOLDER_${i}`;
-          const expr = latexExpressions[i];
-
-          try {
-            // Determine if it's display mode or inline mode
-            const isDisplayMode = expr.startsWith('$$') ||
-                                 expr.startsWith('\\[') ||
-                                 expr.includes('\\begin{equation}');
-
-            const latex = expr
-              .replace(/^\$\$(.*)\$\$$/gs, '$1')
-              .replace(/^\$(.*)\$$/gs, '$1')
-              .replace(/^\\\[(.*)\\\]$/gs, '$1')
-              .replace(/^\\\((.*)\\\)$/gs, '$1')
-              .replace(/\\begin\{equation\}(.*?)\\end\{equation\}/gs, '$1');
-
-            // Render LaTeX using KaTeX
-            const html = KaTeX.renderToString(latex, {
-              displayMode: isDisplayMode,
-              throwOnError: false,
-              trust: true,
-              strict: false,
-              output: 'html' // Ensure HTML output
-            });
-
-            // Replace placeholder with rendered LaTeX
-            if (isDisplayMode) {
-              result = result.replace(placeholder, `<div class="katex-display my-4 text-center overflow-x-auto">${html}</div>`);
-            } else {
-              result = result.replace(placeholder, `<span class="katex-inline">${html}</span>`);
-            }
-          } catch (e) {
-            console.error('LaTeX rendering error:', e);
-            // If rendering fails, show raw LaTeX with error indicator
-            result = result.replace(placeholder, `<span class="text-red-500">${expr}</span>`);
-          }
-        }
-
-        return <div dangerouslySetInnerHTML={{ __html: result }} />;
-      } catch (e) {
-        console.error('Content processing error:', e);
-        return <div dangerouslySetInnerHTML={{ __html: processedContent }} />;
-      }
+      // Use our custom MathRenderer for LaTeX content
+      return <MathRenderer content={processedContent} />;
     }
 
     // Handle images (if URLs are present)
@@ -773,15 +733,15 @@ const UploadQuestions = () => {
           {answers.map((answer, index) => (
             <div
               key={index}
-              className={`flex items-center p-2 rounded-md ${
+              className={`flex items-center p-3 rounded-md ${
                 answer.isCorrect
-                  ? "bg-green-50 border-2 border-green-300"
+                  ? "bg-green-50 border-2 border-green-500" // Enhanced border color for better visibility
                   : "bg-gray-50 border border-gray-200"
               }`}
             >
               {/* Answer letter in a circle */}
-              <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium mr-2 ${
-                answer.isCorrect ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'
+              <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium mr-2.5 ${
+                answer.isCorrect ? 'bg-green-200 text-green-800' : 'bg-gray-200 text-gray-700'
               }`}>
                 {String.fromCharCode(65 + index)}
               </div>
@@ -793,8 +753,8 @@ const UploadQuestions = () => {
 
               {/* "Đáp án" badge for correct answer */}
               {answer.isCorrect && (
-                <div className="flex-shrink-0 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded ml-2 font-medium">
-                  Đáp án
+                <div className="flex-shrink-0 bg-green-200 text-green-800 text-xs px-2.5 py-1 rounded-full ml-2 font-medium">
+                  Đáp án đúng
                 </div>
               )}
             </div>
@@ -837,13 +797,22 @@ const UploadQuestions = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <button className="p-1 rounded-full hover:bg-gray-200">
+          <button
+            className="p-1 rounded-full hover:bg-gray-200"
+            onClick={() => handleViewQuestion(question)}
+          >
             <Eye className="h-4 w-4 text-gray-500" />
           </button>
-          <button className="p-1 rounded-full hover:bg-gray-200">
+          <button
+            className="p-1 rounded-full hover:bg-gray-200"
+            onClick={() => handleEditQuestion(question)}
+          >
             <Edit className="h-4 w-4 text-gray-500" />
           </button>
-          <button className="p-1 rounded-full hover:bg-gray-200">
+          <button
+            className="p-1 rounded-full hover:bg-gray-200"
+            onClick={() => handleDeleteQuestion(question.id)}
+          >
             <Trash2 className="h-4 w-4 text-red-500" />
           </button>
         </div>
@@ -921,13 +890,22 @@ const UploadQuestions = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <button className="p-1 rounded-full hover:bg-gray-200">
+          <button
+            className="p-1 rounded-full hover:bg-gray-200"
+            onClick={() => handleViewQuestion(question)}
+          >
             <Eye className="h-4 w-4 text-gray-500" />
           </button>
-          <button className="p-1 rounded-full hover:bg-gray-200">
+          <button
+            className="p-1 rounded-full hover:bg-gray-200"
+            onClick={() => handleEditQuestion(question)}
+          >
             <Edit className="h-4 w-4 text-gray-500" />
           </button>
-          <button className="p-1 rounded-full hover:bg-gray-200">
+          <button
+            className="p-1 rounded-full hover:bg-gray-200"
+            onClick={() => handleDeleteQuestion(question.id)}
+          >
             <Trash2 className="h-4 w-4 text-red-500" />
           </button>
         </div>
@@ -1499,8 +1477,36 @@ D. All are correct.
     );
   };
 
+  // Add these handlers before the return statement
+  const handleViewQuestion = (question: ParsedQuestion) => {
+    setViewingQuestion(question);
+    setShowViewModal(true);
+  };
+
+  const handleEditQuestion = (question: ParsedQuestion) => {
+    setEditingQuestion({...question});
+    setShowEditModal(true);
+  };
+
+  const handleDeleteQuestion = (questionId: string) => {
+    setQuestionToDelete(questionId);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteQuestion = () => {
+    if (questionToDelete) {
+      // Remove the question from selectedQuestions
+      setSelectedQuestions(prev => prev.filter(q => q.id !== questionToDelete));
+      // Also remove from selectedQuestionIds if present
+      setSelectedQuestionIds(prev => prev.filter(id => id !== questionToDelete));
+      setShowDeleteModal(false);
+      setQuestionToDelete(null);
+    }
+  };
+
   return (
-    <div className="space-y-4 max-w-7xl mx-auto px-2 sm:px-4 md:px-6">
+    <div className="container mx-auto py-6 px-4 max-w-screen-2xl">
+      <MathJaxInitializer />
       {/* Hidden file input */}
       <input
         type="file"
@@ -1845,6 +1851,252 @@ D. All are correct.
           vertical-align: baseline;
         }
       `}</style>
+
+      {/* View Question Modal */}
+      <Modal
+        isOpen={showViewModal}
+        onClose={() => setShowViewModal(false)}
+        title="Chi tiết câu hỏi"
+        size="lg"
+      >
+        {viewingQuestion && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              {viewingQuestion.clo && (
+                <span className={`${getCloColor(viewingQuestion.clo)} text-xs rounded px-2 py-0.5`}>
+                  {viewingQuestion.clo}
+                </span>
+              )}
+              <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                viewingQuestion.type === 'fill-blank'
+                  ? 'bg-blue-100 text-blue-700'
+                  : viewingQuestion.type === 'multi-choice'
+                    ? 'bg-yellow-100 text-yellow-700'
+                    : viewingQuestion.type === 'group'
+                      ? 'bg-purple-100 text-purple-700'
+                      : 'bg-green-100 text-green-700'
+              }`}>
+                {viewingQuestion.type === 'fill-blank'
+                  ? 'Điền khuyết'
+                  : viewingQuestion.type === 'multi-choice'
+                    ? 'Nhiều lựa chọn'
+                    : viewingQuestion.type === 'group'
+                      ? 'Câu hỏi nhóm'
+                      : 'Đơn lựa chọn'}
+              </span>
+            </div>
+
+            <div className="mb-4">
+              {renderContent(viewingQuestion.content)}
+            </div>
+
+            {viewingQuestion.groupContent && (
+              <div className="bg-gray-50 p-3 rounded-md border border-gray-200 mb-4">
+                {renderContent(viewingQuestion.groupContent)}
+              </div>
+            )}
+
+            {viewingQuestion.type !== 'group' && viewingQuestion.answers && (
+              <div className="space-y-3">
+                <h4 className="font-medium">Phương án trả lời:</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {viewingQuestion.answers.map((answer, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex items-center p-2 rounded-md ${
+                        answer.isCorrect
+                          ? 'bg-green-50 border-2 border-green-300'
+                          : 'bg-gray-50 border border-gray-200'
+                      }`}
+                    >
+                      <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium mr-2 ${
+                        answer.isCorrect
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-200 text-gray-700'
+                      }`}>
+                        {String.fromCharCode(65 + idx)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        {renderContent(answer.content)}
+                      </div>
+                      {answer.isCorrect && (
+                        <div className="flex-shrink-0 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded ml-2 font-medium">
+                          Đáp án
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {viewingQuestion.type === 'group' && viewingQuestion.childQuestions && (
+              <div className="space-y-3">
+                <h4 className="font-medium">Câu hỏi con:</h4>
+                {viewingQuestion.childQuestions.map((childQ, childIdx) => (
+                  <div key={childIdx} className="border rounded-md bg-gray-50 p-3">
+                    <div className="font-medium mb-2 flex items-center gap-2">
+                      <div className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs">
+                        Câu {childIdx + 1}
+                      </div>
+                      {childQ.clo && (
+                        <span className={`${getCloColor(childQ.clo)} text-xs rounded px-2 py-0.5`}>
+                          {childQ.clo}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mb-3">
+                      {renderContent(childQ.content)}
+                    </div>
+
+                    {childQ.answers && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {childQ.answers.map((answer, idx) => (
+                          <div
+                            key={idx}
+                            className={`flex items-center p-2 rounded-md ${
+                              answer.isCorrect
+                                ? 'bg-green-50 border-2 border-green-300'
+                                : 'bg-gray-50 border border-gray-200'
+                            }`}
+                          >
+                            <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium mr-2 ${
+                              answer.isCorrect
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-gray-200 text-gray-700'
+                            }`}>
+                              {String.fromCharCode(65 + idx)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              {renderContent(answer.content)}
+                            </div>
+                            {answer.isCorrect && (
+                              <div className="flex-shrink-0 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded ml-2 font-medium">
+                                Đáp án
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* Edit Question Modal - Simple version */}
+      <Modal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        title="Chỉnh sửa câu hỏi"
+        size="lg"
+      >
+        {editingQuestion && (
+          <div className="space-y-4">
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1">Nội dung câu hỏi:</label>
+              <textarea
+                className="w-full border rounded-md p-2 h-24"
+                value={editingQuestion.content}
+                onChange={(e) => setEditingQuestion({...editingQuestion, content: e.target.value})}
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1">CLO:</label>
+              <input
+                type="text"
+                className="w-full border rounded-md p-2"
+                value={editingQuestion.clo || ''}
+                onChange={(e) => setEditingQuestion({...editingQuestion, clo: e.target.value})}
+              />
+            </div>
+
+            {editingQuestion.type !== 'group' && editingQuestion.answers && (
+              <div>
+                <label className="block text-sm font-medium mb-2">Phương án trả lời:</label>
+                {editingQuestion.answers.map((answer, idx) => (
+                  <div key={idx} className="mb-2 flex items-start">
+                    <div className="flex items-center mr-2 mt-2">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 text-blue-600"
+                        checked={answer.isCorrect}
+                        onChange={(e) => {
+                          const newAnswers = [...editingQuestion.answers];
+                          newAnswers[idx] = {...answer, isCorrect: e.target.checked};
+                          setEditingQuestion({...editingQuestion, answers: newAnswers});
+                        }}
+                      />
+                      <span className="ml-2">{String.fromCharCode(65 + idx)}</span>
+                    </div>
+                    <textarea
+                      className="flex-1 border rounded-md p-2 h-16"
+                      value={answer.content}
+                      onChange={(e) => {
+                        const newAnswers = [...editingQuestion.answers];
+                        newAnswers[idx] = {...answer, content: e.target.value};
+                        setEditingQuestion({...editingQuestion, answers: newAnswers});
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex justify-end mt-4">
+              <button
+                className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded mr-2"
+                onClick={() => setShowEditModal(false)}
+              >
+                Hủy
+              </button>
+              <button
+                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+                onClick={() => {
+                  // Update the question in the selectedQuestions array
+                  setSelectedQuestions(prev => prev.map(q =>
+                    q.id === editingQuestion.id ? editingQuestion : q
+                  ));
+                  setShowEditModal(false);
+                }}
+              >
+                Lưu thay đổi
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Delete Question Modal */}
+      <Modal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        title="Xóa câu hỏi"
+        size="sm"
+      >
+        <div className="p-4 text-center">
+          <p className="mb-4">Bạn có chắc chắn muốn xóa câu hỏi này?</p>
+          <div className="flex justify-center gap-2">
+            <button
+              className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded"
+              onClick={() => setShowDeleteModal(false)}
+            >
+              Hủy
+            </button>
+            <button
+              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
+              onClick={confirmDeleteQuestion}
+            >
+              Xóa
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

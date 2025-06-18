@@ -31,6 +31,15 @@ export class CauHoiController {
         );
     }
 
+    @Get('group')
+    @ApiOperation({ summary: 'Get all group questions with child questions and answers' })
+    @ApiResponse({ status: 200, description: 'Return all group questions with child questions and answers' })
+    async findGroupQuestions(
+        @Query() paginationDto: PaginationDto
+    ) {
+        return await this.cauHoiService.findGroupQuestions(paginationDto);
+    }
+
     @Get(':id')
     @ApiOperation({ summary: 'Get a question by ID' })
     @ApiResponse({ status: 200, description: 'Return a question by ID' })
@@ -169,14 +178,5 @@ export class CauHoiController {
     @ApiParam({ name: 'id', description: 'Question ID' })
     async restore(@Param('id') id: string): Promise<void> {
         return await this.cauHoiService.restoreCauHoi(id);
-    }
-
-    @Get('group')
-    @ApiOperation({ summary: 'Get all group questions with child questions and answers' })
-    @ApiResponse({ status: 200, description: 'Return all group questions with child questions and answers' })
-    async findGroupQuestions(
-        @Query() paginationDto: PaginationDto
-    ) {
-        return await this.cauHoiService.findGroupQuestions(paginationDto);
     }
 }

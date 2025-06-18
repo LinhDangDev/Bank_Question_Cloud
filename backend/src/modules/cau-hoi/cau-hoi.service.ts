@@ -6,10 +6,12 @@ import { Cache } from 'cache-manager';
 import { BaseService } from '../../common/base.service';
 import { CauHoi } from '../../entities/cau-hoi.entity';
 import { CreateCauHoiDto, UpdateCauHoiDto, CreateQuestionWithAnswersDto, UpdateQuestionWithAnswersDto } from '../../dto';
+import { CreateCauTraLoiDto } from '../../dto/cau-tra-loi.dto';
 import { PaginationDto } from '../../dto/pagination.dto';
 import { PAGINATION_CONSTANTS } from '../../constants/pagination.constants';
 import { CauTraLoi } from '../../entities/cau-tra-loi.entity';
 import { randomUUID } from 'crypto';
+import { CauTraLoiService } from '../cau-tra-loi/cau-tra-loi.service';
 
 @Injectable()
 export class CauHoiService extends BaseService<CauHoi> {
@@ -18,6 +20,7 @@ export class CauHoiService extends BaseService<CauHoi> {
         private readonly cauHoiRepository: Repository<CauHoi>,
         private readonly dataSource: DataSource,
         @Inject(CACHE_MANAGER) private cacheManager: Cache,
+        private readonly cauTraLoiService: CauTraLoiService,
     ) {
         super(cauHoiRepository, 'MaCauHoi');
     }
@@ -318,9 +321,12 @@ export class CauHoiService extends BaseService<CauHoi> {
     }
 
     async update(id: string, updateCauHoiDto: UpdateCauHoiDto): Promise<CauHoi> {
-        const result = await super.update(id, updateCauHoiDto);
-        await this.clearQuestionsCache();
-        return result;
+        await this.cauHoiRepository.update(id, updateCauHoiDto);
+        const cauHoi = await this.cauHoiRepository.findOne({ where: { MaCauHoi: id } });
+        if (!cauHoi) {
+            throw new NotFoundException(`CauHoi with ID ${id} not found`);
+        }
+        return cauHoi;
     }
 
     async delete(id: string): Promise<void> {
@@ -633,5 +639,67 @@ export class CauHoiService extends BaseService<CauHoi> {
                 totalPages: Math.ceil(total / limit)
             }
         };
+    }
+
+    async createQuestion(createCauHoiDto: CreateCauHoiDto) {
+        const cauHoi = this.cauHoiRepository.create(createCauHoiDto);
+        return await this.cauHoiRepository.save(cauHoi);
+    }
+
+    // Add method to create question with answers that handles individual shuffle settings
+    async createWithAnswers(data: { question: CreateCauHoiDto, answers: CreateCauTraLoiDto[] }) {
+        const { question, answers } = data;
+
+        // Create the question first
+        const newQuestion = await this.createQuestion(question);
+
+        // Then create answers with the question ID
+        const answersWithQuestionId = answers.map(answer => ({
+            ...answer,
+            MaCauHoi: newQuestion.MaCauHoi
+        }));
+
+        // Save all answers
+        const createdAnswers = await Promise.all(
+            answersWithQuestionId.map(answer => this.cauTraLoiService.createCauTraLoi(answer))
+        );
+
+        return {
+            question: newQuestion,
+            answers: createdAnswers
+        };
+    }
+
+    // Add method to update question with answers that handles individual shuffle settings
+    async updateWithAnswers(id: string, data: { question: UpdateCauHoiDto, answers: any[] }) {
+        const { question, answers } = data;
+
+        // Update the question first
+        await this.update(id, question);
+
+        // Handle answers - update existing or create new ones
+        for (const answer of answers) {
+            if (answer.MaCauTraLoi) {
+                // Update existing answer
+                await this.cauTraLoiService.updateCauTraLoi(answer.MaCauTraLoi, {
+                    NoiDung: answer.NoiDung,
+                    ThuTu: answer.ThuTu,
+                    LaDapAn: answer.LaDapAn,
+                    HoanVi: answer.HoanVi
+                });
+            } else {
+                // Create new answer
+                await this.cauTraLoiService.createCauTraLoi({
+                    MaCauHoi: id,
+                    NoiDung: answer.NoiDung,
+                    ThuTu: answer.ThuTu,
+                    LaDapAn: answer.LaDapAn,
+                    HoanVi: answer.HoanVi
+                });
+            }
+        }
+
+        // Get the updated question with its answers
+        return this.findOne(id);
     }
 }

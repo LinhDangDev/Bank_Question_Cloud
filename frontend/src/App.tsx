@@ -22,12 +22,15 @@ import NotFound from './pages/NotFound'
 import EditQuestion from './pages/Questions/EditQuestion'
 import { ThemeProvider } from './context/ThemeContext'
 import { ToastContainer } from 'react-toastify'
+import { MathJaxInitializer } from './components/MathRenderer'
 import 'react-toastify/dist/ReactToastify.css'
 import 'katex/dist/katex.min.css'
+import './styles/mathlive.css'
 
 function App() {
   return (
     <ThemeProvider>
+      <MathJaxInitializer />
       <ToastContainer
         position="bottom-right"
         autoClose={5000}

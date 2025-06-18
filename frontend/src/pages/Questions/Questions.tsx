@@ -1,15 +1,18 @@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Plus, Filter, Eye, Edit, Trash2, ChevronDown, ChevronRight, Users, ChevronUp } from 'lucide-react'
+import { Search, Plus, Filter, Eye, Edit, Trash2, ChevronDown, ChevronRight, Users } from 'lucide-react'
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { useThemeStyles, cx } from "../../utils/theme"
 import { useNavigate } from 'react-router-dom'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import 'katex/dist/katex.min.css'
 import katex from 'katex'
 import { API_BASE_URL } from '@/config'
+import QuestionItem, { Question as QuestionType } from '@/components/QuestionItem'
+import PaginationBar from '@/components/PaginationBar'
+import Filters from '@/components/Filters'
 
 // Define the Answer interface based on the API response
 interface Answer {
@@ -57,7 +60,7 @@ interface ChildQuestion {
 }
 
 interface ApiResponse {
-  items: Question[];
+  items: QuestionType[];
   meta: {
     total: number;
     page: string;
@@ -97,49 +100,133 @@ const getDifficultyText = (level: number) => {
 const Questions = () => {
   const styles = useThemeStyles();
   const navigate = useNavigate();
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const [questions, setQuestions] = useState<QuestionType[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState<number>(1); // Starting with page 2 as per your API URL
+  const [page, setPage] = useState<number>(1);
   const [limit, setLimit] = useState<number>(100);
   const [totalPages, setTotalPages] = useState<number>(1);
   const [totalItems, setTotalItems] = useState<number>(0);
   const [availableLimits, setAvailableLimits] = useState<number[]>([5, 10, 20, 50, 100]);
-  const [showLimitDropdown, setShowLimitDropdown] = useState<boolean>(false);
-  const limitDropdownRef = useRef<HTMLDivElement>(null);
   // Add state for expanded group questions
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
-  useEffect(() => {
-    const fetchQuestions = async () => {
+  const fetchQuestions = useCallback(async () => {
       try {
         setLoading(true);
 
-        // Fetch regular questions first
+      // Fetch regular questions with full details
         const response = await fetch(`${API_BASE_URL}/cau-hoi?page=${page}&limit=${limit}&includeAnswers=true`);
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);
         }
         const data: ApiResponse = await response.json();
 
-        // Now fetch group questions
+      // Process regular questions to add metadata
+      const regularQuestionsWithDetails = await Promise.all(
+        data.items.map(async (question) => {
+          try {
+            // Fetch full details for each question
+            const detailsResponse = await fetch(`${API_BASE_URL}/cau-hoi/${question.MaCauHoi}/full-details`);
+            if (detailsResponse.ok) {
+              const details = await detailsResponse.json();
+              return {
+                ...question,
+                ...details.question,
+                // khoa: details.khoa,
+                // monHoc: details.monHoc,
+                // phan: details.phan,
+                cloInfo: details.clo,
+                answers: details.answers || question.answers,
+              };
+            }
+            return question;
+          } catch (err) {
+            console.error(`Error fetching details for question ${question.MaCauHoi}:`, err);
+            return question;
+          }
+        })
+      );
+
+      // Now fetch group questions with all details
         const groupResponse = await fetch(`${API_BASE_URL}/cau-hoi/group?page=${page}&limit=${limit}`);
         if (!groupResponse.ok) {
           throw new Error(`HTTP error fetching group questions! Status: ${groupResponse.status}`);
         }
         const groupData = await groupResponse.json();
 
-        // Mark group questions with the LaCauHoiNhom flag
-        const groupQuestions = groupData.items.map((item: any) => ({
-          ...item,
-          LaCauHoiNhom: true
-        }));
+      // Process group questions to add metadata and child questions with answers
+      const groupQuestionsWithDetails = await Promise.all(
+        groupData.items.map(async (groupQuestion: any) => {
+          try {
+            // Fetch full details for the group question
+            const detailsResponse = await fetch(`${API_BASE_URL}/cau-hoi/${groupQuestion.MaCauHoi}/full-details`);
+            if (!detailsResponse.ok) {
+              return { ...groupQuestion, LaCauHoiNhom: true };
+            }
+
+            const details = await detailsResponse.json();
+
+            // Fetch child questions
+            const childQuestionsResponse = await fetch(`${API_BASE_URL}/cau-hoi/con/${groupQuestion.MaCauHoi}?limit=50`);
+            if (!childQuestionsResponse.ok) {
+              return {
+                ...groupQuestion,
+                ...details.question,
+                // khoa: details.khoa,
+                // monHoc: details.monHoc,
+                // phan: details.phan,
+                cloInfo: details.clo,
+                LaCauHoiNhom: true,
+                CauHoiCon: []
+              };
+            }
+
+            const childQuestionsData = await childQuestionsResponse.json();
+
+            // Fetch answers for each child question
+            const childQuestionsWithAnswers = await Promise.all(
+              childQuestionsData.items.map(async (childQ: any) => {
+                try {
+                  const answersResponse = await fetch(`${API_BASE_URL}/cau-tra-loi/cau-hoi/${childQ.MaCauHoi}`);
+                  if (answersResponse.ok) {
+                    const answersData = await answersResponse.json();
+                    return {
+                      ...childQ,
+                      CauTraLoi: answersData.items || []
+                    };
+                  }
+                  return { ...childQ, CauTraLoi: [] };
+                } catch (err) {
+                  console.error(`Error fetching answers for child question ${childQ.MaCauHoi}:`, err);
+                  return { ...childQ, CauTraLoi: [] };
+                }
+              })
+            );
+
+            return {
+              ...groupQuestion,
+              ...details.question,
+            //   khoa: details.khoa,
+            //   monHoc: details.monHoc,
+            //   phan: details.phan,
+              cloInfo: details.clo,
+              LaCauHoiNhom: true,
+              CauHoiCon: childQuestionsWithAnswers
+            };
+          } catch (err) {
+            console.error(`Error fetching details for group question ${groupQuestion.MaCauHoi}:`, err);
+            return { ...groupQuestion, LaCauHoiNhom: true };
+          }
+        })
+      );
 
         // Combine regular and group questions
-        const allQuestions = [...data.items, ...groupQuestions];
+      const allQuestions = [...regularQuestionsWithDetails, ...groupQuestionsWithDetails];
 
         setQuestions(allQuestions);
-        setTotalPages(data.meta.totalPages);
+      setTotalPages(Math.max(data.meta.totalPages, groupData.meta.totalPages));
         setTotalItems(data.meta.total + groupData.meta.total);
         setAvailableLimits(data.meta.availableLimits);
         setLoading(false);
@@ -148,232 +235,11 @@ const Questions = () => {
         setError('Failed to load questions. Please try again later.');
         setLoading(false);
       }
-    };
-
-    fetchQuestions();
   }, [page, limit]);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (limitDropdownRef.current && !limitDropdownRef.current.contains(event.target as Node)) {
-        setShowLimitDropdown(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  // Format date from ISO string to local date format
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  // Enhanced LaTeX rendering function with improved support for matrices, superscripts, and chemical formulas
-  const renderLatex = (content: string) => {
-    try {
-      // Handle LaTeX with HTML style attributes (like colored math)
-      const styledLatexRegex = /(\\[a-zA-Z]+\{[^}]*\})"?\s*style="([^"]+)">(\\[a-zA-Z]+\{[^}]*\})/g;
-      let processedContent = content.replace(styledLatexRegex, (match, formula1, style, formula2) => {
-        try {
-          // Extract color from style if present
-          const colorMatch = style.match(/color:\s*([^;]+)/);
-          const color = colorMatch ? colorMatch[1] : '';
-
-          // Render both formulas separately with the specified color
-          const rendered1 = katex.renderToString(formula1, {
-            throwOnError: false,
-            output: 'html',
-            displayMode: false,
-            strict: false
-          });
-
-          const rendered2 = katex.renderToString(formula2, {
-            throwOnError: false,
-            output: 'html',
-            displayMode: false,
-            strict: false
-          });
-
-          // Return with appropriate styling
-          return `<span class="katex-formula" style="color:${color}">${rendered1}</span><span class="katex-formula" style="color:${color}">${rendered2}</span>`;
-        } catch (e) {
-          console.error('Error rendering styled LaTeX:', match, e);
-          return match;
-        }
-      });
-
-      // Handle LaTeX with HTML style attributes but without closing tag
-      const singleStyledLatexRegex = /(\\[a-zA-Z]+\{[^}]*\})"?\s*style="([^"]+)"/g;
-      processedContent = processedContent.replace(singleStyledLatexRegex, (match, formula, style) => {
-        try {
-          // Extract color from style if present
-          const colorMatch = style.match(/color:\s*([^;]+)/);
-          const color = colorMatch ? colorMatch[1] : '';
-
-          // Render formula with the specified color
-          const rendered = katex.renderToString(formula, {
-            throwOnError: false,
-            output: 'html',
-            displayMode: false,
-            strict: false
-          });
-
-          // Return with appropriate styling
-          return `<span class="katex-formula" style="color:${color}">${rendered}</span>`;
-        } catch (e) {
-          console.error('Error rendering single styled LaTeX:', match, e);
-          return match;
-        }
-      });
-
-      // Pre-process chemical formulas to make them more compatible with KaTeX
-      // Replace chemical formulas like C_6H_12O_6 with proper LaTeX: C_{6}H_{12}O_{6}
-      processedContent = processedContent.replace(/([A-Z][a-z]?)_(\d+)/g, '$1_{$2}');
-
-      // Replace superscripts without braces like x^2 with proper LaTeX: x^{2}
-      processedContent = processedContent.replace(/([A-Za-z0-9])(\^)(\d+|[a-zA-Z](?!\{))/g, '$1$2{$3}');
-
-      // Fix specific patterns seen in the screenshots
-      processedContent = processedContent.replace(/\\sqrt\{([a-z0-9])(\^)(\d+)\}/g, '\\sqrt{$1^{$3}}');
-
-      // Comprehensive regex to match various LaTeX patterns
-      const latexPatterns = [
-        // Basic math commands
-        /\\[a-zA-Z]+\{.*?\}/g,
-        /\\[a-zA-Z]+_[a-zA-Z0-9]+/g,
-        /\\[a-zA-Z]+_\{.*?\}/g,
-        /\\[a-zA-Z]+\^\{.*?\}/g,
-        /\\[a-zA-Z]+/g,
-
-        // Matrix notation (with special handling)
-        /\\begin\{pmatrix\}[\s\S]*?\\end\{pmatrix\}/g,
-        /\\begin\{matrix\}[\s\S]*?\\end\{matrix\}/g,
-        /\\begin\{bmatrix\}[\s\S]*?\\end\{bmatrix\}/g,
-        /\\begin\{vmatrix\}[\s\S]*?\\end\{vmatrix\}/g,
-        /\\begin\{Vmatrix\}[\s\S]*?\\end\{Vmatrix\}/g,
-
-        // Specific math expressions
-        /\\exists.*?\\in.*?\\mathbb\{[A-Z]\}.*?[<>=]/g,
-        /\\forall.*?\\ge 0/g,
-        /\\sum.*?\\frac\{.*?\}\{.*?\}/g,
-        /\\log_.*?\\iff/g,
-        /\\lim_.*?= 1/g,
-        /\\mathcal\{L\}.*?dt/g,
-        /\\vec\{.*?\}/g,
-        /\\binom\{.*?\}\{.*?\}/g,
-
-        // Chemical formulas (enhanced)
-        /[A-Z][a-z]?_\{[0-9]+\}[A-Z][a-z]?_\{[0-9]+\}[A-Z]?[a-z]?_?\{?[0-9]*\}?/g,
-        /[A-Z][a-z]?\{.*?\}\d*/g,
-
-        // Integrals
-        /\\int_\{.*?\}\^\{.*?\}/g,
-        /\\int_\{.*?\}/g,
-        /\\int\^\{.*?\}/g,
-        /\\int/g,
-
-        // Fractions
-        /\\frac\{.*?\}\{.*?\}/g,
-
-        // Subscripts and superscripts (enhanced)
-        /[A-Za-z0-9]_\{.*?\}\^\{.*?\}/g,
-        /[A-Za-z0-9]_\{.*?\}/g,
-        /[A-Za-z0-9]\^\{.*?\}/g,
-        /[A-Za-z0-9]_[0-9a-zA-Z]/g,
-        /[A-Za-z0-9]\^[0-9a-zA-Z]/g,
-
-        // Greek letters
-        /\\[a-zA-Z]+/g,
-
-        // Special functions
-        /\\sqrt\{.*?\}/g,
-        /\\overline\{.*?\}/g,
-        /\\underline\{.*?\}/g,
-
-        // Sets and logic
-        /\\in|\\subset|\\subseteq|\\cup|\\cap|\\emptyset|\\rightarrow|\\Rightarrow|\\Leftrightarrow|\\land|\\lor|\\neg/g,
-
-        // Additional patterns for the specific cases in screenshots
-        /\\sqrt\{[^}]+\}/g,
-        /\\sqrt\{[a-z0-9]\^[0-9]+\}/g,
-        /\\sqrt\{[a-z0-9]\^\{[0-9]+\}\}/g,
-        /\\sqrt\{[a-z0-9]\^[0-9]+ \+ [a-z0-9]\^[0-9]+\}/g,
-        /\\sqrt\{[a-z0-9]\^\{[0-9]+\} \+ [a-z0-9]\^\{[0-9]+\}\}/g
-      ];
-
-      // Find all matches from all patterns
-      let allMatches: string[] = [];
-      latexPatterns.forEach(pattern => {
-        const matches = processedContent.match(pattern);
-        if (matches) {
-          allMatches = [...allMatches, ...matches];
-        }
-      });
-
-      // Remove duplicates
-      const uniqueMatches = [...new Set(allMatches)];
-
-      // Sort by length (longest first) to avoid nested replacements
-      uniqueMatches.sort((a, b) => b.length - a.length);
-
-      // Replace each match with rendered LaTeX
-      uniqueMatches.forEach(match => {
-        try {
-          // Skip if the match contains HTML style attributes (already processed above)
-          if (match.includes('style=')) {
-            return;
-          }
-
-          // Special handling for matrices to ensure proper rendering
-          let latexToRender = match;
-
-          // Fix common matrix issues
-          if (latexToRender.includes('\\begin{') && latexToRender.includes('\\end{')) {
-            // Ensure proper line breaks in matrices
-            latexToRender = latexToRender.replace(/\\\\(?!\n)/g, '\\\\\n');
-            // Ensure proper spacing in matrices
-            latexToRender = latexToRender.replace(/&(?!\s)/g, '& ');
-          }
-
-          const rendered = katex.renderToString(latexToRender, {
-            throwOnError: false,
-            output: 'html',
-            displayMode: false,
-            strict: false // Less strict mode to handle more expressions
-          });
-
-          // Create a safe regex pattern from the match
-          const safePattern = new RegExp(match.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-          processedContent = processedContent.replace(safePattern, `<span class="katex-formula">${rendered}</span>`);
-        } catch (e) {
-          console.error('Error rendering specific LaTeX:', match, e);
-        }
-      });
-
-      return processedContent;
-    } catch (e) {
-      console.error('Error processing LaTeX:', e);
-      return content;
-    }
-  };
-
-  // Handle limit change
-  const handleLimitChange = (newLimit: number) => {
-    setLimit(newLimit);
-    setPage(1); // Reset to first page when changing limit
-    setShowLimitDropdown(false);
-  };
+    fetchQuestions();
+  }, [fetchQuestions]);
 
   // Toggle group question expansion
   const toggleGroup = (questionId: string) => {
@@ -384,365 +250,87 @@ const Questions = () => {
     );
   };
 
-  // Calculate the range of items being displayed
-  const startItem = Math.min(totalItems, (page - 1) * limit + 1);
-  const endItem = Math.min(page * limit, totalItems);
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    // TODO: Implement search functionality
+    console.log('Search query:', query);
+  };
+
+  const handleFilter = () => {
+    // TODO: Implement filter functionality
+    console.log('Filter button clicked');
+  };
 
   return (
-    <div className="p-6 flex flex-col h-full">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className={cx("text-2xl font-bold", styles.isDark ? 'text-gray-200' : '')}>Danh sách câu hỏi</h1>
+    <div className="flex flex-col h-screen max-h-screen overflow-hidden">
+      {/* Fixed Header */}
+      <div className="flex justify-between items-center mb-3 px-4 pt-4 pb-2">
+        <h1 className={cx("text-xl font-bold", styles.isDark ? 'text-gray-200' : '')}>Danh sách câu hỏi</h1>
         <Button
           variant="primary"
+          className="h-9 px-3"
           onClick={() => navigate('/questions/create')}
         >
-          <Plus className="w-4 h-4 mr-2" />
+          <Plus className="w-4 h-4 mr-1" />
           Thêm câu hỏi
         </Button>
       </div>
 
-      <div className="flex gap-4 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-          <Input
-            placeholder="Tìm kiếm câu hỏi..."
-            className={cx("pl-10", styles.input)}
-          />
-        </div>
-        <Button
-          variant="outline"
-          className={cx("flex items-center gap-2", styles.outlineButton)}
-        >
-          <Filter className="w-4 h-4" />
-          Lọc
-        </Button>
+      {/* Fixed Filter Bar */}
+      <div className="px-4 pb-3">
+        <Filters onSearch={handleSearch} onFilter={handleFilter} />
       </div>
 
-      {/* Scrollable question list */}
-      <div className="flex-1 overflow-y-auto border rounded-lg" style={{ maxHeight: 'calc(100vh - 300px)' }}>
+      {/* Scrollable Question List Container */}
+      <div className="flex-1 overflow-hidden border-t border-b">
+        <div className="h-full overflow-y-auto">
         {loading ? (
-          <div className="flex justify-center items-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            <div className="flex justify-center items-center py-8">
+              <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
           </div>
         ) : error ? (
           <div className="text-center py-8 text-red-500">{error}</div>
-        ) : (
-          <div className="space-y-0">
-            {questions.map((q, index) => {
-              // Check if this is a group question
-              if (q.LaCauHoiNhom) {
-                return (
-                  <div
-                    key={q.MaCauHoi}
-                    className={cx(
-                      "flex flex-col md:flex-row justify-between gap-4 p-6 border-b hover:bg-gray-50 dark:hover:bg-gray-700/30",
-                      styles.isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-                    )}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Users className="h-4 w-4 text-purple-600" />
-                        <span className="text-gray-500 font-medium">#{index + 1 + (page - 1) * limit}</span>
-                        <span className="text-gray-500">#{q.MaSoCauHoi}</span>
-                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
-                          Câu hỏi nhóm ({q.SoCauHoiCon})
-                        </span>
-                        <span className={cx(
-                          "px-2 py-0.5 rounded text-xs font-medium border",
-                          q.XoaTamCauHoi ? 'border-red-200 text-red-500' : 'border-green-200 text-green-600'
-                        )}>
-                          {q.XoaTamCauHoi ? 'Đã xoá' : 'Hoạt động'}
-                        </span>
-                      </div>
-
-                      <div className="font-semibold text-base mb-2">
-                        <div dangerouslySetInnerHTML={{ __html: renderLatex(q.NoiDung) }} />
-                      </div>
-
-                      <button
-                        onClick={() => toggleGroup(q.MaCauHoi)}
-                        className="w-full border border-gray-300 text-left px-4 py-2 rounded-md flex justify-between items-center hover:bg-gray-50 dark:hover:bg-gray-700 mt-2"
-                      >
-                        <span>Xem {q.SoCauHoiCon} câu hỏi con</span>
-                        {expandedGroups.includes(q.MaCauHoi) ? (
-                          <ChevronDown className="h-4 w-4" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4" />
-                        )}
-                      </button>
-
-                      {expandedGroups.includes(q.MaCauHoi) && q.CauHoiCon && (
-                        <div className="mt-3 space-y-3">
-                          {q.CauHoiCon.map((childQ, childIndex) => (
-                            <div key={childQ.MaCauHoi} className="border rounded-md p-3 bg-gray-50">
-                              <div className="font-medium mb-2">
-                                Câu {childQ.MaSoCauHoi}: <span dangerouslySetInnerHTML={{ __html: renderLatex(childQ.NoiDung) }} />
-                              </div>
-
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
-                                {childQ.CauTraLoi && childQ.CauTraLoi.map((answer, idx) => (
-                                  <div
-                                    key={answer.MaCauTraLoi}
-                                    className={cx(
-                                      "flex items-start gap-2 p-2 rounded",
-                                      answer.LaDapAn
-                                        ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
-                                        : "bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700"
-                                    )}
-                                  >
-                                    <span className={cx(
-                                      "flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full text-xs font-medium",
-                                      answer.LaDapAn
-                                        ? "bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-300"
-                                        : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
-                                    )}>
-                                      {String.fromCharCode(65 + idx)}
-                                    </span>
-                                    <span className={answer.LaDapAn ? "text-green-700" : ""}>
-                                      <div dangerouslySetInnerHTML={{ __html: renderLatex(answer.NoiDung) }} />
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
+          ) : questions.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">Không có câu hỏi nào</div>
+          ) : (
+            <div className="divide-y">
+              {questions.map((question, index) => (
+                <QuestionItem
+                  key={question.MaCauHoi}
+                  question={question}
+                  index={index}
+                  page={page}
+                  limit={limit}
+                  expandedGroups={expandedGroups}
+                  toggleGroup={toggleGroup}
+                  refetchQuestions={fetchQuestions}
+                />
                           ))}
                         </div>
                       )}
                     </div>
-                    <div className="flex flex-col items-end min-w-[220px] gap-2">
-                      <div className="flex gap-2 mb-2">
-                        <Button variant="outline" size="sm" className={styles.outlineButton}><Eye className="w-4 h-4" /></Button>
-                        <Button variant="outline" size="sm" className={styles.outlineButton} onClick={() => navigate(`/questions/edit/${q.MaCauHoi}`)}><Edit className="w-4 h-4" /></Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className={cx(
-                            styles.isDark
-                              ? 'text-red-400 hover:text-red-300 border-red-800 hover:bg-red-900 hover:bg-opacity-30'
-                              : 'text-red-500 hover:text-red-600 border-red-300 hover:bg-red-50'
-                          )}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                      <div className="text-xs text-right">
-                        <div className="mb-1">
-                          <span className="font-medium">{q.XoaTamCauHoi ? 'Đã xoá' : 'Hoạt động'}</span>
-                        </div>
-                        <div className="text-gray-500">Cấp độ: <span className="font-semibold">{getDifficultyText(q.CapDo)}</span></div>
-                        <div className="text-gray-500">Ngày tạo: <span className="font-semibold">{formatDate(q.NgayTao)}</span></div>
-                        <div className="text-gray-500">Mã câu hỏi: <span className="font-semibold">{q.MaSoCauHoi}</span></div>
-                        <div className="text-gray-500">Số lần thi: <span className="font-semibold">{q.SoLanDuocThi}</span></div>
-                        <div className="text-gray-500">Số lần đúng: <span className="font-semibold">{q.SoLanDung}</span></div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-
-              // Regular question rendering
-              return (
-                <div
-                  key={q.MaCauHoi}
-                  className={cx(
-                    "flex flex-col md:flex-row justify-between gap-4 p-6 border-b hover:bg-gray-50 dark:hover:bg-gray-700/30",
-                    styles.isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-                  )}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-gray-500 font-medium">#{index + 1 + (page - 1) * limit}</span>
-                      <span className="text-gray-500">#{q.MaSoCauHoi}</span>
-                      {q.MaCLO && (
-                        <span className={cx(
-                          "px-2 py-0.5 rounded text-xs font-medium",
-                          q.cloInfo?.TenCLO ? typeColors[q.cloInfo.TenCLO] || 'bg-gray-100 text-gray-700' : 'bg-gray-100 text-gray-700'
-                        )}>{q.cloInfo?.TenCLO || 'CLO'}</span>
-                      )}
-                      <span className={cx(
-                        "px-2 py-0.5 rounded text-xs font-medium border",
-                        q.XoaTamCauHoi ? 'border-red-200 text-red-500' : 'border-green-200 text-green-600'
-                      )}>
-                        {q.XoaTamCauHoi ? 'Đã xoá' : 'Hoạt động'}
-                      </span>
-                    </div>
-
-                    <div className="font-semibold text-base mb-2">
-                      <div dangerouslySetInnerHTML={{ __html: renderLatex(q.NoiDung) }} />
-                    </div>
-
-                    {q.answers && q.answers.length > 0 && (
-                      <div className="mt-4 space-y-2">
-                        {q.answers.map((answer, idx) => (
-                          <div
-                            key={answer.MaCauTraLoi}
-                            className={cx(
-                              "flex items-start gap-2 p-2 rounded",
-                              answer.LaDapAn
-                                ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
-                                : "bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700"
-                            )}
-                          >
-                            <span className={cx(
-                              "flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-sm font-medium",
-                              answer.LaDapAn
-                                ? "bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-300"
-                                : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
-                            )}>
-                              {String.fromCharCode(65 + answer.ThuTu - 1)}
-                            </span>
-                            <div className="flex-1">
-                              <div dangerouslySetInnerHTML={{ __html: renderLatex(answer.NoiDung) }} />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {q.SoCauHoiCon > 0 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-1 text-green-700 border-green-300 hover:bg-green-50"
-                      >
-                        Xem {q.SoCauHoiCon} câu hỏi con <span className="ml-1 font-bold text-lg">+</span>
-                      </Button>
-                    )}
-                  </div>
-                  <div className="flex flex-col items-end min-w-[220px] gap-2">
-                    <div className="flex gap-2 mb-2">
-                      <Button variant="outline" size="sm" className={styles.outlineButton}><Eye className="w-4 h-4" /></Button>
-                      <Button variant="outline" size="sm" className={styles.outlineButton} onClick={() => navigate(`/questions/edit/${q.MaCauHoi}`)}><Edit className="w-4 h-4" /></Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className={cx(
-                          styles.isDark
-                            ? 'text-red-400 hover:text-red-300 border-red-800 hover:bg-red-900 hover:bg-opacity-30'
-                            : 'text-red-500 hover:text-red-600 border-red-300 hover:bg-red-50'
-                        )}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                    <div className="text-xs text-right">
-                      <div className="mb-1">
-                        <span className="font-medium">{q.XoaTamCauHoi ? 'Đã xoá' : 'Hoạt động'}</span>
-                      </div>
-                      <div className="text-gray-500">Cấp độ: <span className="font-semibold">{getDifficultyText(q.CapDo)}</span></div>
-                      <div className="text-gray-500">Ngày tạo: <span className="font-semibold">{formatDate(q.NgayTao)}</span></div>
-                      <div className="text-gray-500">Mã câu hỏi: <span className="font-semibold">{q.MaSoCauHoi}</span></div>
-                      <div className="text-gray-500">Số lần thi: <span className="font-semibold">{q.SoLanDuocThi}</span></div>
-                      <div className="text-gray-500">Số lần đúng: <span className="font-semibold">{q.SoLanDung}</span></div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
       </div>
 
-      {/* Fixed pagination controls */}
-      <div className="py-3 mt-4 flex flex-wrap justify-between items-center gap-4">
-        {/* Left side - Page navigation */}
-        <div className="flex items-center gap-2">
-          <span className="text-sm mr-2">Trang {page} / {totalPages}</span>
-          <div className="flex border rounded overflow-hidden">
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-none border-r h-8 px-3"
-              disabled={page === 1}
-              onClick={() => setPage(1)}
-            >
-              Đầu
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-none border-r h-8 px-3"
-              disabled={page === 1}
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-            >
-              Trước
-            </Button>
-            <div className="flex items-center px-2 bg-white dark:bg-gray-700">
-              <input
-                type="number"
-                min={1}
-                max={totalPages}
-                value={page}
-                onChange={(e) => setPage(Math.min(Math.max(1, parseInt(e.target.value) || 1), totalPages))}
-                className="w-12 text-center bg-transparent border-none focus:outline-none h-8"
-              />
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-none border-l h-8 px-3"
-              disabled={page === totalPages}
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            >
-              Sau
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-none border-l h-8 px-3"
-              disabled={page === totalPages}
-              onClick={() => setPage(totalPages)}
-            >
-              Cuối
-            </Button>
-          </div>
-        </div>
-
-        {/* Right side - Display options and info */}
-        <div className="flex items-center gap-4">
-          {/* Limit dropdown */}
-          <div className="relative" ref={limitDropdownRef}>
-            <div className="flex items-center">
-              <span className="text-sm mr-2">Hiển thị:</span>
-              <button
-                className="flex items-center gap-1 border rounded px-3 py-1 bg-white dark:bg-gray-700"
-                onClick={() => setShowLimitDropdown(!showLimitDropdown)}
-              >
-                {limit} <ChevronDown className="h-4 w-4" />
-              </button>
-            </div>
-
-            {showLimitDropdown && (
-              <div className="absolute bottom-full mb-1 right-0 bg-white dark:bg-gray-800 border rounded shadow-lg z-10">
-                {availableLimits.map((l) => (
-                  <button
-                    key={l}
-                    onClick={() => handleLimitChange(l)}
-                    className={cx(
-                      "block w-full text-left px-4 py-2",
-                      limit === l
-                        ? "bg-blue-500 text-white"
-                        : "hover:bg-gray-100 dark:hover:bg-gray-700"
-                    )}
-                  >
-                    {l}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Display range */}
-          <div className="text-sm">
-            Hiển thị {startItem}-{endItem} trong số {totalItems} bản ghi
-          </div>
-        </div>
+      {/* Fixed Pagination Bar */}
+      <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-t shadow-sm">
+        <PaginationBar
+          page={page}
+          totalPages={totalPages}
+          limit={limit}
+          totalItems={totalItems}
+          availableLimits={availableLimits}
+          onPageChange={(newPage) => setPage(newPage)}
+          onLimitChange={(newLimit) => {
+            setLimit(newLimit);
+            setPage(1); // Reset to first page when changing limit
+          }}
+        />
       </div>
 
       <style>{`
         .katex-formula .katex {
           display: inline-block;
-          font-size: 1.1em;
+          font-size: 1em;
         }
 
         /* Additional styles for better LaTeX rendering */
