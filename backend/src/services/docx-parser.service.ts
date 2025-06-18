@@ -22,6 +22,8 @@ export interface ParsedQuestion {
     files?: any[];
     inGroup?: boolean;
     groupId?: string;
+    has_latex?: boolean;
+    clo?: string;
 }
 
 export interface ParsedAnswer {
@@ -34,6 +36,7 @@ export interface ParsedAnswer {
 interface ParseOptions {
     processImages?: boolean;
     extractStyles?: boolean;
+    preserveLatex?: boolean;
 }
 
 @Injectable()
@@ -45,57 +48,6 @@ export class DocxParserService {
         // Ensure uploads directory exists
         if (!fs.existsSync(this.uploadsDir)) {
             fs.mkdirSync(this.uploadsDir, { recursive: true });
-        }
-    }
-
-    /**
-     * Parse DOCX file to extract questions
-     */
-    async parseDocxToQuestions(filePath: string): Promise<ParsedQuestion[]> {
-        try {
-            this.logger.log(`Parsing DOCX file: ${filePath}`);
-
-            // Check if file exists
-            if (!fs.existsSync(filePath)) {
-                this.logger.error(`File not found: ${filePath}`);
-                throw new Error(`File not found: ${filePath}`);
-            }
-
-            // Use mammoth options to preserve underlines for correct answers
-            // and italic for non-randomized options
-            const options = {
-                styleMap: [
-                    "u => u",
-                    "i => i",
-                    "b => b",
-                    "sup => sup",
-                    "sub => sub"
-                ]
-            };
-
-            try {
-                // Extract text content from DOCX (not HTML to better handle the custom tags)
-                const { value: textContent } = await mammoth.extractRawText({ path: filePath });
-
-                if (!textContent || textContent.trim().length === 0) {
-                    this.logger.error(`Empty or invalid DOCX content in file: ${filePath}`);
-                    throw new Error(`Empty or invalid DOCX content`);
-                }
-
-                this.logger.log(`Successfully extracted ${textContent.length} characters of text from DOCX`);
-
-                // Process text to extract questions
-                const questions = this.extractQuestionsFromText(textContent);
-
-                this.logger.log(`Successfully parsed ${questions.length} questions from DOCX file`);
-                return questions;
-            } catch (mammothError) {
-                this.logger.error(`Error extracting text from DOCX: ${mammothError.message}`, mammothError.stack);
-                throw new Error(`Failed to extract text from DOCX: ${mammothError.message}`);
-            }
-        } catch (error) {
-            this.logger.error(`Error parsing DOCX file: ${error.message}`, error.stack);
-            throw new Error(`Failed to parse DOCX file: ${error.message}`);
         }
     }
 
@@ -142,39 +94,52 @@ export class DocxParserService {
             fs.writeFileSync(uploadPath, file.buffer);
             this.logger.log(`File saved to: ${uploadPath}`);
 
-            // Use mammoth to process DOCX to HTML
-            const { value: html, messages } = await mammoth.convertToHtml({
-                path: uploadPath
-            }, {
-                // Extract image content and transform to base64
-                convertImage: mammoth.images.imgElement((image) => {
-                    return image.read()
-                        .then((imageBuffer) => {
-                            const base64 = imageBuffer.toString('base64');
-                            const mimeType = image.contentType;
-                            return {
-                                src: `data:${mimeType};base64,${base64}`
-                            };
-                        });
-                })
-            });
+            try {
+                // Use the Python parser to get better results with underline detection and LaTeX preservation
+                const questions = await this.parseDocx(uploadPath, {
+                    processImages: true,
+                    extractStyles: true,
+                    preserveLatex: true
+                });
+                return {
+                    questions,
+                    filePath: uploadPath
+                };
+            } catch (pythonError) {
+                this.logger.warn(`Python parsing failed: ${pythonError.message}, falling back to mammoth`);
 
-            // Log any warnings or errors
-            messages.forEach(message => {
-                if (message.type === 'warning') {
-                    this.logger.warn(`Mammoth warning: ${message.message}`);
-                }
-            });
+                // Fallback to Mammoth.js with enhanced options for LaTeX
+                const { value: html } = await mammoth.convertToHtml({
+                    path: uploadPath,
+                    ...(({
+                        styleMap: [
+                            "u => u", // Preserve underline
+                            "strong => strong",
+                            "b => strong",
+                            "i => em",
+                            "strike => s",
+                            "p[style-name='Heading 1'] => h1:fresh",
+                            "p[style-name='Heading 2'] => h2:fresh",
+                            "p[style-name='Heading 3'] => h3:fresh",
+                            // Handle all types of underlined text - Word has multiple ways to apply underline
+                            "w:rPr/w:u => u",  // Word's native underline
+                            'w:rPr[w:u] => u', // Another Word underline format
+                            "span[style-text-decoration='underline'] => u"  // Style-based underline
+                        ],
+                        preserveStyles: true
+                    }) as any)
+                });
 
-            this.logger.log(`Processed DOCX with size ${html.length}`);
+                this.logger.log(`Processed DOCX with Mammoth, HTML size ${html.length}`);
 
-            // Handle complex Word documents with multi-level structure
-            const questions = await this.parseDocxHtml(html);
+                // Simple parsing for questions and answers with LaTeX preservation
+                const questions = this.parseSimpleStructure(html);
 
-            return {
-                questions,
-                filePath: uploadPath
-            };
+                return {
+                    questions,
+                    filePath: uploadPath
+                };
+            }
         } catch (error) {
             this.logger.error(`Error processing uploaded file: ${error.message}`, error.stack);
             throw new Error(`Failed to process uploaded file: ${error.message}`);
@@ -182,373 +147,124 @@ export class DocxParserService {
     }
 
     /**
-     * Extract questions from raw text content
+     * Simple fallback parser that extracts questions from HTML
      */
-    private extractQuestionsFromText(text: string): ParsedQuestion[] {
+    private parseSimpleStructure(html: string): ParsedQuestion[] {
         const questions: ParsedQuestion[] = [];
 
-        try {
-            // Extract and process single questions
-            const singleQuestions = this.parseSingleQuestions(text);
-            questions.push(...singleQuestions);
+        // Very basic parsing - split by <p> tags and look for patterns
+        const paragraphs = html.split('<p>').map(p => p.replace('</p>', '').trim()).filter(p => p);
 
-            // Extract and process group questions
-            const groupQuestions = this.parseGroupQuestions(text);
-            questions.push(...groupQuestions);
+        let currentQuestion: ParsedQuestion | null = null;
 
-            return questions;
-        } catch (error) {
-            this.logger.error(`Error extracting questions from text: ${error.message}`, error.stack);
-            return [];
-        }
-    }
+        for (const paragraph of paragraphs) {
+            // Remove HTML tags for processing, but preserve LaTeX expressions
+            let text = paragraph;
 
-    /**
-     * Parse single questions (not in a group)
-     */
-    private parseSingleQuestions(text: string): ParsedQuestion[] {
-        const questions: ParsedQuestion[] = [];
+            // Check for LaTeX expressions ($ or \begin{...})
+            const hasLatex = /\$|\\\(|\\\[|\\begin\{/.test(text);
 
-        // Match all question blocks that are not inside [<sg>]...[</sg>]
-        // We need to be careful to not capture group questions
+            // Remove HTML tags but preserve LaTeX
+            text = this.preserveLatexWhileRemovingHtml(text);
 
-        // First, let's remove all group questions from the text
-        let processedText = text;
-        const groupBlocks = text.match(/\[\<sg\>\].*?\[\<\/sg\>\]/gs);
+            // Check if this is a question (starting with number)
+            if (/^\d+\./.test(text)) {
+                // If we have a current question, save it
+                if (currentQuestion) {
+                    questions.push(currentQuestion);
+                }
 
-        if (groupBlocks) {
-            for (const block of groupBlocks) {
-                processedText = processedText.replace(block, '');
+                // Start new question
+                currentQuestion = {
+                    id: randomUUID(),
+                    content: text,
+                    type: 'single-choice',
+                    answers: [],
+                    has_latex: hasLatex
+                };
+            }
+            // Check if this is an answer (starting with A., B., etc.)
+            else if (currentQuestion && /^[A-D]\./.test(text)) {
+                const isCorrect = paragraph.includes('<u>') ||
+                    paragraph.includes('underline') ||
+                    paragraph.includes('text-decoration');
+
+                if (!currentQuestion.answers) {
+                    currentQuestion.answers = [];
+                }
+
+                currentQuestion.answers.push({
+                    id: randomUUID(),
+                    content: text.substring(2).trim(), // Remove the A., B., etc.
+                    isCorrect,
+                    order: currentQuestion.answers.length
+                });
+
+                // If this answer has LaTeX, mark the question as having LaTeX
+                if (hasLatex) {
+                    currentQuestion.has_latex = true;
+                }
+            }
+            // Otherwise, it's additional content for the current question
+            else if (currentQuestion && text) {
+                currentQuestion.content += ' ' + text;
+
+                // If this content has LaTeX, mark the question as having LaTeX
+                if (hasLatex) {
+                    currentQuestion.has_latex = true;
+                }
             }
         }
 
-        // Now extract single questions
-        const questionBlocks = processedText.split(/\[\<br\>\]/g);
-
-        for (const block of questionBlocks) {
-            if (!block.trim()) continue;
-
-            const question = this.parseQuestionBlock(block);
-            if (question) {
-                questions.push(question);
-            }
+        // Don't forget the last question
+        if (currentQuestion) {
+            questions.push(currentQuestion);
         }
 
         return questions;
     }
 
     /**
-     * Parse group questions [<sg>]...[</sg>]
+     * Helper method to preserve LaTeX expressions while removing HTML tags
      */
-    private parseGroupQuestions(text: string): ParsedQuestion[] {
-        const questions: ParsedQuestion[] = [];
+    private preserveLatexWhileRemovingHtml(html: string): string {
+        if (!html) return '';
 
-        try {
-            // Find all group blocks
-            const groupRegex = /\[\<sg\>\](.*?)\[\<\/sg\>\]/gs;
-            const groupMatches = text.matchAll(groupRegex);
+        // Replace LaTeX expressions with placeholders
+        const latexExpressions: string[] = [];
 
-            for (const groupMatch of Array.from(groupMatches)) {
-                const groupContent = groupMatch[1];
-                const groupId = uuidv4(); // Generate a unique ID for this group
-
-                // Extract the common content (before [<egc>])
-                const commonContentMatch = groupContent.match(/(.*?)\[\<egc\>\]/s);
-                if (!commonContentMatch) continue;
-
-                const commonContent = commonContentMatch[1].trim();
-
-                // Extract audio file path if present
-                let audioPath: string | null = null;
-                const audioMatch = commonContent.match(/<audio>(.*?)<\/audio>/);
-                if (audioMatch) {
-                    audioPath = audioMatch[1].trim();
-                }
-
-                // Extract sub-questions
-                const subQuestionsContent = groupContent.substring(groupContent.indexOf('[<egc>]') + 8);
-                const subQuestionBlocks = subQuestionsContent.split(/\[\<br\>\]/g);
-
-                for (const block of subQuestionBlocks) {
-                    if (!block.trim()) continue;
-
-                    // Extract the question number
-                    const numberMatch = block.match(/\(\<(\d+)\>\)/);
-                    if (!numberMatch) continue;
-
-                    const questionNumber = numberMatch[1];
-
-                    // Parse the question block
-                    const question = this.parseQuestionBlock(block);
-
-                    if (question) {
-                        // Add common content and group information
-                        question.content = `${commonContent}\n\n${question.content}`;
-                        question.inGroup = true;
-                        question.groupId = groupId;
-
-                        // Add audio file if present
-                        if (audioPath) {
-                            question.files = question.files || [];
-                            question.files.push({
-                                type: 'audio',
-                                path: audioPath
-                            });
-                        }
-
-                        questions.push(question);
-                    }
-                }
-            }
-
-            return questions;
-        } catch (error) {
-            this.logger.error(`Error parsing group questions: ${error.message}`, error.stack);
-            return [];
-        }
-    }
-
-    /**
-     * Parse a single question block
-     */
-    private parseQuestionBlock(block: string): ParsedQuestion | null {
-        try {
-            // Clean up the block
-            let cleanBlock = block.trim();
-
-            // Extract CLO information
-            let cloInfo = '';
-            const cloMatch = cleanBlock.match(/\(CLO\d+\)/);
-            if (cloMatch) {
-                cloInfo = cloMatch[0];
-                cleanBlock = cleanBlock.replace(cloMatch[0], '').trim();
-            }
-
-            // Extract question content (everything before the first option)
-            const parts = cleanBlock.split(/\n[A-D]\./);
-            if (parts.length < 2) return null;
-
-            let content = parts[0].trim();
-
-            // Add CLO info back if needed
-            if (cloInfo) {
-                content = `${cloInfo} ${content}`;
-            }
-
-            // Determine question type
-            let type = 'single-choice';
-            if (content.includes('___') || content.includes('...')) {
-                type = 'fill-blank';
-            } else if (content.match(/\{\<\d+\>\}/)) {
-                type = 'group-question';
-            }
-
-            // Process LaTeX in content
-            content = this.processLatex(content);
-
-            // Extract answers
-            const answers: ParsedAnswer[] = [];
-            const optionLines = cleanBlock.match(/[A-D]\.\s*.*(?:\n(?!\n|[A-D]\.).*)*/g);
-
-            if (optionLines) {
-                for (let i = 0; i < optionLines.length; i++) {
-                    const line = optionLines[i].trim();
-                    const letter = line[0];
-                    let answerContent = line.substring(2).trim();
-
-                    // Check if this is the correct answer (underlined)
-                    const isCorrect = line.includes('__') || answerContent.includes('*');
-
-                    // Check if this option should not be randomized (italic)
-                    const noRandomize = line.match(/[A-D]\._/) || answerContent.match(/^_/);
-
-                    // Clean up the content
-                    answerContent = answerContent
-                        .replace(/\*/g, '')  // Remove asterisks
-                        .replace(/__/g, '')  // Remove underlines
-                        .replace(/^_/, '')   // Remove italic marker
-                        .trim();
-
-                    // Process LaTeX
-                    answerContent = this.processLatex(answerContent);
-
-                    answers.push({
-                        id: randomUUID(), // Add unique ID for each answer
-                        content: answerContent,
-                        isCorrect,
-                        order: letter.charCodeAt(0) - 'A'.charCodeAt(0)
-                    });
-                }
-            }
-
-            return {
-                id: uuidv4(),
-                content,
-                type,
-                answers
-            };
-        } catch (error) {
-            this.logger.error(`Error parsing question block: ${error.message}`, error.stack);
-            return null;
-        }
-    }
-
-    /**
-     * Process LaTeX formulas in text
-     * Replaces $...$ with proper LaTeX format
-     */
-    private processLatex(text: string): string {
-        // Look for inline LaTeX formulas ($...$)
-        return text.replace(/\$(.+?)\$/g, (match, formula) => {
-            return `$${formula}$`;  // Keep the dollar signs for the frontend to process
+        // Replace $...$ expressions
+        let modifiedHtml = html.replace(/\$(.*?)\$/g, (match) => {
+            latexExpressions.push(match);
+            return `__LATEX_${latexExpressions.length - 1}__`;
         });
-    }
 
-    private async parseDocxHtml(html: string): Promise<ParsedQuestion[]> {
-        try {
-            const questions: ParsedQuestion[] = [];
+        // Replace \begin{...}...\end{...} expressions
+        modifiedHtml = modifiedHtml.replace(/\\begin\{.*?\}[\s\S]*?\\end\{.*?\}/g, (match) => {
+            latexExpressions.push(match);
+            return `__LATEX_${latexExpressions.length - 1}__`;
+        });
 
-            // Split content by [<br>] which marks the end of a question
-            const questionBlocks = html.split(/\[\s*&lt;br&gt;\s*\]/gi);
+        // Remove HTML tags
+        modifiedHtml = modifiedHtml.replace(/<[^>]+>/g, '').trim();
 
-            // Process each block to extract questions
-            for (let block of questionBlocks) {
-                if (!block.trim()) continue;
+        // Restore LaTeX expressions
+        latexExpressions.forEach((expr, index) => {
+            modifiedHtml = modifiedHtml.replace(`__LATEX_${index}__`, expr);
+        });
 
-                // Check if it's a group question
-                const isGroup = block.includes('[&lt;sg&gt;]');
-
-                // Create basic question object
-                let question: ParsedQuestion = {
-                    id: randomUUID(),
-                    content: '',
-                    answers: [],
-                    type: 'single-choice'
-                };
-
-                if (isGroup) {
-                    // Handle group question
-                    question.type = 'group';
-
-                    // Extract group content (between [<sg>] and [<egc>])
-                    const sgRegex = /\[\s*&lt;sg&gt;\s*\]([\s\S]*?)\[\s*&lt;egc&gt;\s*\]/i;
-                    const sgMatch = block.match(sgRegex);
-
-                    if (sgMatch) {
-                        // Extract group content
-                        const groupContent = sgMatch[1].trim();
-                        question.content = groupContent;
-
-                        // Remove group content part from block for further processing
-                        block = block.replace(sgMatch[0], '');
-                    }
-
-                    // Parse child questions (look for pattern with (<number>) at start)
-                    question.childQuestions = [];
-
-                    // Look for child question pattern like (<1>) or (<2>)
-                    const childPattern = /\(\s*&lt;(\d+)&gt;\s*\)([\s\S]*?)(?=\(\s*&lt;\d+&gt;\s*\)|$)/g;
-                    let childMatch;
-
-                    while ((childMatch = childPattern.exec(block)) !== null) {
-                        const childQuestionNumber = childMatch[1];
-                        const childContent = childMatch[2].trim();
-
-                        // Create child question
-                        const childQuestion = this.parseQuestionContent(childContent);
-                        childQuestion.id = randomUUID();
-
-                        question.childQuestions.push(childQuestion);
-                    }
-
-                } else {
-                    // Regular question - parse content and answers
-                    Object.assign(question, this.parseQuestionContent(block));
-                }
-
-                questions.push(question);
-            }
-
-            return questions;
-
-        } catch (error) {
-            this.logger.error(`Error parsing HTML content: ${error.message}`, error.stack);
-            throw error;
-        }
-    }
-
-    private parseQuestionContent(content: string): ParsedQuestion {
-        const question: ParsedQuestion = {
-            id: randomUUID(),
-            content: '',
-            answers: [],
-            type: 'single-choice'
-        };
-
-        // Extract CLO information using regex
-        const cloRegex = /\(\s*CLO\d+\s*\)/i;
-        const cloMatch = content.match(cloRegex);
-
-        if (cloMatch) {
-            // Extract CLO but keep it in content for now
-            // We'll handle CLO tags in the frontend
-        }
-
-        // Split content by line breaks to separate question text and answers
-        const lines = content.split(/<\s*br\s*\/?\s*>/);
-
-        // First line should be the question text
-        if (lines.length > 0) {
-            question.content = lines[0].trim();
-
-            // Look for answers (lines starting with A., B., C., D.)
-            const answerLines = lines.filter(line =>
-                /^[A-D]\.\s/.test(line.trim())
-            );
-
-            // Process each answer
-            const parsedAnswers: ParsedAnswer[] = answerLines.map((line, index) => {
-                // Check if this is marked as correct (has underline or bold)
-                const isUnderlined = line.includes('<u>') || line.includes('</u>');
-                const isBold = line.includes('<strong>') || line.includes('</strong>');
-                const isCorrect = isUnderlined || isBold;
-
-                // Create answer object with required id property
-                return {
-                    id: randomUUID(), // Add unique ID for each answer
-                    // Clean up formatting but maintain the answer text
-                    content: line.replace(/<\/?[^>]+(>|$)/g, '').trim(),
-                    isCorrect,
-                    order: index
-                } as ParsedAnswer;
-            });
-
-            // Assign the properly formed answers array to the question
-            question.answers = parsedAnswers;
-
-            // Determine question type based on number of correct answers
-            const correctCount = question.answers.filter(a => a.isCorrect).length;
-            if (correctCount > 1) {
-                question.type = 'multi-choice';
-            } else if (correctCount === 0 && question.answers.length > 0) {
-                // If no correct answers found, mark the first one as correct
-                question.answers[0].isCorrect = true;
-            }
-        }
-
-        return question;
+        return modifiedHtml;
     }
 
     // Parse a DOCX file and extract questions, answers, and correct answers
     async parseDocx(filePath: string, options: ParseOptions = {}): Promise<any> {
         try {
-            // First try using Python (if available) for better parsing
+            // First try using Python for better parsing
             try {
                 return await this.parseDOCXWithPython(filePath, options);
             } catch (pythonError) {
                 this.logger.warn(`Python parsing failed, falling back to default parser: ${pythonError.message}`);
-                // Implement a fallback parser here if needed
-                throw new Error('No fallback parser implemented');
+                throw pythonError; // Let the calling function handle the fallback
             }
         } catch (error) {
             this.logger.error(`Failed to parse DOCX: ${error.message}`, error.stack);
@@ -566,15 +282,40 @@ export class DocxParserService {
         }
 
         const outputFile = path.join(tempDir, `${uuidv4()}.json`);
-        const scriptPath = path.join(__dirname, '..', '..', 'docx_parser.py');
 
-        if (!fs.existsSync(scriptPath)) {
-            // If the script doesn't exist, create it
+        // Look for the Python script in several possible locations
+        const possiblePaths = [
+            path.join(process.cwd(), 'docx_parser.py'),
+            path.join(process.cwd(), 'backend', 'docx_parser.py'),
+            path.join(__dirname, '..', '..', 'docx_parser.py'),
+            path.join(__dirname, '..', '..', '..', 'docx_parser.py')
+        ];
+
+        let scriptPath = '';
+        for (const p of possiblePaths) {
+            if (fs.existsSync(p)) {
+                scriptPath = p;
+                break;
+            }
+        }
+
+        if (!scriptPath) {
+            // If the script doesn't exist in any of the expected locations, create it
+            scriptPath = path.join(process.cwd(), 'docx_parser.py');
             await this.createParserScript(scriptPath);
         }
 
         // Run Python script
-        const command = `python3 "${scriptPath}" "${filePath}" "${outputFile}" ${options.processImages ? '--process-images' : ''} ${options.extractStyles ? '--extract-styles' : ''}`;
+        // Check which Python command to use (python3 or python)
+        const pythonCmd = os.platform() === 'win32' ? 'python' : 'python3';
+
+        // Prepare command options
+        const cmdOptions: string[] = [];
+        if (options.processImages) cmdOptions.push('--process-images');
+        if (options.extractStyles) cmdOptions.push('--extract-styles');
+        if (options.preserveLatex) cmdOptions.push('--preserve-latex');
+
+        const command = `${pythonCmd} "${scriptPath}" "${filePath}" "${outputFile}" ${cmdOptions.join(' ')}`;
 
         try {
             this.logger.log(`Running command: ${command}`);
@@ -585,16 +326,35 @@ export class DocxParserService {
                 this.logger.warn(`Python parser warning: ${stderr}`);
             }
 
+            if (stdout) {
+                this.logger.log(`Python parser output: ${stdout}`);
+            }
+
             if (!fs.existsSync(outputFile)) {
                 throw new Error('Python parsing failed: No output file generated');
             }
 
             // Read and parse the output file
             const jsonData = fs.readFileSync(outputFile, 'utf8');
-            const result = JSON.parse(jsonData);
+            let result;
+
+            try {
+                result = JSON.parse(jsonData);
+                this.logger.log(`Successfully parsed ${result.length} questions from Python parser`);
+
+                // Post-process to ensure LaTeX expressions are properly formatted
+                result = this.postProcessLatex(result);
+            } catch (jsonError) {
+                this.logger.error(`Failed to parse JSON output: ${jsonError.message}`);
+                throw new Error('Failed to parse output from Python parser');
+            }
 
             // Clean up temp file
-            fs.unlinkSync(outputFile);
+            try {
+                fs.unlinkSync(outputFile);
+            } catch (unlinkError) {
+                this.logger.warn(`Could not delete temporary file: ${unlinkError.message}`);
+            }
 
             return result;
         } catch (error) {
@@ -603,357 +363,95 @@ export class DocxParserService {
         }
     }
 
+    /**
+     * Post-process questions to ensure LaTeX expressions are properly formatted
+     */
+    private postProcessLatex(questions: ParsedQuestion[]): ParsedQuestion[] {
+        return questions.map(question => {
+            // Process content
+            if (question.content) {
+                question.content = this.ensureLatexDelimiters(question.content);
+            }
+
+            // Process answers
+            if (question.answers) {
+                question.answers = question.answers.map(answer => {
+                    if (answer.content) {
+                        answer.content = this.ensureLatexDelimiters(answer.content);
+                    }
+                    return answer;
+                });
+            }
+
+            // Process child questions recursively
+            if (question.childQuestions) {
+                question.childQuestions = this.postProcessLatex(question.childQuestions);
+            }
+
+            return question;
+        });
+    }
+
+    /**
+     * Ensure LaTeX expressions have proper delimiters
+     */
+    private ensureLatexDelimiters(text: string): string {
+        if (!text) return text;
+
+        // Already processed by Python parser, just return
+        return text;
+    }
+
     // Create Python parser script if it doesn't exist
     private async createParserScript(scriptPath: string): Promise<void> {
-        const scriptContent = `#!/usr/bin/env python3
-import argparse
-import json
-import os
-import re
-import sys
-from typing import Dict, List, Optional, Tuple, Union
-import logging
+        // First check if the script already exists but just needs permissions
+        if (fs.existsSync(scriptPath)) {
+            try {
+                // On non-Windows platforms, make the script executable
+                if (os.platform() !== 'win32') {
+                    fs.chmodSync(scriptPath, '755');
+                }
+                this.logger.log(`Set permissions for existing parser script at ${scriptPath}`);
+                return;
+            } catch (permError) {
+                this.logger.warn(`Failed to set permissions: ${permError.message}`);
+            }
+        }
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger('docx_parser')
+        // Find the source script from possible locations
+        const possibleSourcePaths = [
+            path.join(process.cwd(), 'docx_parser.py'),
+            path.join(process.cwd(), '..', 'docx_parser.py'),
+            path.join(process.cwd(), 'backend', 'docx_parser.py')
+        ];
 
-try:
-    import docx
-    from docx.document import Document
-    from docx.oxml.text.paragraph import CT_P
-    from docx.text.paragraph import Paragraph
-    from docx.text.run import Run
-except ImportError:
-    logger.error("python-docx not installed. Run: pip install python-docx")
-    sys.exit(1)
+        let sourceScriptPath = '';
+        for (const sourcePath of possibleSourcePaths) {
+            if (fs.existsSync(sourcePath)) {
+                sourceScriptPath = sourcePath;
+                break;
+            }
+        }
 
-class DocxParser:
-    def __init__(self, docx_path: str, process_images: bool = False, extract_styles: bool = False):
-        self.docx_path = docx_path
-        self.process_images = process_images
-        self.extract_styles = extract_styles
-        self.document = self._load_document()
+        if (!sourceScriptPath) {
+            throw new Error('Could not find source docx_parser.py script in any expected location');
+        }
 
-    def _load_document(self) -> Document:
-        """Load the document using python-docx"""
-        try:
-            return docx.Document(self.docx_path)
-        except Exception as e:
-            logger.error(f"Error loading document: {e}")
-            raise
+        // If we get here, we need to create the script
+        try {
+            // Copy the script from the source location
+            const scriptContent = fs.readFileSync(sourceScriptPath, 'utf8');
+            fs.writeFileSync(scriptPath, scriptContent);
 
-    def _get_paragraph_text_with_formatting(self, paragraph: Paragraph) -> Dict:
-        """Extract text and formatting from paragraph"""
-        text = ""
-        runs_data = []
-
-        for run in paragraph.runs:
-            run_data = {
-                "text": run.text,
-                "bold": run.bold,
-                "italic": run.italic,
-                "underline": run.underline,
-                "style": run.style.name if run.style else None
+            // On non-Windows platforms, make the script executable
+            if (os.platform() !== 'win32') {
+                fs.chmodSync(scriptPath, '755');
             }
 
-            runs_data.append(run_data)
-            text += run.text
-
-        return {
-            "text": text,
-            "runs": runs_data if self.extract_styles else None
+            this.logger.log(`Created parser script at ${scriptPath} from source ${sourceScriptPath}`);
+        } catch (createError) {
+            this.logger.error(`Failed to create parser script: ${createError.message}`);
+            throw new Error(`Could not create Python parser script: ${createError.message}`);
         }
-
-    def _is_answer_correct(self, paragraph: Dict) -> bool:
-        """Determine if the answer is marked as correct (underlined)"""
-        if not paragraph.get("runs"):
-            return False
-
-        # Check if any run is underlined (correct answer)
-        for run in paragraph["runs"]:
-            if run.get("underline", False):
-                return True
-
-        return False
-
-    def _is_answer_line(self, text: str) -> bool:
-        """Check if line is an answer option (starts with A., B., C., or D.)"""
-        return bool(re.match(r"^[A-D]\.", text.strip()))
-
-    def _extract_question_content(self, paragraphs: List[Dict]) -> Tuple[str, List[Dict], Optional[str]]:
-        """Extract question content, answers and CLO from paragraphs"""
-        question_text = ""
-        answers = []
-        clo = None
-
-        # Extract CLO if present
-        clo_match = re.search(r"\(CLO\d+\)", paragraphs[0]["text"])
-        if clo_match:
-            clo = clo_match.group(0).strip("()")
-            paragraphs[0]["text"] = paragraphs[0]["text"].replace(clo_match.group(0), "").strip()
-
-        in_question = True
-
-        for p in paragraphs:
-            if self._is_answer_line(p["text"]):
-                in_question = False
-
-                # Extract answer letter and content
-                match = re.match(r"^([A-D])\.\s*(.*)", p["text"].strip())
-                if match:
-                    letter = match.group(1)
-                    content = match.group(2)
-
-                    # Check if answer is correct (underlined)
-                    is_correct = self._is_answer_correct(p)
-
-                    answers.append({
-                        "letter": letter,
-                        "content": content,
-                        "isCorrect": is_correct
-                    })
-            elif in_question:
-                # Still in question content
-                if question_text:
-                    question_text += " "
-                question_text += p["text"]
-
-        return question_text, answers, clo
-
-    def _parse_group_question(self, block: List[Dict]) -> Dict:
-        """Parse a group question with its child questions"""
-        group_question = {
-            "type": "group",
-            "content": "",
-            "groupContent": "",
-            "clo": None,
-            "childQuestions": []
-        }
-
-        # Extract group content between [<sg>] and [<egc>]
-        group_content_blocks = []
-        child_question_blocks = []
-        current_block = []
-
-        in_group_content = False
-        past_group_content = False
-        current_child_idx = -1
-
-        for p in block:
-            text = p["text"].strip()
-
-            # Start of group content
-            if "[<sg>]" in text:
-                in_group_content = True
-                # Remove the marker and add remaining text
-                text = text.replace("[<sg>]", "").strip()
-                if text:
-                    group_content_blocks.append({"text": text, "runs": p.get("runs")})
-                continue
-
-            # End of group content
-            if "[<egc>]" in text:
-                in_group_content = False
-                past_group_content = True
-                # Remove the marker and add remaining text
-                text = text.replace("[<egc>]", "").strip()
-                if text:
-                    current_block.append({"text": text, "runs": p.get("runs")})
-                continue
-
-            # End of group
-            if "[</sg>]" in text:
-                # Process any remaining block
-                if current_block:
-                    child_question_blocks.append(current_block)
-                break
-
-            # If in group content, add to group content blocks
-            if in_group_content:
-                group_content_blocks.append({"text": text, "runs": p.get("runs")})
-            else:
-                # Look for child question markers
-                child_match = re.search(r"\\(<(\d+)>\\)", text)
-                if child_match:
-                    # Save previous block if exists
-                    if current_block:
-                        child_question_blocks.append(current_block)
-
-                    # Start new block
-                    current_child_idx = int(child_match.group(1))
-                    current_block = []
-
-                    # Add text without marker
-                    clean_text = text.replace(child_match.group(0), "").strip()
-                    if clean_text:
-                        current_block.append({"text": clean_text, "runs": p.get("runs")})
-                else:
-                    # Continue building current block
-                    current_block.append({"text": text, "runs": p.get("runs")})
-
-        # Process any remaining block
-        if current_block:
-            child_question_blocks.append(current_block)
-
-        # Process group content
-        if group_content_blocks:
-            group_content_text = " ".join([b["text"] for b in group_content_blocks])
-            group_question["groupContent"] = group_content_text.strip()
-
-        # Extract CLO from first paragraph if present
-        if block and block[0]["text"]:
-            clo_match = re.search(r"\\(CLO\d+\\)", block[0]["text"])
-            if clo_match:
-                group_question["clo"] = clo_match.group(0).strip("()")
-
-        # Process child questions
-        for child_block in child_question_blocks:
-            if not child_block:
-                continue
-
-            question_text, answers, clo = self._extract_question_content(child_block)
-
-            child_question = {
-                "type": "single-choice" if len([a for a in answers if a["isCorrect"]]) <= 1 else "multi-choice",
-                "content": question_text,
-                "clo": clo,
-                "answers": answers
-            }
-
-            group_question["childQuestions"].append(child_question)
-
-        return group_question
-
-    def _parse_single_question(self, block: List[Dict]) -> Dict:
-        """Parse a single question"""
-        question_text, answers, clo = self._extract_question_content(block)
-
-        return {
-            "type": "single-choice" if len([a for a in answers if a["isCorrect"]]) <= 1 else "multi-choice",
-            "content": question_text,
-            "clo": clo,
-            "answers": answers
-        }
-
-    def parse_questions(self) -> List[Dict]:
-        """Parse all questions from the document"""
-        questions = []
-        current_block = []
-
-        # First pass: Extract all paragraphs with formatting
-        all_paragraphs = []
-        for paragraph in self.document.paragraphs:
-            formatted_paragraph = self._get_paragraph_text_with_formatting(paragraph)
-            if formatted_paragraph["text"].strip():  # Skip empty paragraphs
-                all_paragraphs.append(formatted_paragraph)
-
-        # Second pass: Process blocks separated by [<br>]
-        for paragraph in all_paragraphs:
-            text = paragraph["text"]
-
-            if "[<br>]" in text:
-                # End of question block
-                parts = text.split("[<br>]")
-
-                # Add first part to current block
-                if parts[0].strip():
-                    current_block.append({
-                        "text": parts[0],
-                        "runs": paragraph.get("runs")
-                    })
-
-                # Process the current block
-                if current_block:
-                    # Check if it's a group question
-                    is_group = any("[<sg>]" in p["text"] for p in current_block)
-
-                    if is_group:
-                        question = self._parse_group_question(current_block)
-                    else:
-                        question = self._parse_single_question(current_block)
-
-                    questions.append(question)
-
-                # Start a new block with remaining parts
-                current_block = []
-                for part in parts[1:]:
-                    if part.strip():
-                        current_block.append({
-                            "text": part,
-                            "runs": paragraph.get("runs")
-                        })
-            else:
-                # Continue building the current block
-                current_block.append(paragraph)
-
-        # Process any remaining block
-        if current_block:
-            # Check if it's a group question
-            is_group = any("[<sg>]" in p["text"] for p in current_block)
-
-            if is_group:
-                question = self._parse_group_question(current_block)
-            else:
-                question = self._parse_single_question(current_block)
-
-            questions.append(question)
-
-        # Add unique IDs to questions and answers
-        for question in questions:
-            question["id"] = uuidv4()
-
-            if question.get("answers"):
-                for i, answer in enumerate(question["answers"]):
-                    answer["id"] = uuidv4()
-                    answer["order"] = i
-
-            if question.get("childQuestions"):
-                for child in question["childQuestions"]:
-                    child["id"] = uuidv4()
-                    for i, answer in enumerate(child.get("answers", [])):
-                        answer["id"] = uuidv4()
-                        answer["order"] = i
-
-        return questions
-
-def parse_args():
-    parser = argparse.ArgumentParser(description='Parse DOCX file and extract questions')
-    parser.add_argument('input_file', help='Path to input DOCX file')
-    parser.add_argument('output_file', help='Path to output JSON file')
-    parser.add_argument('--process-images', action='store_true', help='Process images in document')
-    parser.add_argument('--extract-styles', action='store_true', help='Extract detailed styling information')
-    return parser.parse_args()
-
-def main():
-    args = parse_args()
-
-    try:
-        # Check if input file exists
-        if not os.path.exists(args.input_file):
-            logger.error(f"Input file not found: {args.input_file}")
-            sys.exit(1)
-
-        # Parse document
-        parser = DocxParser(args.input_file, args.process_images, args.extract_styles)
-        questions = parser.parse_questions()
-
-        # Write results to output file
-        with open(args.output_file, 'w', encoding='utf-8') as f:
-            json.dump(questions, f, ensure_ascii=False, indent=2)
-
-        logger.info(f"Successfully parsed {len(questions)} questions")
-
-    except Exception as e:
-        logger.error(f"Error: {e}")
-        sys.exit(1)
-
-if __name__ == "__main__":
-    main()
-`;
-
-        fs.writeFileSync(scriptPath, scriptContent);
-        fs.chmodSync(scriptPath, '755'); // Make executable
-
-        this.logger.log(`Created parser script at ${scriptPath}`);
     }
 }

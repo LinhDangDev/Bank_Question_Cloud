@@ -601,23 +601,61 @@ const UploadQuestions = () => {
     setError(null);
 
     try {
-      // Parse DOCX file using Mammoth.js locally
-      console.log('Starting to parse DOCX file with Mammoth.js...');
-      const parsedQuestions = await parseDocxWithMammoth(file);
+      // Instead of parsing locally, send file to backend for Python processing
+      console.log('Uploading file to backend for processing...');
 
-      console.log(`Parsed ${parsedQuestions.length} questions with Mammoth.js`);
+      // Create form data
+      const formData = new FormData();
+      formData.append('file', file);
 
-      // Add fileId to all questions for compatibility
-      const fileId = uuidv4();
-      const processedQuestions = parsedQuestions.map(question => ({
-        ...question,
-        fileId
+      // Add chapter ID if selected
+      if (chapterId) {
+        formData.append('maPhan', chapterId);
+      }
+
+      formData.append('processImages', 'true');
+
+      // Send to backend
+      const response = await fetch(`${API_BASE_URL}/questions-import/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server responded with ${response.status}: ${await response.text()}`);
+      }
+
+      // Get the fileId from response
+      const data = await response.json();
+      console.log('Upload successful, file ID:', data.fileId);
+
+      // Now fetch the parsed questions
+      const questionsResponse = await fetch(`${API_BASE_URL}/questions-import/preview/${data.fileId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        }
+      });
+
+      if (!questionsResponse.ok) {
+        throw new Error(`Server responded with ${questionsResponse.status}: ${await questionsResponse.text()}`);
+      }
+
+      const questionsData = await questionsResponse.json();
+      console.log(`Received ${questionsData.items.length} questions from server`);
+
+      // Format as needed for the UI
+      const processedQuestions = questionsData.items.map((q: any) => ({
+        ...q,
+        fileId: data.fileId
       }));
 
       setSelectedQuestions(processedQuestions);
 
       // Select all questions by default
-      setSelectedQuestionIds(processedQuestions.map(q => q.id));
+      setSelectedQuestionIds(processedQuestions.map((q: any) => q.id));
 
       if (processedQuestions.length === 0) {
         setError('Không tìm thấy câu hỏi nào trong tệp tin');
@@ -674,58 +712,64 @@ const UploadQuestions = () => {
 
   // Update handleSaveQuestions to use selectedQuestionIds
   const handleSaveQuestions = async () => {
-    if (!facultyId || !subjectId || !chapterId) {
-      alert('Vui lòng chọn đầy đủ Khoa, Môn học và Chương/Phần');
+    if (selectedQuestionIds.length === 0) {
+      setError('Vui lòng chọn ít nhất một câu hỏi');
       return;
     }
-    if (selectedQuestionIds.length === 0) {
-      alert('Chưa có câu hỏi nào được chọn');
+
+    if (!chapterId) {
+      setError('Vui lòng chọn chương/phần cho các câu hỏi');
       return;
     }
 
     setIsLoading(true);
     setError(null);
 
-    // We need to get the fileId from the response we got earlier
-    const fileId = selectedQuestions[0]?.fileId;
-
-    if (!fileId) {
-      setError('Missing file information. Please upload again.');
-      setIsLoading(false);
-      return;
-    }
-
     try {
-      // Filter the selected questions to include their CLO information
-      const selectedQuestionsWithClO = selectedQuestions
+      // Get the file ID of the first selected question (they all share the same fileId)
+      const fileId = selectedQuestions.find(q => selectedQuestionIds.includes(q.id))?.fileId;
+
+      if (!fileId) {
+        throw new Error('Không tìm thấy ID tệp tin');
+      }
+
+      // Prepare CLO metadata if available
+      const questionMetadata = selectedQuestions
         .filter(q => selectedQuestionIds.includes(q.id))
         .map(q => ({
           id: q.id,
-          clo: q.clo || null,  // Include the CLO information
-          childQuestions: q.childQuestions ? q.childQuestions.map((child: ParsedQuestion) => ({
-            id: child.id,
-            clo: child.clo || null  // Include CLO for child questions too
-          })) : []
+          clo: q.clo || null
         }));
 
-      // Send request to save questions with CLO information
-      const response = await axios.post(`${API_BASE_URL}/questions-import/save`, {
-        fileId,
-        questionIds: selectedQuestionIds,
-        maPhan: chapterId,
-        questionMetadata: selectedQuestionsWithClO  // Send the CLO metadata
+      // Call save API
+      const response = await fetch(`${API_BASE_URL}/questions-import/save`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          fileId,
+          questionIds: selectedQuestionIds,
+          maPhan: chapterId,
+          questionMetadata
+        })
       });
 
-      if (response.data && response.data.success) {
-        alert(`Đã lưu thành công ${response.data.savedCount} câu hỏi!`);
-      // Optionally clear questions or redirect
-      // setSelectedQuestions([]);
-      } else {
-      setError('Lỗi khi lưu câu hỏi. Vui lòng thử lại.');
+      if (!response.ok) {
+        throw new Error(`Server responded with ${response.status}: ${await response.text()}`);
       }
+
+      const result = await response.json();
+
+      // Success message and reset
+      alert(`Đã lưu ${result.savedCount} câu hỏi thành công`);
+      setSelectedQuestions([]);
+      setSelectedQuestionIds([]);
+
     } catch (err: any) {
       console.error('Error saving questions:', err);
-      setError(err.response?.data?.message || 'Lỗi khi lưu câu hỏi. Vui lòng thử lại.');
+      setError(err.message || 'Lỗi khi lưu câu hỏi');
     } finally {
       setIsLoading(false);
     }

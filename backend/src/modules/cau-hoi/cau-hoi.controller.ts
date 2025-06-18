@@ -1,9 +1,10 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
 import { CauHoiService } from './cau-hoi.service';
-import { CreateCauHoiDto, UpdateCauHoiDto, CreateQuestionWithAnswersDto, UpdateQuestionWithAnswersDto } from '../../dto';
+import { CreateCauHoiDto, UpdateCauHoiDto, CreateQuestionWithAnswersDto, UpdateQuestionWithAnswersDto, CreateGroupQuestionDto } from '../../dto';
 import { CauHoi } from '../../entities/cau-hoi.entity';
 import { PaginationDto } from '../../dto/pagination.dto';
+import { CreateCauTraLoiDto } from 'src/dto/cau-tra-loi.dto';
 
 @ApiTags('cau-hoi')
 @Controller('cau-hoi')
@@ -124,7 +125,13 @@ export class CauHoiController {
     @ApiResponse({ status: 201, description: 'The question with answers has been successfully created' })
     @ApiBody({ type: CreateQuestionWithAnswersDto })
     async createWithAnswers(@Body() dto: CreateQuestionWithAnswersDto) {
-        return await this.cauHoiService.createQuestionWithAnswers(dto);
+        return this.cauHoiService.createQuestionWithAnswers(dto);
+    }
+
+    @Post('group')
+    @ApiOperation({ summary: 'Create a group question with child questions and answers' })
+    async createGroupQuestion(@Body() dto: CreateGroupQuestionDto) {
+        return this.cauHoiService.createGroupQuestion(dto);
     }
 
     @Put(':id')

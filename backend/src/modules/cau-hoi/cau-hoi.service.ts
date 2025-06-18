@@ -5,7 +5,7 @@ import { Repository, DataSource, In, IsNull } from 'typeorm';
 import { Cache } from 'cache-manager';
 import { BaseService } from '../../common/base.service';
 import { CauHoi } from '../../entities/cau-hoi.entity';
-import { CreateCauHoiDto, UpdateCauHoiDto, CreateQuestionWithAnswersDto, UpdateQuestionWithAnswersDto } from '../../dto';
+import { CreateCauHoiDto, UpdateCauHoiDto, CreateQuestionWithAnswersDto, UpdateQuestionWithAnswersDto, CreateGroupQuestionDto } from '../../dto';
 import { CreateCauTraLoiDto } from '../../dto/cau-tra-loi.dto';
 import { PaginationDto } from '../../dto/pagination.dto';
 import { PAGINATION_CONSTANTS } from '../../constants/pagination.constants';
@@ -144,12 +144,17 @@ export class CauHoiService extends BaseService<CauHoi> {
 
     // Add method to clear cache when data changes
     private async clearQuestionsCache() {
-        // cache-manager does not support key pattern deletion by default, so you may need to use a custom store for production
-        // For in-memory, you can use keys() if available
-        if (typeof (this.cacheManager as any).store.keys === 'function') {
-            const keys: string[] = await (this.cacheManager as any).store.keys();
-            const questionKeys = keys.filter(key => key.startsWith('questions:'));
-            await Promise.all(questionKeys.map(key => this.cacheManager.del(key)));
+        try {
+            // cache-manager does not support key pattern deletion by default, so you may need to use a custom store for production
+            // For in-memory, you can use keys() if available
+            if (this.cacheManager && (this.cacheManager as any).store && typeof (this.cacheManager as any).store.keys === 'function') {
+                const keys: string[] = await (this.cacheManager as any).store.keys();
+                const questionKeys = keys.filter(key => key.startsWith('questions:'));
+                await Promise.all(questionKeys.map(key => this.cacheManager.del(key)));
+            }
+        } catch (error) {
+            console.warn('Error clearing questions cache:', error);
+            // Fail silently - cache clearing should not block the main operation
         }
     }
 
@@ -241,7 +246,14 @@ export class CauHoiService extends BaseService<CauHoi> {
     }
 
     async create(createCauHoiDto: CreateCauHoiDto): Promise<CauHoi> {
-        const result = await super.create(createCauHoiDto);
+        // Đảm bảo UUID được tạo cho MaCauHoi
+        const data = {
+            ...createCauHoiDto,
+            MaCauHoi: randomUUID()
+        };
+        // Gọi phương thức create của repository thay vì super.create để tránh sử dụng DEFAULT
+        const cauHoi = this.cauHoiRepository.create(data);
+        const result = await this.cauHoiRepository.save(cauHoi);
         await this.clearQuestionsCache();
         return result;
     }
@@ -642,7 +654,11 @@ export class CauHoiService extends BaseService<CauHoi> {
     }
 
     async createQuestion(createCauHoiDto: CreateCauHoiDto) {
-        const cauHoi = this.cauHoiRepository.create(createCauHoiDto);
+        // Thêm UUID vào MaCauHoi khi tạo câu hỏi mới
+        const cauHoi = this.cauHoiRepository.create({
+            ...createCauHoiDto,
+            MaCauHoi: randomUUID() // Đảm bảo UUID được tạo cho mỗi câu hỏi mới
+        });
         return await this.cauHoiRepository.save(cauHoi);
     }
 
@@ -701,5 +717,178 @@ export class CauHoiService extends BaseService<CauHoi> {
 
         // Get the updated question with its answers
         return this.findOne(id);
+    }
+
+    async createGroupQuestion(dto: CreateGroupQuestionDto): Promise<any> {
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+
+        try {
+            console.log('Starting createGroupQuestion with data:', JSON.stringify({
+                parentQuestion: {
+                    MaPhan: dto.parentQuestion.MaPhan,
+                    MaSoCauHoi: dto.parentQuestion.MaSoCauHoi,
+                    NoiDung: dto.parentQuestion.NoiDung ? dto.parentQuestion.NoiDung.substring(0, 30) + '...' : null
+                },
+                childQuestionsCount: dto.childQuestions.length
+            }));
+
+            // Tạo câu hỏi nhóm (parent)
+            const parentUuid = randomUUID();
+            console.log('Generated parent UUID:', parentUuid);
+
+            // Ensure all required fields are set
+            const now = new Date();
+            console.log('Current timestamp:', now.toISOString());
+
+            // Log database schema for CauHoi table
+            try {
+                const tableInfo = await queryRunner.query('SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = \'CauHoi\'');
+                console.log('CauHoi table schema:', JSON.stringify(tableInfo));
+            } catch (schemaError) {
+                console.log('Could not fetch schema info:', schemaError.message);
+            }
+
+            const parentQuestion = {
+                ...dto.parentQuestion,
+                MaCauHoi: parentUuid,
+                SoCauHoiCon: dto.childQuestions.length,
+                NgayTao: now,
+                NgaySua: now,
+                // Ensure other required fields have default values if not provided
+                XoaTamCauHoi: dto.parentQuestion.XoaTamCauHoi ?? false,
+                SoLanDuocThi: dto.parentQuestion.SoLanDuocThi ?? 0,
+                SoLanDung: dto.parentQuestion.SoLanDung ?? 0
+            };
+
+            console.log('Saving parent question with data:', JSON.stringify({
+                MaCauHoi: parentQuestion.MaCauHoi,
+                MaPhan: parentQuestion.MaPhan,
+                MaSoCauHoi: parentQuestion.MaSoCauHoi,
+                NoiDung: parentQuestion.NoiDung ? parentQuestion.NoiDung.substring(0, 30) + '...' : null,
+                SoCauHoiCon: parentQuestion.SoCauHoiCon,
+                NgayTao: parentQuestion.NgayTao
+            }));
+
+            // Lưu câu hỏi nhóm
+            let savedParent;
+            try {
+                savedParent = await queryRunner.manager.save(CauHoi, parentQuestion);
+                console.log('Parent question saved successfully with ID:', savedParent.MaCauHoi);
+            } catch (saveParentError) {
+                console.error('Error saving parent question:', saveParentError);
+                console.error('Parent question data:', JSON.stringify(parentQuestion));
+                throw saveParentError;
+            }
+
+            // Tạo các câu hỏi con
+            const childQuestions: CauHoi[] = [];
+            const allAnswers: CauTraLoi[] = [];
+
+            for (let i = 0; i < dto.childQuestions.length; i++) {
+                const childItem = dto.childQuestions[i];
+                // Tạo câu hỏi con với liên kết đến câu hỏi cha
+                const childUuid = randomUUID();
+                console.log(`Generated child question UUID for question ${i + 1}:`, childUuid);
+
+                const childQuestion = {
+                    ...childItem.question,
+                    MaCauHoi: childUuid,
+                    MaCauHoiCha: parentUuid,
+                    NgayTao: now,
+                    NgaySua: now,
+                    // Ensure other required fields have default values if not provided
+                    XoaTamCauHoi: childItem.question.XoaTamCauHoi ?? false,
+                    SoLanDuocThi: childItem.question.SoLanDuocThi ?? 0,
+                    SoLanDung: childItem.question.SoLanDung ?? 0
+                };
+
+                console.log(`Saving child question ${i + 1} with data:`, JSON.stringify({
+                    MaCauHoi: childQuestion.MaCauHoi,
+                    MaPhan: childQuestion.MaPhan,
+                    MaSoCauHoi: childQuestion.MaSoCauHoi,
+                    MaCauHoiCha: childQuestion.MaCauHoiCha,
+                    NoiDung: childQuestion.NoiDung ? childQuestion.NoiDung.substring(0, 30) + '...' : null,
+                    NgayTao: childQuestion.NgayTao
+                }));
+
+                // Lưu câu hỏi con
+                let savedChild;
+                try {
+                    savedChild = await queryRunner.manager.save(CauHoi, childQuestion);
+                    console.log(`Child question ${i + 1} saved successfully with ID:`, savedChild.MaCauHoi);
+                } catch (saveChildError) {
+                    console.error(`Error saving child question ${i + 1}:`, saveChildError);
+                    console.error(`Child question ${i + 1} data:`, JSON.stringify(childQuestion));
+                    throw saveChildError;
+                }
+
+                childQuestions.push(savedChild);
+
+                // Tạo câu trả lời cho câu hỏi con
+                for (let j = 0; j < childItem.answers.length; j++) {
+                    const answerDto = childItem.answers[j];
+                    const answerUuid = randomUUID();
+                    console.log(`Generated answer UUID for question ${i + 1}, answer ${j + 1}:`, answerUuid);
+
+                    const answer = {
+                        ...answerDto,
+                        MaCauTraLoi: answerUuid,
+                        MaCauHoi: childUuid
+                    };
+
+                    console.log(`Saving answer ${j + 1} for child question ${i + 1}:`, JSON.stringify({
+                        MaCauTraLoi: answer.MaCauTraLoi,
+                        MaCauHoi: answer.MaCauHoi,
+                        NoiDung: answer.NoiDung ? answer.NoiDung.substring(0, 30) + '...' : null,
+                        LaDapAn: answer.LaDapAn
+                    }));
+
+                    // Lưu câu trả lời
+                    let savedAnswer;
+                    try {
+                        savedAnswer = await queryRunner.manager.save(CauTraLoi, answer);
+                        console.log(`Answer ${j + 1} for child question ${i + 1} saved successfully with ID:`, savedAnswer.MaCauTraLoi);
+                    } catch (saveAnswerError) {
+                        console.error(`Error saving answer ${j + 1} for child question ${i + 1}:`, saveAnswerError);
+                        console.error(`Answer ${j + 1} data:`, JSON.stringify(answer));
+                        throw saveAnswerError;
+                    }
+
+                    allAnswers.push(savedAnswer);
+                }
+            }
+
+            try {
+                await queryRunner.commitTransaction();
+                console.log('Transaction committed successfully');
+            } catch (commitError) {
+                console.error('Error committing transaction:', commitError);
+                throw commitError;
+            }
+
+            // Trả về kết quả đầy đủ
+            return {
+                parentQuestion: savedParent,
+                childQuestions: childQuestions.map(child => {
+                    const childAnswers = allAnswers.filter(answer => answer.MaCauHoi === child.MaCauHoi);
+                    return {
+                        ...child,
+                        CauTraLoi: childAnswers
+                    };
+                })
+            };
+        } catch (error) {
+            await queryRunner.rollbackTransaction();
+            console.error('Error creating group question:', error);
+            if (error instanceof Error) {
+                console.error('Error stack:', error.stack);
+                throw new Error(`Failed to create group question: ${error.message}`);
+            }
+            throw error;
+        } finally {
+            await queryRunner.release();
+        }
     }
 }

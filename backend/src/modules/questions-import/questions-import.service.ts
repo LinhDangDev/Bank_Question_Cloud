@@ -78,23 +78,36 @@ export class QuestionsImportService {
         fs.writeFileSync(filePath, file.buffer);
 
         try {
-            // Parse the DOCX file using our enhanced parser
-            const questions = await this.parseDocxWithEnhancedParser(filePath, options);
+            // Use the DocxParserService to parse the file with Python integration
+            const { questions } = await this.docxParserService.processUploadedFile({
+                ...file,
+                path: filePath // Ensure path is available for direct file access
+            });
+
+            this.logger.log(`DocxParserService returned ${questions.length} questions`);
+
+            // Apply any limits to the questions (if specified)
+            const limitedQuestions = options.limit && questions.length > options.limit
+                ? questions.slice(0, options.limit)
+                : questions;
 
             // Store the parsed questions in the import session
             this.importSessions.set(fileId, {
                 fileId,
                 filePath,
-                questions,
+                questions: limitedQuestions,
                 maPhan,
                 createdAt: new Date(),
             });
 
-            this.logger.log(`Parsed ${questions.length} questions for file ID ${fileId}`);
+            this.logger.log(`Parsed ${limitedQuestions.length} questions for file ID ${fileId}`);
+
+            // Clean up expired sessions
+            this.cleanupExpiredSessions();
 
             return {
                 fileId,
-                count: questions.length,
+                count: limitedQuestions.length,
             };
         } catch (error) {
             this.logger.error(`Error parsing DOCX file: ${error.message}`, error.stack);
@@ -186,10 +199,33 @@ export class QuestionsImportService {
             let savedCount = 0;
 
             // Process each question
-                for (const question of questionsToSave) {
+            for (const question of questionsToSave) {
                 // Check if metadata exists for this question
                 const metadata = questionMetadata?.find(meta => meta.id === question.id);
                 const clo = metadata?.clo || question.clo;
+
+                // Find CLO ID if it's a string name (like "CLO1")
+                let cloId = null;
+                if (clo) {
+                    try {
+                        // If it's already a UUID, use it directly
+                        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clo)) {
+                            cloId = clo;
+                        } else {
+                            // Try to find CLO by name (like "CLO1")
+                            const cloEntity = await queryRunner.manager.query(
+                                `SELECT "MaCLO" FROM "CLO" WHERE "TenCLO" = $1 LIMIT 1`,
+                                [clo]
+                            );
+
+                            if (cloEntity && cloEntity.length > 0) {
+                                cloId = cloEntity[0].MaCLO;
+                            }
+                        }
+                    } catch (err) {
+                        this.logger.warn(`Could not find CLO with name ${clo}: ${err.message}`);
+                    }
+                }
 
                 if (question.type === 'group' && question.childQuestions) {
                     // Create parent group question
@@ -197,7 +233,7 @@ export class QuestionsImportService {
                         MaCauHoi: uuidv4(),
                         NoiDung: question.content || '',
                         MaPhan: maPhan,
-                        MaCLO: clo || null,
+                        MaCLO: cloId, // Use resolved CLO ID
                         SoCauHoiCon: question.childQuestions.length,
                         HoanVi: true, // Default to true for group questions
                         MaCauHoiCha: null,
@@ -218,12 +254,35 @@ export class QuestionsImportService {
 
                         const childClo = childMeta?.clo || childQuestion.clo;
 
+                        // Find CLO ID for child question
+                        let childCloId = null;
+                        if (childClo) {
+                            try {
+                                // If it's already a UUID, use it directly
+                                if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(childClo)) {
+                                    childCloId = childClo;
+                                } else {
+                                    // Try to find CLO by name (like "CLO1")
+                                    const cloEntity = await queryRunner.manager.query(
+                                        `SELECT "MaCLO" FROM "CLO" WHERE "TenCLO" = $1 LIMIT 1`,
+                                        [childClo]
+                                    );
+
+                                    if (cloEntity && cloEntity.length > 0) {
+                                        childCloId = cloEntity[0].MaCLO;
+                                    }
+                                }
+                            } catch (err) {
+                                this.logger.warn(`Could not find CLO with name ${childClo}: ${err.message}`);
+                            }
+                        }
+
                         // Create child question
                         const childQuestionEntity = await queryRunner.manager.create(CauHoi, {
                             MaCauHoi: uuidv4(),
                             NoiDung: childQuestion.content || '',
                             MaPhan: maPhan,
-                            MaCLO: childClo || null,
+                            MaCLO: childCloId, // Use resolved CLO ID
                             HoanVi: true, // Default to true
                             MaCauHoiCha: savedParent.MaCauHoi,
                             XoaTamCauHoi: false,
@@ -253,7 +312,7 @@ export class QuestionsImportService {
                         MaCauHoi: uuidv4(),
                         NoiDung: question.content || '',
                         MaPhan: maPhan,
-                        MaCLO: clo || null,
+                        MaCLO: cloId, // Use resolved CLO ID
                         HoanVi: true, // Default to true
                         XoaTamCauHoi: false,
                         NgayTao: new Date()

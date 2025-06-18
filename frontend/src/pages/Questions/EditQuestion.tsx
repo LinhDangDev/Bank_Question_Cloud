@@ -50,7 +50,7 @@ interface Question {
   NgayTao: string;
   NgaySua?: string;
   MaCLO: string;
-  answers: Answer[];
+  answers?: Answer[];
 }
 
 interface QuestionDetails {
@@ -84,8 +84,6 @@ interface QuestionDetails {
   };
 }
 
-// Need to update SingleChoiceQuestion type definition to match what we're passing in
-// This is the format that SingleChoiceQuestion expects
 interface ExtendedQuestionProps {
   MaCauHoi?: string;
   NoiDung?: string;
@@ -160,7 +158,17 @@ const EditQuestion = () => {
             throw new Error('Dữ liệu câu hỏi không đầy đủ');
           }
 
-          setQuestion(detailsData.question);
+          // Cập nhật question và gán answers trực tiếp vào đối tượng question để SingleChoiceQuestion có thể nhận được
+          const enrichedQuestion = {
+            ...detailsData.question,
+            answers: detailsData.answers,
+            khoa: detailsData.khoa,
+            monHoc: detailsData.monHoc,
+            phan: detailsData.phan,
+            clo: detailsData.clo
+          };
+
+          setQuestion(enrichedQuestion);
           setQuestionDetails(detailsData);
 
           // Set faculty, subject, chapter and CLO data if available
@@ -298,6 +306,9 @@ const EditQuestion = () => {
     } else if (question) {
       // Check if this is a group question with parent-child structure
       const isGroupQuestion = question.SoCauHoiCon > 0;
+
+      console.log('Question data passing to SingleChoiceQuestion:', question);
+
       return (
         <SingleChoiceQuestion
           question={question}

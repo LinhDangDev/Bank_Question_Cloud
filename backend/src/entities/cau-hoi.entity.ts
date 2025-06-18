@@ -1,4 +1,4 @@
-import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryColumn } from 'typeorm';
 import { CauTraLoi } from './cau-tra-loi.entity';
 import { ChiTietDeThi } from './chi-tiet-de-thi.entity';
 import { Files } from './files.entity';
@@ -7,7 +7,7 @@ import { CLO } from './clo.entity';
 
 @Entity('CauHoi')
 export class CauHoi {
-    @PrimaryGeneratedColumn('uuid')
+    @PrimaryColumn('uuid')
     MaCauHoi: string;
 
     @Column({ type: 'uuid' })

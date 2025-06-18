@@ -3,9 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BaseService } from '../../common/base.service';
 import { CauTraLoi } from '../../entities/cau-tra-loi.entity';
-import { CreateCauTraLoiDto, UpdateCauTraLoiDto } from '../../dto';
+import { CreateCauTraLoiDto, UpdateCauTraLoiDto } from '../../dto/cau-tra-loi.dto';
 import { PaginationDto } from '../../dto/pagination.dto';
 import { PAGINATION_CONSTANTS } from '../../constants/pagination.constants';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class CauTraLoiService extends BaseService<CauTraLoi> {
@@ -13,7 +14,7 @@ export class CauTraLoiService extends BaseService<CauTraLoi> {
         @InjectRepository(CauTraLoi)
         private readonly cauTraLoiRepository: Repository<CauTraLoi>,
     ) {
-        super(cauTraLoiRepository);
+        super(cauTraLoiRepository, 'MaCauTraLoi');
     }
 
     async findByMaCauHoi(maCauHoi: string, paginationDto?: PaginationDto) {
@@ -45,7 +46,10 @@ export class CauTraLoiService extends BaseService<CauTraLoi> {
     }
 
     async createCauTraLoi(createCauTraLoiDto: CreateCauTraLoiDto): Promise<CauTraLoi> {
-        const cauTraLoi = this.cauTraLoiRepository.create(createCauTraLoiDto);
+        const cauTraLoi = this.cauTraLoiRepository.create({
+            ...createCauTraLoiDto,
+            MaCauTraLoi: randomUUID()
+        });
         return await this.cauTraLoiRepository.save(cauTraLoi);
     }
 

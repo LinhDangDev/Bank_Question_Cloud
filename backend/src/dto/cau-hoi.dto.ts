@@ -88,6 +88,19 @@ export class UpdateQuestionWithAnswersDto {
     answers: CreateCauTraLoiDto[];
 }
 
+export class CreateGroupQuestionDto {
+    @ApiProperty({ description: 'Parent question data', type: CreateCauHoiDto })
+    @ValidateNested()
+    @Type(() => CreateCauHoiDto)
+    parentQuestion: CreateCauHoiDto;
+
+    @ApiProperty({ description: 'Child questions with their answers', type: [CreateQuestionWithAnswersDto] })
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => CreateQuestionWithAnswersDto)
+    childQuestions: CreateQuestionWithAnswersDto[];
+}
+
 export class CauHoiResponseDto {
     @ApiProperty({ description: 'Question ID' })
     @IsUUID()

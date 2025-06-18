@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, Eye, Edit, Trash2, Users } from 'lucide-react';
-import { useThemeStyles, cx } from "../../utils/theme";
 import { useNavigate } from 'react-router-dom';
-import 'katex/dist/katex.min.css';
-import katex from 'katex';
+import { useThemeStyles, cx } from '../../utils/theme';
+import { Button } from '@/components/ui/button';
 import { API_BASE_URL } from '@/config';
+import { ChevronDown, ChevronRight, Edit, Trash2, Plus, AlertCircle } from 'lucide-react';
+import { MathRenderer } from '@/components/MathRenderer';
+import { format } from 'date-fns';
+import { vi } from 'date-fns/locale';
+import PageContainer from '@/components/PageContainer';
+import PaginationBar from '@/components/PaginationBar';
 
 // Define the Answer interface
 interface Answer {
@@ -58,290 +61,267 @@ interface ApiResponse {
 
 // Helper functions
 const getDifficultyText = (level: number) => {
-  if (!level || level <= 2) return "Dễ";
-  if (level <= 4) return "Trung bình";
-  return "Khó";
+  switch (level) {
+    case 1:
+      return 'Dễ';
+    case 2:
+      return 'Trung bình';
+    case 3:
+      return 'Khó';
+    default:
+      return 'Không xác định';
+  }
 };
 
-const cloColors: Record<string, string> = {
-  'CLO1': 'bg-green-100 text-green-700',
-  'CLO2': 'bg-blue-100 text-blue-700',
-  'CLO3': 'bg-purple-100 text-purple-700',
-  'CLO4': 'bg-orange-100 text-orange-700',
-  'CLO5': 'bg-yellow-100 text-yellow-700',
+const getDifficultyColor = (level: number) => {
+  switch (level) {
+    case 1:
+      return 'bg-green-100 text-green-800';
+    case 2:
+      return 'bg-yellow-100 text-yellow-800';
+    case 3:
+      return 'bg-red-100 text-red-800';
+    default:
+      return 'bg-gray-100 text-gray-800';
+  }
 };
 
 const GroupQuestionsPage = () => {
-  const styles = useThemeStyles();
   const navigate = useNavigate();
+  const { isDark } = useThemeStyles();
   const [groupQuestions, setGroupQuestions] = useState<GroupQuestion[]>([]);
-  const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState<number>(1);
+  const [limit, setLimit] = useState<number>(10);
   const [totalPages, setTotalPages] = useState<number>(1);
+  const [total, setTotal] = useState<number>(0);
 
   useEffect(() => {
-    const fetchGroupQuestions = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch(`${API_BASE_URL}/cau-hoi/group?page=${page}&limit=10`);
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-
-        const data: ApiResponse = await response.json();
-        setGroupQuestions(data.items);
-        setTotalPages(data.meta.totalPages);
-        setLoading(false);
-      } catch (err) {
-        console.error('Error fetching group questions:', err);
-        setError('Failed to load group questions. Please try again later.');
-        setLoading(false);
-      }
-    };
-
     fetchGroupQuestions();
-  }, [page]);
+  }, [page, limit]);
 
-  // Toggle group question expansion
-  const toggleGroup = (questionId: string) => {
-    setExpandedGroups(prev =>
-      prev.includes(questionId)
-        ? prev.filter(id => id !== questionId)
-        : [...prev, questionId]
-    );
-  };
-
-  // Format date from ISO string
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
-  };
-
-  // Enhanced LaTeX rendering function
-  const renderLatex = (content: string) => {
-    if (!content) return '';
-
+  const fetchGroupQuestions = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      // Process LaTeX formulas enclosed in $ signs
-      return content.replace(/\$(.*?)\$/g, (match, latex) => {
-        try {
-          return katex.renderToString(latex, {
-            throwOnError: false,
-            displayMode: false
-          });
-        } catch (e) {
-          console.error('LaTeX rendering error:', e);
-          return match;
+      const response = await fetch(`${API_BASE_URL}/cau-hoi/group?page=${page}&limit=${limit}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
-    } catch (e) {
-      console.error('Content processing error:', e);
-      return content;
+
+      if (!response.ok) {
+        throw new Error('Không thể tải danh sách câu hỏi nhóm');
+      }
+
+      const data: ApiResponse = await response.json();
+      setGroupQuestions(data.items);
+      setTotal(data.meta.total);
+      setTotalPages(data.meta.totalPages);
+    } catch (err) {
+      console.error('Error fetching group questions:', err);
+      setError(err instanceof Error ? err.message : 'Đã xảy ra lỗi khi tải danh sách câu hỏi nhóm');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleGroup = (questionId: string) => {
+    setExpandedGroups(prev => ({
+      ...prev,
+      [questionId]: !prev[questionId]
+    }));
+  };
+
+  const formatDate = (dateString: string) => {
+    try {
+      return format(new Date(dateString), 'dd/MM/yyyy HH:mm', { locale: vi });
+    } catch (error) {
+      return 'Không xác định';
+    }
+  };
+
+  const renderLatex = (content: string) => {
+    return <MathRenderer content={content} />;
+  };
+
+  const handleCreateGroupQuestion = () => {
+    navigate('/questions/group/create');
+  };
+
+  const handleEditGroupQuestion = (questionId: string) => {
+    navigate(`/questions/group/edit/${questionId}`);
+  };
+
+  const handleDeleteGroupQuestion = async (questionId: string) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa câu hỏi nhóm này?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/cau-hoi/${questionId}/soft-delete`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Không thể xóa câu hỏi nhóm');
+      }
+
+      // Cập nhật danh sách sau khi xóa
+      fetchGroupQuestions();
+    } catch (err) {
+      console.error('Error deleting group question:', err);
+      alert('Đã xảy ra lỗi khi xóa câu hỏi nhóm');
     }
   };
 
   return (
-    <div className="p-6 flex flex-col h-full">
+    <PageContainer title="Câu hỏi nhóm">
       <div className="flex justify-between items-center mb-6">
-        <h1 className={cx("text-2xl font-bold", styles.isDark ? 'text-gray-200' : '')}>
-          Danh sách câu hỏi nhóm
-        </h1>
-        <Button
-          variant="outline"
-          onClick={() => navigate('/questions')}
-        >
-          Quay lại
+        <h1 className="text-2xl font-bold">Câu hỏi nhóm</h1>
+        <Button onClick={handleCreateGroupQuestion}>
+          <Plus className="mr-2 h-4 w-4" />
+          Tạo câu hỏi nhóm
         </Button>
       </div>
 
-      {loading ? (
-        <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 flex items-center">
+          <AlertCircle className="mr-2" />
+          <span>{error}</span>
         </div>
-      ) : error ? (
-        <div className="text-center py-8 text-red-500">{error}</div>
-      ) : (
-        <div className="space-y-4">
-          {groupQuestions.map((question) => (
-            <div
-              key={question.MaCauHoi}
-              className={cx(
-                "border rounded-lg overflow-hidden",
-                styles.isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-              )}
-            >
-              {/* Header */}
-              <div className="p-4 border-b">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center flex-wrap gap-2">
-                    <Users className="h-4 w-4 text-purple-600" />
-                    <span className="text-sm font-medium text-gray-600">
-                      #{question.MaSoCauHoi}
-                    </span>
-                    {question.TenCLO && (
-                      <span className={cx(
-                        "px-2 py-0.5 rounded text-xs font-medium",
-                        cloColors[question.TenCLO] || "bg-gray-100 text-gray-700"
-                      )}>
-                        {question.TenCLO}
-                      </span>
-                    )}
-                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
-                      Câu hỏi nhóm ({question.SoCauHoiCon})
-                    </span>
-                    <span className={cx(
-                      "px-2 py-0.5 rounded text-xs font-medium",
-                      question.XoaTamCauHoi ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"
-                    )}>
-                      {question.XoaTamCauHoi ? "Đã xóa" : "Hoạt động"}
-                    </span>
-                  </div>
+      )}
 
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm">
-                      <Eye className="h-4 w-4" />
-                    </Button>
+      {loading ? (
+        <div className="text-center py-8">Đang tải...</div>
+      ) : groupQuestions.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-gray-500">Chưa có câu hỏi nhóm nào</p>
+        </div>
+      ) : (
+        <div>
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            {groupQuestions.map((question) => (
+              <div key={question.MaCauHoi} className={cx(
+                'border-b last:border-b-0',
+                isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+              )}>
+                <div
+                  className={cx(
+                    'p-4 flex items-start justify-between cursor-pointer',
+                    isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
+                  )}
+                  onClick={() => toggleGroup(question.MaCauHoi)}
+                >
+                  <div className="flex items-start flex-1">
+                    <div className="mr-2 mt-1">
+                      {expandedGroups[question.MaCauHoi] ? (
+                        <ChevronDown className="h-5 w-5" />
+                      ) : (
+                        <ChevronRight className="h-5 w-5" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium">#{question.MaSoCauHoi}</span>
+                        <span className={cx(
+                          'text-xs px-2 py-1 rounded-full',
+                          getDifficultyColor(question.CapDo)
+                        )}>
+                          {getDifficultyText(question.CapDo)}
+                        </span>
+                        {question.TenCLO && (
+                          <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                            {question.TenCLO}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mb-1">{renderLatex(question.NoiDung)}</div>
+                      <div className="text-sm text-gray-500">
+                        <span>{formatDate(question.NgayTao)}</span>
+                        <span className="mx-2">•</span>
+                        <span>{question.SoCauHoiCon} câu hỏi con</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex space-x-2">
                     <Button
-                      variant="outline"
+                      variant="text"
                       size="sm"
-                      onClick={() => navigate(`/questions/edit/${question.MaCauHoi}`)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditGroupQuestion(question.MaCauHoi);
+                      }}
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="sm" className="text-red-500">
+                    <Button
+                      variant="text"
+                      size="sm"
+                      className="text-red-500 hover:text-red-700"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteGroupQuestion(question.MaCauHoi);
+                      }}
+                    >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
-              </div>
 
-              {/* Content */}
-              <div className="p-4">
-                <div className="space-y-4">
-                  {/* Question content */}
-                  <div className="font-medium text-gray-800">
-                    <div dangerouslySetInnerHTML={{ __html: renderLatex(question.NoiDung) }} />
-                  </div>
-
-                  {/* Child questions toggle */}
-                  <button
-                    onClick={() => toggleGroup(question.MaCauHoi)}
-                    className="w-full border border-gray-300 text-left px-4 py-2 rounded-md flex justify-between items-center hover:bg-gray-50"
-                  >
-                    <span>Xem {question.SoCauHoiCon} câu hỏi con</span>
-                    {expandedGroups.includes(question.MaCauHoi) ? (
-                      <ChevronDown className="h-4 w-4" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4" />
-                    )}
-                  </button>
-
-                  {/* Child questions */}
-                  {expandedGroups.includes(question.MaCauHoi) && question.CauHoiCon && (
-                    <div className="space-y-3 mt-2">
-                      {question.CauHoiCon.map((childQ) => (
-                        <div key={childQ.MaCauHoi} className="border rounded-lg p-4 bg-gray-50">
-                          <div className="mb-2 font-medium">
-                            Câu {childQ.MaSoCauHoi}: <span dangerouslySetInnerHTML={{ __html: renderLatex(childQ.NoiDung) }} />
-                          </div>
-
-                          {/* Answer grid for short answers */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
-                            {childQ.CauTraLoi && childQ.CauTraLoi.map((answer, idx) => (
-                              <div
-                                key={answer.MaCauTraLoi}
-                                className={cx(
-                                  "flex items-start gap-2 p-2 rounded",
-                                  answer.LaDapAn
-                                    ? "bg-green-50 border border-green-200"
-                                    : "bg-gray-50 border border-gray-200"
-                                )}
-                              >
-                                <span className={cx(
-                                  "flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full text-xs font-medium",
-                                  answer.LaDapAn
-                                    ? "bg-green-100 text-green-700"
-                                    : "bg-gray-100 text-gray-700"
-                                )}>
-                                  {String.fromCharCode(65 + idx)}
-                                </span>
-                                <div className={cx("flex-1", answer.LaDapAn ? "text-green-700" : "")}>
-                                  <div dangerouslySetInnerHTML={{ __html: renderLatex(answer.NoiDung) }} />
-                                </div>
-                                {answer.LaDapAn && (
-                                  <span className="ml-auto text-xs px-1.5 py-0.5 bg-green-100 text-green-800 rounded">
-                                    Đáp án
-                                  </span>
-                                )}
+                {expandedGroups[question.MaCauHoi] && question.CauHoiCon && (
+                  <div className={cx(
+                    'p-4 pl-12 border-t',
+                    isDark ? 'bg-gray-900 border-gray-700' : 'bg-gray-50 border-gray-200'
+                  )}>
+                    <h3 className="font-medium mb-4">Câu hỏi con:</h3>
+                    <div className="space-y-4">
+                      {question.CauHoiCon.map((childQuestion, index) => (
+                        <div key={childQuestion.MaCauHoi} className={cx(
+                          'p-4 rounded-lg',
+                          isDark ? 'bg-gray-800' : 'bg-white border border-gray-200'
+                        )}>
+                          <div className="font-medium mb-2">Câu {index + 1}: {renderLatex(childQuestion.NoiDung)}</div>
+                          <div className="pl-4 space-y-2">
+                            {childQuestion.CauTraLoi.map((answer) => (
+                              <div key={answer.MaCauTraLoi} className={cx(
+                                'p-2 rounded',
+                                answer.LaDapAn
+                                  ? (isDark ? 'bg-green-900 text-white' : 'bg-green-100')
+                                  : (isDark ? 'bg-gray-700' : 'bg-gray-100')
+                              )}>
+                                {renderLatex(answer.NoiDung)}
                               </div>
                             ))}
                           </div>
                         </div>
                       ))}
                     </div>
-                  )}
-
-                  {/* Question metadata */}
-                  <div className="flex items-center justify-between text-xs text-gray-500 pt-2 mt-2 border-t">
-                    <div className="flex items-center gap-4">
-                      <span>Cấp độ: {getDifficultyText(question.CapDo)}</span>
-                      <span>Ngày tạo: {formatDate(question.NgayTao)}</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span>Số lần thi: {question.SoLanDuocThi || 0}</span>
-                      <span>Số lần đúng: {question.SoLanDung || 0}</span>
-                    </div>
                   </div>
-                </div>
+                )}
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex justify-center mt-4">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page === 1}
-                onClick={() => setPage(p => Math.max(p - 1, 1))}
-              >
-                Trước
-              </Button>
-              <span className="mx-4 flex items-center">
-                Trang {page} / {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page === totalPages}
-                onClick={() => setPage(p => Math.min(p + 1, totalPages))}
-              >
-                Sau
-              </Button>
-            </div>
-          )}
+          <div className="mt-6">
+            <PaginationBar
+              page={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              totalItems={total}
+              limit={limit}
+              availableLimits={[5, 10, 20, 50, 100]}
+              onLimitChange={setLimit}
+            />
+          </div>
         </div>
       )}
-
-      {/* KaTeX Styles */}
-      <style>{`
-        .katex {
-          font-size: 1.1em;
-        }
-        .katex-display {
-          margin: 0.5em 0;
-          text-align: center;
-        }
-      `}</style>
-    </div>
+    </PageContainer>
   );
 };
 
