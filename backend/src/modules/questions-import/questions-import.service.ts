@@ -170,27 +170,28 @@ export class QuestionsImportService {
         maPhan?: string,
         questionMetadata?: any[]
     ): Promise<{ success: boolean; savedCount: number }> {
+        // Get the import session
         const session = this.importSessions.get(fileId);
         if (!session) {
-            throw new Error(`Import session ${fileId} not found or expired`);
+            throw new Error('Import session not found');
         }
 
-        // Use the section from the session if not provided
-        if (!maPhan && session.maPhan) {
-            maPhan = session.maPhan;
+        // Get the selected questions
+        const selectedQuestions = session.questions.filter(q => questionIds.includes(q.id));
+        if (selectedQuestions.length === 0) {
+            throw new Error('No questions selected');
         }
 
         if (!maPhan) {
-            throw new Error('Section (maPhan) is required to save questions');
+            maPhan = session.maPhan;
         }
 
-        // Filter the questions to save based on the provided IDs
-        const questionsToSave = session.questions.filter(q => questionIds.includes(q.id));
-
-        if (questionsToSave.length === 0) {
-            return { success: true, savedCount: 0 };
+        // If still no maPhan, throw error
+        if (!maPhan) {
+            throw new Error('No section (maPhan) provided');
         }
 
+        // Start transaction
         const queryRunner = this.cauHoiRepository.manager.connection.createQueryRunner();
         await queryRunner.connect();
         await queryRunner.startTransaction();
@@ -199,152 +200,150 @@ export class QuestionsImportService {
             let savedCount = 0;
 
             // Process each question
-            for (const question of questionsToSave) {
-                // Check if metadata exists for this question
-                const metadata = questionMetadata?.find(meta => meta.id === question.id);
-                const clo = metadata?.clo || question.clo;
+            for (const question of selectedQuestions) {
+                try {
+                    // Get CLO if provided in metadata
+                    let cloid = null;
+                    if (questionMetadata) {
+                        const meta = questionMetadata.find(m => m.id === question.id);
+                        if (meta && meta.clo) {
+                            try {
+                                // Find CLO by name - using raw query to work with SQL Server
+                                const cloResult = await queryRunner.manager.query(
+                                    `SELECT TOP 1 "MaCLO" FROM "CLO" WHERE "TenCLO" = @0`,
+                                    [meta.clo]
+                                );
 
-                // Find CLO ID if it's a string name (like "CLO1")
-                let cloId = null;
-                if (clo) {
-                    try {
-                        // If it's already a UUID, use it directly
-                        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clo)) {
-                            cloId = clo;
-                        } else {
-                            // Try to find CLO by name (like "CLO1")
-                            const cloEntity = await queryRunner.manager.query(
-                                `SELECT "MaCLO" FROM "CLO" WHERE "TenCLO" = $1 LIMIT 1`,
-                                [clo]
-                            );
-
-                            if (cloEntity && cloEntity.length > 0) {
-                                cloId = cloEntity[0].MaCLO;
+                                if (cloResult && cloResult.length > 0) {
+                                    cloid = cloResult[0].MaCLO;
+                                } else {
+                                    this.logger.warn(`Could not find CLO with name ${meta.clo}`);
+                                }
+                            } catch (error) {
+                                this.logger.warn(`Could not find CLO with name ${meta.clo}: ${error.message}`);
                             }
                         }
-                    } catch (err) {
-                        this.logger.warn(`Could not find CLO with name ${clo}: ${err.message}`);
                     }
-                }
 
-                if (question.type === 'group' && question.childQuestions) {
-                    // Create parent group question
-                    const parentQuestion = await queryRunner.manager.create(CauHoi, {
-                        MaCauHoi: uuidv4(),
-                        NoiDung: question.content || '',
-                        MaPhan: maPhan,
-                        MaCLO: cloId, // Use resolved CLO ID
-                        SoCauHoiCon: question.childQuestions.length,
-                        HoanVi: true, // Default to true for group questions
-                        MaCauHoiCha: null,
-                        XoaTamCauHoi: false,
-                        NgayTao: new Date(),
-                        DoPhanCachCauHoi: question.groupContent || ''
-                    } as any);
+                    // Check if question already exists
+                    const existingQuestion = await queryRunner.manager.query(
+                        `SELECT TOP 1 "CauHoi"."MaCauHoi" FROM "CauHoi" "CauHoi" WHERE "CauHoi"."MaCauHoi" = @0`,
+                        [question.id]
+                    );
 
-                    const savedParent = await queryRunner.manager.save(parentQuestion);
-                    savedCount++;
+                    // Generate random question number between 1000 and 9999
+                    const questionNumber = Math.floor(Math.random() * 9000) + 1000;
 
-                    // Process child questions
-                    for (const childQuestion of question.childQuestions) {
-                        // Check if child has metadata
-                        const childMeta = questionMetadata?.find(meta =>
-                            meta.childQuestions?.some(child => child.id === childQuestion.id)
-                        )?.childQuestions?.find(child => child.id === childQuestion.id);
+                    // Create the question
+                    if (!existingQuestion || existingQuestion.length === 0) {
+                        // Insert new question with the generated question number
+                        await queryRunner.manager.query(
+                            `INSERT INTO "CauHoi"("MaCauHoi", "MaPhan", "MaSoCauHoi", "NoiDung", "HoanVi", "CapDo", "SoCauHoiCon", "DoPhanCachCauHoi", "MaCauHoiCha", "XoaTamCauHoi", "SoLanDuocThi", "SoLanDung", "NgayTao", "NgaySua", "MaCLO")
+                            VALUES (@0, @1, @2, @3, @4, @5, @6, @7, @8, @9, @10, @11, @12, @13, @14)`,
+                            [
+                                question.id,
+                                maPhan,
+                                questionNumber, // Use the generated number
+                                question.content,
+                                1, // HoanVi
+                                2, // CapDo (medium difficulty by default)
+                                question.childQuestions ? question.childQuestions.length : 0,
+                                null, // DoPhanCachCauHoi
+                                null, // MaCauHoiCha
+                                0, // XoaTamCauHoi
+                                0, // SoLanDuocThi
+                                0, // SoLanDung
+                                new Date(),
+                                null, // NgaySua
+                                cloid
+                            ]
+                        );
 
-                        const childClo = childMeta?.clo || childQuestion.clo;
+                        // Save answers if present
+                        if (question.answers && question.answers.length > 0) {
+                            for (const answer of question.answers) {
+                                await queryRunner.manager.query(
+                                    `INSERT INTO "CauTraLoi"("MaCauTraLoi", "MaCauHoi", "NoiDung", "ThuTu", "LaDapAn", "HoanVi")
+                                    VALUES (@0, @1, @2, @3, @4, @5)`,
+                                    [
+                                        answer.id,
+                                        question.id,
+                                        answer.content,
+                                        answer.order,
+                                        answer.isCorrect ? 1 : 0,
+                                        1 // HoanVi
+                                    ]
+                                );
+                            }
+                        }
 
-                        // Find CLO ID for child question
-                        let childCloId = null;
-                        if (childClo) {
-                            try {
-                                // If it's already a UUID, use it directly
-                                if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(childClo)) {
-                                    childCloId = childClo;
-                                } else {
-                                    // Try to find CLO by name (like "CLO1")
-                                    const cloEntity = await queryRunner.manager.query(
-                                        `SELECT "MaCLO" FROM "CLO" WHERE "TenCLO" = $1 LIMIT 1`,
-                                        [childClo]
-                                    );
+                        // Process child questions if present (for group questions)
+                        if (question.childQuestions && question.childQuestions.length > 0) {
+                            for (const [index, childQuestion] of question.childQuestions.entries()) {
+                                // Generate random number for child question
+                                const childQuestionNumber = Math.floor(Math.random() * 9000) + 1000;
 
-                                    if (cloEntity && cloEntity.length > 0) {
-                                        childCloId = cloEntity[0].MaCLO;
+                                await queryRunner.manager.query(
+                                    `INSERT INTO "CauHoi"("MaCauHoi", "MaPhan", "MaSoCauHoi", "NoiDung", "HoanVi", "CapDo", "SoCauHoiCon", "DoPhanCachCauHoi", "MaCauHoiCha", "XoaTamCauHoi", "SoLanDuocThi", "SoLanDung", "NgayTao", "NgaySua", "MaCLO")
+                                    VALUES (@0, @1, @2, @3, @4, @5, @6, @7, @8, @9, @10, @11, @12, @13, @14)`,
+                                    [
+                                        childQuestion.id,
+                                        maPhan,
+                                        childQuestionNumber, // Use generated number
+                                        childQuestion.content,
+                                        1, // HoanVi
+                                        2, // CapDo
+                                        0, // SoCauHoiCon
+                                        null, // DoPhanCachCauHoi
+                                        question.id, // Parent question ID
+                                        0, // XoaTamCauHoi
+                                        0, // SoLanDuocThi
+                                        0, // SoLanDung
+                                        new Date(),
+                                        null, // NgaySua
+                                        cloid
+                                    ]
+                                );
+
+                                // Save child question answers
+                                if (childQuestion.answers && childQuestion.answers.length > 0) {
+                                    for (const answer of childQuestion.answers) {
+                                        await queryRunner.manager.query(
+                                            `INSERT INTO "CauTraLoi"("MaCauTraLoi", "MaCauHoi", "NoiDung", "ThuTu", "LaDapAn", "HoanVi")
+                                            VALUES (@0, @1, @2, @3, @4, @5)`,
+                                            [
+                                                answer.id,
+                                                childQuestion.id,
+                                                answer.content,
+                                                answer.order,
+                                                answer.isCorrect ? 1 : 0,
+                                                1 // HoanVi
+                                            ]
+                                        );
                                     }
                                 }
-                            } catch (err) {
-                                this.logger.warn(`Could not find CLO with name ${childClo}: ${err.message}`);
                             }
                         }
 
-                        // Create child question
-                        const childQuestionEntity = await queryRunner.manager.create(CauHoi, {
-                            MaCauHoi: uuidv4(),
-                            NoiDung: childQuestion.content || '',
-                            MaPhan: maPhan,
-                            MaCLO: childCloId, // Use resolved CLO ID
-                            HoanVi: true, // Default to true
-                            MaCauHoiCha: savedParent.MaCauHoi,
-                            XoaTamCauHoi: false,
-                            NgayTao: new Date()
-                        } as any);
-
-                        const savedChild = await queryRunner.manager.save(childQuestionEntity);
-
-                        // Create answers for child question
-                        if (childQuestion.answers && childQuestion.answers.length > 0) {
-                            for (const answer of childQuestion.answers) {
-                                const answerEntity = await queryRunner.manager.create(CauTraLoi, {
-                                    MaCauTraLoi: uuidv4(),
-                                    MaCauHoi: savedChild.MaCauHoi,
-                                    NoiDung: answer.content || '',
-                                    ThuTu: answer.order || 0,
-                                    LaDapAn: answer.isCorrect || false
-                                } as any);
-
-                                await queryRunner.manager.save(answerEntity);
-                            }
-                        }
+                        savedCount++;
                     }
-                } else {
-                    // Create regular question
-                    const regularQuestion = await queryRunner.manager.create(CauHoi, {
-                        MaCauHoi: uuidv4(),
-                        NoiDung: question.content || '',
-                        MaPhan: maPhan,
-                        MaCLO: cloId, // Use resolved CLO ID
-                        HoanVi: true, // Default to true
-                        XoaTamCauHoi: false,
-                        NgayTao: new Date()
-                    } as any);
-
-                    const savedQuestion = await queryRunner.manager.save(regularQuestion);
-                    savedCount++;
-
-                    // Create answers
-                    if (question.answers && question.answers.length > 0) {
-                        for (const answer of question.answers) {
-                            const answerEntity = await queryRunner.manager.create(CauTraLoi, {
-                                MaCauTraLoi: uuidv4(),
-                                MaCauHoi: savedQuestion.MaCauHoi,
-                                NoiDung: answer.content || '',
-                                ThuTu: answer.order || 0,
-                                LaDapAn: answer.isCorrect || false
-                            } as any);
-
-                            await queryRunner.manager.save(answerEntity);
-                        }
-                    }
+                } catch (error) {
+                    this.logger.error(`Error saving question ${question.id}: ${error.message}`);
+                    throw error; // Re-throw to trigger rollback
                 }
             }
 
+            // Commit transaction
             await queryRunner.commitTransaction();
             return { success: true, savedCount };
+
         } catch (error) {
+            // Rollback transaction on error
             await queryRunner.rollbackTransaction();
-            this.logger.error(`Error saving questions: ${error.message}`, error.stack);
+            this.logger.error(`Error saving questions: ${error.message}`);
             throw error;
         } finally {
+            // Release queryRunner
             await queryRunner.release();
         }
     }

@@ -601,8 +601,8 @@ const UploadQuestions = () => {
     setError(null);
 
     try {
-      // Instead of parsing locally, send file to backend for Python processing
-      console.log('Uploading file to backend for processing...');
+      // Display info to user
+      console.log('Đang xử lý tệp tin DOCX, vui lòng đợi...');
 
       // Create form data
       const formData = new FormData();
@@ -613,7 +613,9 @@ const UploadQuestions = () => {
         formData.append('maPhan', chapterId);
       }
 
+      // Add processing options
       formData.append('processImages', 'true');
+      formData.append('preserveLatex', 'true'); // Enable LaTeX preservation
 
       // Send to backend
       const response = await fetch(`${API_BASE_URL}/questions-import/upload`, {
@@ -625,7 +627,8 @@ const UploadQuestions = () => {
       });
 
       if (!response.ok) {
-        throw new Error(`Server responded with ${response.status}: ${await response.text()}`);
+        const errorText = await response.text();
+        throw new Error(`Lỗi xử lý: ${response.status}: ${errorText}`);
       }
 
       // Get the fileId from response
@@ -640,7 +643,8 @@ const UploadQuestions = () => {
       });
 
       if (!questionsResponse.ok) {
-        throw new Error(`Server responded with ${questionsResponse.status}: ${await questionsResponse.text()}`);
+        const errorText = await questionsResponse.text();
+        throw new Error(`Lỗi xem trước: ${questionsResponse.status}: ${errorText}`);
       }
 
       const questionsData = await questionsResponse.json();
@@ -809,6 +813,16 @@ const UploadQuestions = () => {
                '<span class="text-green-700 font-bold border-b-2 border-green-500">$1</span>');
 
     // Ensure images are properly displayed with max width and centered
+    // First, convert relative image URLs to absolute URLs pointing to the backend
+    processedContent = processedContent.replace(/src="([^"]+)"/g, (match, url) => {
+      // If the URL is not absolute (doesn't start with http or data:), prepend API base URL
+      if (!url.startsWith('http') && !url.startsWith('data:')) {
+        return `src="${API_BASE_URL}/${url}"`;
+      }
+      return match;
+    });
+
+    // Then ensure proper styling for all images
     processedContent = processedContent
       .replace(/<img/g, '<img style="max-width: 100%; height: auto; display: block; margin: 10px auto; object-fit: contain;"');
 
@@ -820,12 +834,8 @@ const UploadQuestions = () => {
       return <MathRenderer content={processedContent} />;
     }
 
-    // Handle images (if URLs are present)
-    if (processedContent.includes('<img') || processedContent.includes('[img]')) {
-      return <div dangerouslySetInnerHTML={{ __html: processedContent }} />;
-    }
-
-    return <div dangerouslySetInnerHTML={{ __html: processedContent }} />;
+    // For images and other HTML content
+    return <div className="question-content" dangerouslySetInnerHTML={{ __html: processedContent }} />;
   };
 
   // Function to render answers

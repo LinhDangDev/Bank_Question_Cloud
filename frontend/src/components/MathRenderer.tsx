@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 
+// Add global MathJax type definition for TypeScript
 declare global {
   interface Window {
     MathJax?: any;
@@ -12,38 +13,26 @@ interface MathRendererProps {
   className?: string;
 }
 
+/**
+ * Component for rendering math/LaTeX expressions in content
+ */
 export const MathRenderer = ({ content, displayMode = false, className = '' }: MathRendererProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (containerRef.current && window.MathJax) {
-      // Process the content for rendering if needed
-      let processedContent = content;
+    // Process and render the math when the component mounts or content changes
+    if (containerRef.current) {
+      // For content with embedded LaTeX, we need to set the HTML first
+      containerRef.current.innerHTML = content;
 
-      // Replace simple dollar signs with LaTeX delimiters if not already done
-      if (!content.includes('\\(') && !content.includes('\\[')) {
-        // Handle double dollar signs first (display mode)
-        processedContent = processedContent.replace(/\$\$(.*?)\$\$/g, '\\[$1\\]');
-
-        // Then handle single dollar signs (inline mode)
-        // Use non-greedy matching to handle multiple expressions on the same line
-        processedContent = processedContent.replace(/\$([^\$]+?)\$/g, '\\($1\\)');
-      }
-
-      // Update the container's HTML
-      containerRef.current.innerHTML = processedContent;
-
-      // Render math using MathJax
-      try {
-        if (window.MathJax.typesetPromise) {
-          window.MathJax.typesetPromise([containerRef.current]).catch((err: any) => {
-            console.error('MathJax typeset error:', err);
-          });
-        } else if (window.MathJax.typeset) {
-          window.MathJax.typeset([containerRef.current]);
+      // Then trigger MathJax processing
+      if (window.MathJax) {
+        try {
+          window.MathJax.typesetPromise && window.MathJax.typesetPromise([containerRef.current])
+            .catch((err: any) => console.error('MathJax error:', err));
+        } catch (err) {
+          console.error('Error rendering math:', err);
         }
-      } catch (error) {
-        console.error('Error rendering math:', error);
       }
     }
   }, [content]);
@@ -51,41 +40,44 @@ export const MathRenderer = ({ content, displayMode = false, className = '' }: M
   return (
     <div
       ref={containerRef}
-      className={`math-content ${displayMode ? 'block my-4' : 'inline'} ${className}`}
+      className={`math-renderer ${displayMode ? 'math-display' : ''} ${className}`}
     />
   );
 };
 
-// Initialization component to ensure MathJax is loaded
+/**
+ * Component to initialize MathJax for the application
+ */
 export const MathJaxInitializer = () => {
   useEffect(() => {
     if (!window.MathJax) {
+      // Create script element to load MathJax
       const script = document.createElement('script');
       script.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
       script.async = true;
-      script.id = 'MathJax-script';
 
-      // Configure MathJax before loading the script
+      // Configure MathJax
       window.MathJax = {
         tex: {
-          inlineMath: [['\\(', '\\)'], ['$', '$']],
-          displayMath: [['\\[', '\\]'], ['$$', '$$']],
+          inlineMath: [['$', '$'], ['\\(', '\\)']],
+          displayMath: [['$$', '$$'], ['\\[', '\\]']],
           processEscapes: true,
           processEnvironments: true
         },
+        svg: {
+          fontCache: 'global'
+        },
         options: {
-          ignoreHtmlClass: 'no-mathjax',
-          processHtmlClass: 'mathjax'
+          enableMenu: false  // Disable right-click menu
         }
       };
 
+      // Add script to document
       document.head.appendChild(script);
 
+      // Cleanup on unmount
       return () => {
-        // Clean up if component unmounts
-        if (document.getElementById('MathJax-script')) {
-          document.head.removeChild(script);
-        }
+        document.head.removeChild(script);
       };
     }
   }, []);
