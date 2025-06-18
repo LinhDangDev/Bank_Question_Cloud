@@ -1,0 +1,50 @@
+/* Custom styles for MathLive */
+math-field {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 8px;
+  width: 100%;
+  min-height: 40px;
+  font-size: 16px;
+  background-color: white;
+  color: #333;
+  margin-bottom: 10px;
+}
+
+math-field:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+
+/* This customizes the virtual keyboard */
+.ML__keyboard {
+  background-color: #f8f9fa;
+  border-top: 1px solid #e2e8f0;
+  padding: 4px;
+}
+
+.ML__keyboard--row {
+  margin: 4px 0;
+}
+
+.ML__keyboard--key {
+  padding: 6px;
+  border-radius: 4px;
+  background-color: white;
+  border: 1px solid #e2e8f0;
+  color: #333;
+  margin: 0 2px;
+  min-width: 30px;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.ML__keyboard--key:hover {
+  background-color: #f0f4ff;
+  border-color: #93c5fd;
+}

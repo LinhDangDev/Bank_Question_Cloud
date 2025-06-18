@@ -1,25 +1,30 @@
 import { useState, useRef, useEffect } from 'react';
 import { Modal } from './Modal';
-import 'mathlive';
+import { MathfieldElement } from 'mathlive';
 import katex from 'katex';
-import type { MathfieldElement } from '../../types/mathlive';
+import 'katex/dist/katex.min.css';
 
 interface MathModalProps {
-  isOpen: boolean;
   onClose: () => void;
-  onOk: (latex: string) => void;
+  onInsert?: (latex: string) => void;
   initialLatex?: string;
+  isOpen?: boolean;
 }
 
-export default function MathModal({ isOpen, onClose, onOk, initialLatex = '' }: MathModalProps) {
+export default function MathModal({ onClose, onInsert, initialLatex = '' }: MathModalProps) {
   const [latex, setLatex] = useState(initialLatex);
-  const mathFieldRef = useRef<MathfieldElement>(null);
+  const mathFieldRef = useRef<HTMLElement & { value: string }>(null);
 
   useEffect(() => {
     const el = mathFieldRef.current;
     if (el) {
       el.value = latex;
-      const handler = (e: any) => setLatex(e.target.value);
+      const handler = (e: Event) => {
+        if (e.target) {
+          // Safely cast to any since we know it has a value property
+          setLatex((e.target as any).value);
+        }
+      };
       el.addEventListener('input', handler);
       return () => el.removeEventListener('input', handler);
     }
@@ -30,25 +35,36 @@ export default function MathModal({ isOpen, onClose, onOk, initialLatex = '' }: 
       mathFieldRef.current.value = initialLatex;
     }
     setLatex(initialLatex);
-    // eslint-disable-next-line
-  }, [isOpen]);
+  }, [initialLatex]);
+
+  const handleInsert = () => {
+    if (onInsert) {
+      onInsert(latex);
+    }
+    onClose();
+  };
 
   return (
     <Modal
-      isOpen={isOpen}
+      isOpen={true}
       onClose={onClose}
       title="Nhập / sửa ký tự toán học"
       size="md"
       footer={
         <>
           <button className="px-4 py-2 mr-2 rounded bg-gray-100" onClick={onClose}>Hủy</button>
-          <button className="px-4 py-2 rounded bg-blue-600 text-white" onClick={() => { onOk(latex); onClose(); }}>OK</button>
+          <button
+            className="px-4 py-2 rounded bg-blue-600 text-white"
+            onClick={handleInsert}
+          >
+            OK
+          </button>
         </>
       }
     >
       <div className="mb-4">
         <math-field
-          ref={mathFieldRef}
+          ref={mathFieldRef as React.RefObject<HTMLElement>}
           virtualkeyboardmode="onfocus"
           style={{ width: '100%', minHeight: 40, fontSize: 22 }}
         />
@@ -74,6 +90,6 @@ export default function MathModal({ isOpen, onClose, onOk, initialLatex = '' }: 
 
 // Register custom element if not already defined
 if (typeof window !== 'undefined' && !window.customElements.get('math-field')) {
-  // @ts-ignore
-  window.customElements.define('math-field', (window as any).MathfieldElement || class extends HTMLElement {});
+  // Use proper import instead of window global
+  window.customElements.define('math-field', MathfieldElement);
 }

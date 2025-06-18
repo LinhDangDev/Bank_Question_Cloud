@@ -20,6 +20,7 @@ export function useThemeStyles() {
         bgCard: isDark ? 'bg-gray-800' : 'bg-white',
         bgInput: isDark ? 'bg-gray-700' : 'bg-white',
         bgHover: isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100',
+        bgSecondary: isDark ? 'bg-gray-800' : 'bg-gray-50',
 
         // Table styles
         table: {
@@ -32,6 +33,7 @@ export function useThemeStyles() {
         // Border styles
         border: isDark ? 'border-gray-700' : 'border-gray-200',
         borderInput: isDark ? 'border-gray-600' : 'border-gray-300',
+        borderCard: isDark ? 'border-gray-700' : 'border-gray-200',
 
         // Hover effects
         hoverBg: isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100',
@@ -98,6 +100,13 @@ export function useThemeStyles() {
             default: isDark ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-500',
             active: isDark ? 'border-blue-500 text-blue-400' : 'border-blue-600 text-blue-600',
         },
+
+        // Editor styles
+        reactQuillDark: isDark ? 'react-quill-dark' : '',
+        reactQuillDarkSm: isDark ? 'react-quill-dark-sm' : '',
+
+        // Content styling
+        prose: isDark ? 'prose-invert' : '',
 
         bgColor: isDark ? 'bg-gray-800' : 'bg-white',
         textColor: isDark ? 'text-white' : 'text-gray-900',
