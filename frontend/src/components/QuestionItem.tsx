@@ -88,7 +88,7 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({
 
         <div className="mb-3">
           {renderContent(childQuestion.content)}
-        </div>
+          </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {childQuestion.answers.map((answer, idx) => renderAnswer(answer, idx))}
@@ -139,7 +139,7 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({
             </span>
           )}
         </div>
-      </div>
+        </div>
 
       {/* Question content */}
       <div className="p-4">
@@ -153,14 +153,14 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({
             {question.groupContent && (
               <div className="bg-gray-50 p-3 rounded-md border border-gray-200 mb-3">
                 {renderContent(question.groupContent)}
-              </div>
-            )}
+          </div>
+        )}
 
             {/* Button to toggle showing child questions */}
             <button
               onClick={() => setExpanded(!expanded)}
               className="w-full border border-gray-200 flex items-center justify-between p-2 rounded-md bg-white hover:bg-gray-50 mb-3"
-            >
+          >
               <span className="text-sm">
                 {expanded ? 'Ẩn câu hỏi con' : `Xem ${question.childQuestions?.length || 0} câu hỏi con`}
               </span>
@@ -176,8 +176,8 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({
               <div className="space-y-2">
                 {question.childQuestions.map((childQuestion, idx) =>
                   renderChildQuestion(childQuestion, idx)
-                )}
-              </div>
+          )}
+        </div>
             )}
           </>
         )}
