@@ -1,86 +1,39 @@
-import React, { useEffect, useRef } from 'react';
-
-// Add global MathJax type definition for TypeScript
-declare global {
-  interface Window {
-    MathJax?: any;
-  }
-}
+import React from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css'; // Import KaTeX CSS
 
 interface MathRendererProps {
   content: string;
-  displayMode?: boolean;
   className?: string;
 }
 
 /**
- * Component for rendering math/LaTeX expressions in content
+ * Component for rendering Markdown, HTML, and math/LaTeX expressions using react-markdown.
  */
-export const MathRenderer = ({ content, displayMode = false, className = '' }: MathRendererProps) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    // Process and render the math when the component mounts or content changes
-    if (containerRef.current) {
-      // For content with embedded LaTeX, we need to set the HTML first
-      containerRef.current.innerHTML = content;
-
-      // Then trigger MathJax processing
-      if (window.MathJax) {
-        try {
-          window.MathJax.typesetPromise && window.MathJax.typesetPromise([containerRef.current])
-            .catch((err: any) => console.error('MathJax error:', err));
-        } catch (err) {
-          console.error('Error rendering math:', err);
-        }
-      }
-    }
-  }, [content]);
-
+export const MathRenderer = ({ content, className = '' }: MathRendererProps) => {
   return (
-    <div
-      ref={containerRef}
-      className={`math-renderer ${displayMode ? 'math-display' : ''} ${className}`}
-    />
+    <ReactMarkdown
+      className={`math-renderer ${className}`}
+      remarkPlugins={[remarkMath]}
+      rehypePlugins={[rehypeKatex]}
+      components={{
+        // Allow rendering of basic HTML tags if needed.
+        // For security, this should be carefully managed.
+        // Here we are allowing a few safe tags to pass through.
+        p: ({ node, ...props }) => <p {...props} />,
+        span: ({ node, ...props }) => <span {...props} />,
+        div: ({ node, ...props }) => <div {...props} />,
+        strong: ({ node, ...props }) => <strong {...props} />,
+        em: ({ node, ...props }) => <em {...props} />,
+        ul: ({ node, ...props }) => <ul {...props} />,
+        ol: ({ node, ...props }) => <ol {...props} />,
+        li: ({ node, ...props }) => <li {...props} />,
+        br: ({ node, ...props }) => <br {...props} />,
+      }}
+    >
+      {content}
+    </ReactMarkdown>
   );
-};
-
-/**
- * Component to initialize MathJax for the application
- */
-export const MathJaxInitializer = () => {
-  useEffect(() => {
-    if (!window.MathJax) {
-      // Create script element to load MathJax
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
-      script.async = true;
-
-      // Configure MathJax
-      window.MathJax = {
-        tex: {
-          inlineMath: [['$', '$'], ['\\(', '\\)']],
-          displayMath: [['$$', '$$'], ['\\[', '\\]']],
-          processEscapes: true,
-          processEnvironments: true
-        },
-        svg: {
-          fontCache: 'global'
-        },
-        options: {
-          enableMenu: false  // Disable right-click menu
-        }
-      };
-
-      // Add script to document
-      document.head.appendChild(script);
-
-      // Cleanup on unmount
-      return () => {
-        document.head.removeChild(script);
-      };
-    }
-  }, []);
-
-  return null;
 };

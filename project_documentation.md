@@ -22,8 +22,11 @@
 - Qdrant for search (planned)
 - Caching layer (planned)
 
-## System Architecture
+# Phân tích và thiết kế hệ thống
 
+## 2.2.1 Kiến trúc hệ thống
+
+### 2.2.1.1 Kiến trúc tổng quan
 ```mermaid
 flowchart TB
     subgraph "Frontend"
@@ -85,336 +88,7 @@ flowchart TB
     Caching -.-> Services
 ```
 
-## Main User Flows
-
-```mermaid
-flowchart TD
-    User["User"]
-
-    subgraph "Authentication Flow"
-        Login["Login"]
-        JWT["JWT Token"]
-        AuthGuard["Auth Guards"]
-    end
-
-    subgraph "Question Management"
-        CreateQ["Create Question"]
-        ImportQ["Import Questions"]
-        SearchQ["Search Questions"]
-        ManageQ["Manage Questions"]
-    end
-
-    subgraph "Exam Management"
-        CreateExam["Create Exam"]
-        GenerateExam["Generate Exam"]
-        PDFExam["Export to PDF"]
-    end
-
-    subgraph "Document Processing"
-        UploadDoc["Upload Document"]
-        ParseDoc["Parse Document"]
-        ExtractQ["Extract Questions"]
-    end
-
-    User --> Login
-    Login --> JWT
-    JWT --> AuthGuard
-
-    AuthGuard --> CreateQ
-    AuthGuard --> ImportQ
-    AuthGuard --> SearchQ
-    AuthGuard --> ManageQ
-    AuthGuard --> CreateExam
-
-    ImportQ --> UploadDoc
-    UploadDoc --> ParseDoc
-    ParseDoc --> ExtractQ
-    ExtractQ --> ManageQ
-
-    CreateExam --> GenerateExam
-    GenerateExam --> PDFExam
-```
-
-## Entity Relationships
-
-```mermaid
-erDiagram
-    User ||--o{ DeThi : creates
-    User ||--o{ CauHoi : creates
-    User ||--o{ YeuCauRutTrich : requests
-
-    Khoa ||--o{ MonHoc : contains
-    MonHoc ||--o{ Phan : contains
-    Phan ||--o{ CauHoi : contains
-
-    CLO ||--o{ CauHoi : associated_with
-
-    CauHoi ||--o{ CauTraLoi : has
-    CauHoi ||--o{ Files : has_attachments
-
-    DeThi ||--o{ ChiTietDeThi : contains
-    ChiTietDeThi }o--|| CauHoi : references
-    ChiTietDeThi }o--|| Phan : references
-
-    YeuCauRutTrich ||--|{ DeThi : generates
-
-    User {
-        int id
-        string username
-        string password
-        string email
-        string role
-        datetime createdAt
-    }
-
-    Khoa {
-        int id
-        string tenKhoa
-        string maKhoa
-    }
-
-    MonHoc {
-        int id
-        string tenMonHoc
-        string maMonHoc
-        int khoaId
-        int soTinChi
-    }
-
-    Phan {
-        int id
-        string tenPhan
-        string maPhan
-        int monHocId
-        int thuTu
-    }
-
-    CLO {
-        int id
-        string maCLO
-        string moTa
-        int monHocId
-        int mucDo
-    }
-
-    CauHoi {
-        int id
-        string noiDung
-        string loai
-        int doKho
-        int phanId
-        int userId
-        boolean isParent
-        int parentId
-        datetime createdAt
-        string status
-    }
-
-    CauTraLoi {
-        int id
-        string noiDung
-        boolean dapAn
-        int cauHoiId
-        string giaiThich
-    }
-
-    DeThi {
-        int id
-        string tenDeThi
-        string maDeThi
-        datetime ngayTao
-        int userId
-        int thoiGianLamBai
-        string trangThai
-    }
-
-    ChiTietDeThi {
-        int id
-        int deThiId
-        int cauHoiId
-        int thuTu
-        int diemSo
-    }
-
-    YeuCauRutTrich {
-        int id
-        string tieuChi
-        int soLuong
-        int doKho
-        int monHocId
-        int[] phanIds
-        int[] cloIds
-        datetime ngayYeuCau
-        string trangThai
-    }
-
-    Files {
-        int id
-        string fileName
-        string originalName
-        string path
-        string fileType
-        int size
-        string entityType
-        int entityId
-    }
-```
-
-## Complete & Incomplete Features
-
-```mermaid
-flowchart TB
-    subgraph "Complete Features"
-        Auth["Authentication & Authorization"]
-        UserMgmt["User Management"]
-        QuestMgmt["Question Management"]
-        ExamMgmt["Exam Management"]
-        DocImport["Document Import & Parsing"]
-        FacultyMgmt["Faculty & Subject Management"]
-    end
-
-    subgraph "Partially Complete"
-        PDFGenerate["PDF Generation"]
-        QueueSystem["Queue System"]
-        CLOTracking["CLO Tracking"]
-        ExamTemplates["Exam Templates"]
-        MediaSupport["Media Support"]
-    end
-
-    subgraph "Incomplete"
-        SearchEngine["Search Engine"]
-        CachingLayer["Caching"]
-        Monitoring["Monitoring"]
-        Analytics["Analytics Dashboard"]
-        APIMetrics["API Metrics"]
-    end
-
-    %% Connections between features
-    Auth --> UserMgmt
-    UserMgmt --> QuestMgmt
-    QuestMgmt --> ExamMgmt
-    DocImport --> QuestMgmt
-    FacultyMgmt --> QuestMgmt
-
-    QuestMgmt --> PDFGenerate
-    ExamMgmt --> PDFGenerate
-    DocImport --> QueueSystem
-    MediaSupport --> QueueSystem
-
-    FacultyMgmt --> CLOTracking
-    ExamMgmt --> ExamTemplates
-    QuestMgmt --> MediaSupport
-
-    QuestMgmt -.-> SearchEngine
-    Auth -.-> CachingLayer
-    QuestMgmt -.-> CachingLayer
-    Auth -.-> Monitoring
-    QueueSystem -.-> Monitoring
-    ExamMgmt -.-> Analytics
-    QuestMgmt -.-> Analytics
-    Auth -.-> APIMetrics
-```
-
-## Detailed Flow: Document Import & Question Extraction
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant UI as Frontend UI
-    participant API as Backend API
-    participant FileService as Files Service
-    participant QueueModule as Queue Module
-    participant Processor as Extraction Processor
-    participant Parser as DOCX Parser Service
-    participant DB as Database
-
-    User->>UI: Upload DOCX document
-    UI->>API: POST /files/upload
-    API->>FileService: Handle file upload
-    FileService->>FileService: Save file to uploads/questions/
-    FileService->>API: Return fileId
-
-    API->>QueueModule: Add extraction job
-    QueueModule->>QueueModule: Create job in queue
-    QueueModule->>API: Return jobId
-    API->>UI: Return status & jobId
-
-    QueueModule->>Processor: Process next job
-    Processor->>Parser: Extract questions from DOCX
-
-    alt Successful extraction
-        Parser->>Parser: Parse document structure
-        Parser->>Parser: Identify questions & answers
-        Parser->>Parser: Process any LaTeX formulas
-        Parser->>Parser: Handle image & media attachments
-        Parser->>DB: Save extracted questions & answers
-        Parser->>DB: Update job status to complete
-    else Failed extraction
-        Parser->>DB: Log error details
-        Parser->>DB: Update job status to failed
-    end
-
-    User->>UI: Check extraction status
-    UI->>API: GET /questions-import/status/{jobId}
-    API->>DB: Query job status
-    API->>UI: Return status details
-
-    User->>UI: View & edit extracted questions
-    UI->>API: GET /cau-hoi?filter=recent
-    API->>DB: Query recently extracted questions
-    API->>UI: Return questions list with details
-```
-
-## Detailed Flow: Exam Generation with CLO Requirements
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant UI as Frontend UI
-    participant API as Backend API
-    participant YCRTService as YeuCauRutTrich Service
-    participant ExamService as Exam Service
-    participant PDFService as PDF Service
-    participant DB as Database
-    participant Templates as Template Files
-
-    User->>UI: Create exam requirements
-    UI->>UI: Select subject, chapters, CLOs
-    UI->>UI: Define difficulty distribution
-    UI->>UI: Set question counts
-
-    UI->>API: POST /yeu-cau-rut-trich
-    API->>YCRTService: Process requirements
-    YCRTService->>DB: Save requirements
-    YCRTService->>API: Return requirementId
-    API->>UI: Display saved requirements
-
-    User->>UI: Generate exam from requirements
-    UI->>API: POST /de-thi/generate/{requirementId}
-    API->>ExamService: Generate exam
-
-    ExamService->>DB: Query questions matching criteria
-    ExamService->>ExamService: Apply selection algorithm
-    ExamService->>ExamService: Balance CLO coverage
-    ExamService->>ExamService: Verify difficulty distribution
-    ExamService->>DB: Save exam structure (de-thi)
-    ExamService->>DB: Save question mappings (chi-tiet-de-thi)
-
-    ExamService->>API: Return generated exam
-    API->>UI: Show exam preview
-
-    User->>UI: Export exam to PDF
-    UI->>API: GET /de-thi/{examId}/pdf
-    API->>PDFService: Generate PDF with template
-    PDFService->>Templates: Get exam template
-    PDFService->>PDFService: Render questions & answers
-    PDFService->>PDFService: Format document with template
-    PDFService->>API: Return PDF document
-    API->>UI: Provide PDF for download
-```
-
-## Module Interactions & Dependencies
-
+### 2.2.1.2 Kiến trúc Module
 ```mermaid
 flowchart TD
     AppModule --> AuthModule
@@ -488,6 +162,479 @@ flowchart TD
     PDFService --> FilesModule
     ExamService --> CauHoiModule
     ExamService --> DeThiModule
+```
+
+## 2.2.2 Thiết kế cơ sở dữ liệu
+
+### 2.2.2.1 Sơ đồ quan hệ thực thể (ERD)
+```mermaid
+erDiagram
+    Khoa ||--o{ MonHoc : "contains"
+    MonHoc ||--o{ Phan : "contains"
+    MonHoc ||--o{ DeThi : "has"
+    Phan ||--o{ CauHoi : "contains"
+    Phan ||--o{ ChiTietDeThi : "details"
+    CauHoi ||--o{ CauTraLoi : "has"
+    CauHoi ||--o{ Files : "has_attachments"
+    CauHoi ||--o{ ChiTietDeThi : "details"
+    CLO ||--o{ CauHoi : "associated_with"
+    DeThi ||--o{ ChiTietDeThi : "contains"
+
+    User {
+        uniqueidentifier UserId PK
+        nvarchar_100_ LoginName
+        nvarchar_100_ Email
+        nvarchar_255_ Name
+        nvarchar_128_ Password
+        datetime DateCreated
+        bit IsDeleted
+        bit IsLockedOut
+        datetime LastActivityDate
+        datetime LastLoginDate
+        datetime LastPasswordChangedDate
+        datetime LastLockoutDate
+        int FailedPwdAttemptCount
+        datetime FailedPwdAttemptWindowStart
+        int FailedPwdAnswerCount
+        datetime FailedPwdAnswerWindowStart
+        nvarchar_255_ PasswordSalt
+        ntext Comment
+        bit IsBuildInUser
+    }
+
+    Khoa {
+        uniqueidentifier MaKhoa PK
+        nvarchar_250_ TenKhoa
+        bit XoaTamKhoa
+        datetime NgaySua
+        datetime NgayTao
+    }
+
+    MonHoc {
+        uniqueidentifier MaMonHoc PK
+        uniqueidentifier MaKhoa FK
+        nvarchar_50_ MaSoMonHoc
+        nvarchar_250_ TenMonHoc
+        bit XoaTamMonHoc
+        datetime NgayTao
+        datetime NgayXoa
+    }
+
+    Phan {
+        uniqueidentifier MaPhan PK
+        uniqueidentifier MaMonHoc FK
+        nvarchar_250_ TenPhan
+        nvarchar_max_ NoiDung
+        int ThuTu
+        int SoLuongCauHoi
+        uniqueidentifier MaPhanCha
+        int MaSoPhan
+        bit XoaTamPhan
+        bit LaCauHoiNhom
+        datetime NgayTao
+        datetime NgaySua
+    }
+
+    CLO {
+        uniqueidentifier MaCLO PK
+        nvarchar_250_ TenCLO
+        nvarchar_max_ MoTa
+        int ThuTu
+        bit XoaTamCLO
+    }
+
+    CauHoi {
+        uniqueidentifier MaCauHoi PK
+        uniqueidentifier MaPhan FK
+        int MaSoCauHoi
+        nvarchar_max_ NoiDung
+        bit HoanVi
+        smallint CapDo
+        int SoCauHoiCon
+        float DoPhanCachCauHoi
+        uniqueidentifier MaCauHoiCha
+        bit XoaTamCauHoi
+        int SoLanDuocThi
+        int SoLanDung
+        datetime NgayTao
+        datetime NgaySua
+        uniqueidentifier MaCLO FK
+    }
+
+    CauTraLoi {
+        uniqueidentifier MaCauTraLoi PK
+        uniqueidentifier MaCauHoi FK
+        nvarchar_max_ NoiDung
+        int ThuTu
+        bit LaDapAn
+        bit HoanVi
+    }
+
+    DeThi {
+        uniqueidentifier MaDeThi PK
+        uniqueidentifier MaMonHoc FK
+        nvarchar_250_ TenDeThi
+        datetime NgayTao
+        bit DaDuyet
+    }
+
+    ChiTietDeThi {
+        uniqueidentifier MaDeThi PK, FK
+        uniqueidentifier MaPhan PK, FK
+        uniqueidentifier MaCauHoi PK, FK
+        int ThuTu
+    }
+
+    YeuCauRutTrich {
+        uniqueidentifier MaYeuCauDe PK
+        nvarchar_50_ HoTenGiaoVien
+        nvarchar_max_ NoiDungRutTrich
+        datetime NgayLay
+    }
+
+    Files {
+        uniqueidentifier MaFile PK
+        uniqueidentifier MaCauHoi FK
+        nvarchar_250_ TenFile
+        int LoaiFile
+        uniqueidentifier MaCauTraLoi
+    }
+```
+
+### 2.2.2.2 Mô tả chi tiết các bảng
+
+**Bảng User**
+| Tên cột | Kiểu dữ liệu | Mô tả |
+|---|---|---|
+| UserId | uniqueidentifier | Khóa chính |
+| LoginName | nvarchar(100) | Tên đăng nhập |
+| Email | nvarchar(100) | Địa chỉ email |
+| Name | nvarchar(255) | Tên người dùng |
+| Password | nvarchar(128) | Mật khẩu (đã băm) |
+| DateCreated | datetime | Ngày tạo tài khoản |
+| IsDeleted | bit | Đã xóa hay chưa |
+| IsLockedOut | bit | Tài khoản có bị khóa không |
+| LastActivityDate | datetime | Ngày hoạt động cuối cùng |
+| LastLoginDate | datetime | Ngày đăng nhập cuối |
+| LastPasswordChangedDate | datetime | Ngày đổi mật khẩu cuối |
+| LastLockoutDate | datetime | Ngày khóa tài khoản cuối |
+| FailedPwdAttemptCount | int | Số lần nhập sai mật khẩu |
+| FailedPwdAttemptWindowStart | datetime | Thời điểm bắt đầu cửa sổ đếm lỗi MK |
+| FailedPwdAnswerCount | int | Số lần nhập sai câu trả lời bí mật |
+| FailedPwdAnswerWindowStart | datetime | Thời điểm bắt đầu cửa sổ đếm lỗi câu trả lời |
+| PasswordSalt | nvarchar(255) | Chuỗi salt cho mật khẩu |
+| Comment | ntext | Ghi chú |
+| IsBuildInUser | bit | Là người dùng hệ thống? |
+
+**Bảng Khoa**
+| Tên cột | Kiểu dữ liệu | Mô tả |
+|---|---|---|
+| MaKhoa | uniqueidentifier | Khóa chính |
+| TenKhoa | nvarchar(250) | Tên khoa |
+| XoaTamKhoa | bit | Đánh dấu xóa tạm |
+| NgaySua | datetime | Ngày cập nhật |
+| NgayTao | datetime | Ngày tạo |
+
+**Bảng MonHoc**
+| Tên cột | Kiểu dữ liệu | Mô tả |
+|---|---|---|
+| MaMonHoc | uniqueidentifier | Khóa chính |
+| MaKhoa | uniqueidentifier | Khóa ngoại đến Khoa |
+| MaSoMonHoc | nvarchar(50) | Mã số của môn học |
+| TenMonHoc | nvarchar(250) | Tên môn học |
+| XoaTamMonHoc | bit | Đánh dấu xóa tạm |
+| NgayTao | datetime | Ngày tạo |
+| NgayXoa | datetime | Ngày xóa |
+
+**Bảng Phan**
+| Tên cột | Kiểu dữ liệu | Mô tả |
+|---|---|---|
+| MaPhan | uniqueidentifier | Khóa chính |
+| MaMonHoc | uniqueidentifier | Khóa ngoại đến Môn học |
+| TenPhan | nvarchar(250) | Tên phần/chương |
+| NoiDung | nvarchar(max) | Nội dung chi tiết của phần |
+| ThuTu | int | Thứ tự của phần |
+| SoLuongCauHoi | int | Số lượng câu hỏi trong phần |
+| MaPhanCha | uniqueidentifier | Khóa ngoại tự tham chiếu (phần cha) |
+| MaSoPhan | int | Mã số của phần |
+| XoaTamPhan | bit | Đánh dấu xóa tạm |
+| LaCauHoiNhom | bit | Là phần chứa câu hỏi nhóm? |
+| NgayTao | datetime | Ngày tạo |
+| NgaySua | datetime | Ngày cập nhật |
+
+**Bảng CLO**
+| Tên cột | Kiểu dữ liệu | Mô tả |
+|---|---|---|
+| MaCLO | uniqueidentifier | Khóa chính |
+| TenCLO | nvarchar(250) | Tên/Mã CLO |
+| MoTa | nvarchar(max) | Mô tả chi tiết |
+| ThuTu | int | Thứ tự |
+| XoaTamCLO | bit | Đánh dấu xóa tạm |
+
+**Bảng CauHoi**
+| Tên cột | Kiểu dữ liệu | Mô tả |
+|---|---|---|
+| MaCauHoi | uniqueidentifier | Khóa chính |
+| MaPhan | uniqueidentifier | Khóa ngoại đến Phần |
+| MaSoCauHoi | int | Mã số câu hỏi |
+| NoiDung | nvarchar(max) | Nội dung câu hỏi |
+| HoanVi | bit | Cho phép hoán vị đáp án? |
+| CapDo | smallint | Cấp độ khó |
+| SoCauHoiCon | int | Số câu hỏi con |
+| DoPhanCachCauHoi | float | Độ phân cách câu hỏi |
+| MaCauHoiCha | uniqueidentifier | Khóa ngoại tự tham chiếu (câu hỏi cha) |
+| XoaTamCauHoi | bit | Đánh dấu xóa tạm |
+| SoLanDuocThi | int | Số lần đã được sử dụng trong đề thi |
+| SoLanDung | int | Số lần trả lời đúng |
+| NgayTao | datetime | Ngày tạo |
+| NgaySua | datetime | Ngày cập nhật |
+| MaCLO | uniqueidentifier | Khóa ngoại đến CLO |
+
+**Bảng CauTraLoi**
+| Tên cột | Kiểu dữ liệu | Mô tả |
+|---|---|---|
+| MaCauTraLoi | uniqueidentifier | Khóa chính |
+| MaCauHoi | uniqueidentifier | Khóa ngoại đến Câu hỏi |
+| NoiDung | nvarchar(max) | Nội dung câu trả lời |
+| ThuTu | int | Thứ tự |
+| LaDapAn | bit | Là đáp án đúng? |
+| HoanVi | bit | Cho phép hoán vị? |
+
+**Bảng DeThi**
+| Tên cột | Kiểu dữ liệu | Mô tả |
+|---|---|---|
+| MaDeThi | uniqueidentifier | Khóa chính |
+| MaMonHoc | uniqueidentifier | Khóa ngoại đến Môn học |
+| TenDeThi | nvarchar(250) | Tên đề thi |
+| NgayTao | datetime | Ngày tạo |
+| DaDuyet | bit | Đã được duyệt hay chưa |
+
+**Bảng ChiTietDeThi**
+| Tên cột | Kiểu dữ liệu | Mô tả |
+|---|---|---|
+| MaDeThi | uniqueidentifier | Khóa chính, Khóa ngoại đến Đề thi |
+| MaPhan | uniqueidentifier | Khóa chính, Khóa ngoại đến Phần |
+| MaCauHoi | uniqueidentifier | Khóa chính, Khóa ngoại đến Câu hỏi |
+| ThuTu | int | Thứ tự câu hỏi trong đề |
+
+**Bảng YeuCauRutTrich**
+| Tên cột | Kiểu dữ liệu | Mô tả |
+|---|---|---|
+| MaYeuCauDe | uniqueidentifier | Khóa chính |
+| HoTenGiaoVien | nvarchar(50) | Tên giáo viên yêu cầu |
+| NoiDungRutTrich | nvarchar(max) | Nội dung chi tiết yêu cầu |
+| NgayLay | datetime | Ngày yêu cầu |
+
+**Bảng Files**
+| Tên cột | Kiểu dữ liệu | Mô tả |
+|---|---|---|
+| MaFile | uniqueidentifier | Khóa chính |
+| MaCauHoi | uniqueidentifier | Khóa ngoại đến Câu hỏi |
+| TenFile | nvarchar(250) | Tên file |
+| LoaiFile | int | Loại file |
+| MaCauTraLoi | uniqueidentifier | Khóa ngoại đến Câu trả lời (nếu có) |
+
+## 2.2.3 Thiết kế luồng xử lý
+
+### 2.2.3.1 Luồng xử lý tạo câu hỏi và nhập liệu từ file word
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI as Frontend UI
+    participant API as Backend API
+    participant FileService as Files Service
+    participant QueueModule as Queue Module
+    participant Processor as Extraction Processor
+    participant Parser as DOCX Parser Service
+    participant DB as Database
+
+    User->>UI: Upload DOCX document
+    UI->>API: POST /files/upload
+    API->>FileService: Handle file upload
+    FileService->>FileService: Save file to uploads/questions/
+    FileService->>API: Return fileId
+
+    API->>QueueModule: Add extraction job
+    QueueModule->>QueueModule: Create job in queue
+    QueueModule->>API: Return jobId
+    API->>UI: Return status & jobId
+
+    QueueModule->>Processor: Process next job
+    Processor->>Parser: Extract questions from DOCX
+
+    alt Successful extraction
+        Parser->>Parser: Parse document structure
+        Parser->>Parser: Identify questions & answers
+        Parser->>Parser: Process any LaTeX formulas
+        Parser->>Parser: Handle image & media attachments
+        Parser->>DB: Save extracted questions & answers
+        Parser->>DB: Update job status to complete
+    else Failed extraction
+        Parser->>DB: Log error details
+        Parser->>DB: Update job status to failed
+    end
+
+    User->>UI: Check extraction status
+    UI->>API: GET /questions-import/status/{jobId}
+    API->>DB: Query job status
+    API->>UI: Return status details
+
+    User->>UI: View & edit extracted questions
+    UI->>API: GET /cau-hoi?filter=recent
+    API->>DB: Query recently extracted questions
+    API->>UI: Return questions list with details
+```
+
+### 2.2.3.2 Luồng xử lý rút trích đề thi
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI as Frontend UI
+    participant API as Backend API
+    participant YCRTService as YeuCauRutTrich Service
+    participant ExamService as Exam Service
+    participant PDFService as PDF Service
+    participant DB as Database
+    participant Templates as Template Files
+
+    User->>UI: Create exam requirements
+    UI->>UI: Select subject, chapters, CLOs
+    UI->>UI: Define difficulty distribution
+    UI->>UI: Set question counts
+
+    UI->>API: POST /yeu-cau-rut-trich
+    API->>YCRTService: Process requirements
+    YCRTService->>DB: Save requirements
+    YCRTService->>API: Return requirementId
+    API->>UI: Display saved requirements
+
+    User->>UI: Generate exam from requirements
+    UI->>API: POST /de-thi/generate/{requirementId}
+    API->>ExamService: Generate exam
+
+    ExamService->>DB: Query questions matching criteria
+    ExamService->>ExamService: Apply selection algorithm
+    ExamService->>ExamService: Balance CLO coverage
+    ExamService->>ExamService: Verify difficulty distribution
+    ExamService->>DB: Save exam structure (de-thi)
+    ExamService->>DB: Save question mappings (chi-tiet-de-thi)
+
+    ExamService->>API: Return generated exam
+    API->>UI: Show exam preview
+
+    User->>UI: Export exam to PDF
+    UI->>API: GET /de-thi/{examId}/pdf
+    API->>PDFService: Generate PDF with template
+    PDFService->>Templates: Get exam template
+    PDFService->>PDFService: Render questions & answers
+    PDFService->>PDFService: Format document with template
+    PDFService->>API: Return PDF document
+    API->>UI: Provide PDF for download
+```
+
+## Main User Flows
+
+```mermaid
+flowchart TD
+    User["User"]
+
+    subgraph "Authentication Flow"
+        Login["Login"]
+        JWT["JWT Token"]
+        AuthGuard["Auth Guards"]
+    end
+
+    subgraph "Question Management"
+        CreateQ["Create Question"]
+        ImportQ["Import Questions"]
+        SearchQ["Search Questions"]
+        ManageQ["Manage Questions"]
+    end
+
+    subgraph "Exam Management"
+        CreateExam["Create Exam"]
+        GenerateExam["Generate Exam"]
+        PDFExam["Export to PDF"]
+    end
+
+    subgraph "Document Processing"
+        UploadDoc["Upload Document"]
+        ParseDoc["Parse Document"]
+        ExtractQ["Extract Questions"]
+    end
+
+    User --> Login
+    Login --> JWT
+    JWT --> AuthGuard
+
+    AuthGuard --> CreateQ
+    AuthGuard --> ImportQ
+    AuthGuard --> SearchQ
+    AuthGuard --> ManageQ
+    AuthGuard --> CreateExam
+
+    ImportQ --> UploadDoc
+    UploadDoc --> ParseDoc
+    ParseDoc --> ExtractQ
+    ExtractQ --> ManageQ
+
+    CreateExam --> GenerateExam
+    GenerateExam --> PDFExam
+```
+
+## Complete & Incomplete Features
+
+```mermaid
+flowchart TB
+    subgraph "Complete Features"
+        Auth["Authentication & Authorization"]
+        UserMgmt["User Management"]
+        QuestMgmt["Question Management"]
+        ExamMgmt["Exam Management"]
+        DocImport["Document Import & Parsing"]
+        FacultyMgmt["Faculty & Subject Management"]
+    end
+
+    subgraph "Partially Complete"
+        PDFGenerate["PDF Generation"]
+        QueueSystem["Queue System"]
+        CLOTracking["CLO Tracking"]
+        ExamTemplates["Exam Templates"]
+        MediaSupport["Media Support"]
+    end
+
+    subgraph "Incomplete"
+        SearchEngine["Search Engine"]
+        CachingLayer["Caching"]
+        Monitoring["Monitoring"]
+        Analytics["Analytics Dashboard"]
+        APIMetrics["API Metrics"]
+    end
+
+    %% Connections between features
+    Auth --> UserMgmt
+    UserMgmt --> QuestMgmt
+    QuestMgmt --> ExamMgmt
+    DocImport --> QuestMgmt
+    FacultyMgmt --> QuestMgmt
+
+    QuestMgmt --> PDFGenerate
+    ExamMgmt --> PDFGenerate
+    DocImport --> QueueSystem
+    MediaSupport --> QueueSystem
+
+    FacultyMgmt --> CLOTracking
+    ExamMgmt --> ExamTemplates
+    QuestMgmt --> MediaSupport
+
+    QuestMgmt -.-> SearchEngine
+    Auth -.-> CachingLayer
+    QuestMgmt -.-> CachingLayer
+    Auth -.-> Monitoring
+    QueueSystem -.-> Monitoring
+    ExamMgmt -.-> Analytics
+    QuestMgmt -.-> Analytics
+    Auth -.-> APIMetrics
 ```
 
 ## Deployment Architecture (Current & Planned)

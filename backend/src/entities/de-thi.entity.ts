@@ -16,8 +16,11 @@ export class DeThi {
     @Column({ type: 'datetime' })
     NgayTao: Date;
 
-    @Column({ nullable: true })
+    @Column({ type: 'bit', default: false })
     DaDuyet: boolean;
+
+    @Column({ type: 'nvarchar', length: 255, nullable: true })
+    NguoiTao: string;
 
     @ManyToOne(() => MonHoc, monHoc => monHoc.DeThi)
     @JoinColumn({ name: 'MaMonHoc' })

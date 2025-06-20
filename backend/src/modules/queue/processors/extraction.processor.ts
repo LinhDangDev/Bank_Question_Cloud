@@ -47,9 +47,9 @@ export class ExtractionProcessor {
                 NoiDungRutTrich: JSON.stringify({
                     ...requestData,
                     result: {
-                        deThiId: result.deThiId,
-                        docxPath: result.docxPath,
-                        pdfPath: result.pdfPath,
+                        deThiId: result.deThiIds[0],
+                        docxPath: result.docxPaths[0],
+                        pdfPath: result.pdfPaths[0],
                         status: 'completed',
                     },
                 }),
@@ -59,7 +59,7 @@ export class ExtractionProcessor {
 
             return {
                 success: true,
-                deThiId: result.deThiId,
+                deThiId: result.deThiIds[0],
             };
         } catch (error) {
             this.logger.error(`Error processing extraction job ${job.id}: ${error.message}`, error.stack);

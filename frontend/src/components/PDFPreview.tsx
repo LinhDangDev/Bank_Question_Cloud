@@ -3,29 +3,33 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { FileText, Clock, BookOpen } from 'lucide-react';
+import { MathRenderer } from './MathRenderer'; // Assuming MathRenderer is in the same directory
 
-interface Question {
-  id: number;
-  question: string;
-  options: string[];
-  correct: number;
-  topic: string;
+// Updated interfaces to match the new data structure from the backend
+interface ExamQuestion {
+  id: string;
+  number: number;
+  content: string;
+  answers: {
+    id: string;
+    label: string;
+    content: string;
+    isCorrect: boolean;
+  }[];
 }
 
 interface ExamPackage {
-  id: number;
+  examId: string;
   title: string;
   subject: string;
-  grade: string;
-  questionCount: number;
-  difficulty: string;
+  questions: ExamQuestion[];
 }
 
 interface PDFPreviewProps {
   examTitle: string;
   examInstructions: string;
   selectedPackage: ExamPackage | null;
-  questions: Question[];
+  questions: ExamQuestion[];
 }
 
 const PDFPreview: React.FC<PDFPreviewProps> = ({
@@ -39,7 +43,7 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({
       <Card className="h-96 flex items-center justify-center">
         <div className="text-center text-gray-500">
           <FileText className="h-12 w-12 mx-auto mb-4" />
-          <p>Vui lòng chọn một gói đề để xem trước</p>
+          <p>Không có dữ liệu đề thi để xem trước</p>
         </div>
       </Card>
     );
@@ -68,10 +72,9 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({
                 </div>
                 <div className="flex items-center gap-1">
                   <Clock className="h-4 w-4" />
-                  <span>Lớp: {selectedPackage.grade}</span>
+                  <span>Thời gian: 90 phút</span>
                 </div>
               </div>
-              <Badge className="mb-4">{selectedPackage.difficulty}</Badge>
             </div>
 
             <Separator className="mb-6" />
@@ -87,25 +90,22 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({
               {questions.map((question, index) => (
                 <div key={question.id} className="border-l-4 border-blue-200 pl-4">
                   <div className="flex items-start justify-between mb-3">
-                    <h4 className="font-medium text-gray-800 flex-1">
-                      {question.question}
-                    </h4>
-                    <Badge variant="outline" className="ml-2 text-xs">
-                      {question.topic}
-                    </Badge>
+                    <div className="font-medium text-gray-800 flex-1">
+                      <MathRenderer content={`**Câu ${question.number}:** ${question.content}`} />
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 gap-2 ml-4">
-                    {question.options.map((option, optionIndex) => (
+                    {question.answers.map((answer) => (
                       <div
-                        key={optionIndex}
+                        key={answer.id}
                         className={`text-sm p-2 rounded ${
-                          optionIndex === question.correct
+                          answer.isCorrect
                             ? 'bg-green-50 text-green-700 font-medium'
                             : 'text-gray-600'
                         }`}
                       >
-                        {option}
+                        <MathRenderer content={`**${answer.label}.** ${answer.content}`} />
                       </div>
                     ))}
                   </div>

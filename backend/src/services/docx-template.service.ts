@@ -8,8 +8,8 @@ import { v4 as uuidv4 } from 'uuid';
 @Injectable()
 export class DocxTemplateService {
     private readonly logger = new Logger(DocxTemplateService.name);
-    private readonly templatesDir = path.join(process.cwd(), 'template');
-    private readonly outputDir = path.join(process.cwd(), 'output');
+    private readonly templatesDir = path.join(process.cwd(), '..', 'template');
+    private readonly outputDir = path.join(process.cwd(), '..', 'output');
 
     constructor() {
         // Ensure output directory exists
@@ -40,11 +40,8 @@ export class DocxTemplateService {
                 linebreaks: true,
             });
 
-            // Set the template variables
-            doc.setData(data);
-
-            // Render the document
-            doc.render();
+            // Set the data
+            doc.render(data);
 
             // Get the binary content of the output
             const buffer = doc.getZip().generate({

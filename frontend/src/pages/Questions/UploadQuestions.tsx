@@ -21,7 +21,7 @@ import { API_BASE_URL } from '@/config';
 import { v4 as uuidv4 } from 'uuid';
 // @ts-ignore - Import mammoth without type definitions
 import mammoth from 'mammoth';
-import { MathRenderer, MathJaxInitializer } from '../../components/MathRenderer';
+import { MathRenderer } from '../../components/MathRenderer';
 import QuestionItem from '../../components/QuestionItem';
 
 // Interface for parsed question
@@ -1251,7 +1251,6 @@ const UploadQuestions = () => {
 
   return (
     <div className="container mx-auto py-6 px-4 max-w-screen-2xl">
-      <MathJaxInitializer />
       {/* Hidden file input */}
       <input
         type="file"
