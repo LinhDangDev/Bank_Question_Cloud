@@ -14,9 +14,11 @@ import { v4 as uuidv4 } from 'uuid';
 
 interface ExamMatrixItem {
     maPhan: string;
-    easy: number;
-    medium: number;
-    hard: number;
+    clo1: number;
+    clo2: number;
+    clo3: number;
+    clo4: number;
+    clo5: number;
 }
 
 interface ExamRequest {
@@ -120,43 +122,74 @@ export class ExamService {
         const selectedQuestions: CauHoi[] = [];
 
         for (const item of matrix) {
-            // Get easy questions
-            if (item.easy > 0) {
-                const easyQuestions = await this.getRandomQuestions(item.maPhan, 1, item.easy);
-                selectedQuestions.push(...easyQuestions);
+            // Select questions for each CLO
+            if (item.clo1 > 0) {
+                const clo1Questions = await this.getQuestionsForCLO(item.maPhan, 1, item.clo1);
+                selectedQuestions.push(...clo1Questions);
             }
 
-            // Get medium questions
-            if (item.medium > 0) {
-                const mediumQuestions = await this.getRandomQuestions(item.maPhan, 2, item.medium);
-                selectedQuestions.push(...mediumQuestions);
+            if (item.clo2 > 0) {
+                const clo2Questions = await this.getQuestionsForCLO(item.maPhan, 2, item.clo2);
+                selectedQuestions.push(...clo2Questions);
             }
 
-            // Get hard questions
-            if (item.hard > 0) {
-                const hardQuestions = await this.getRandomQuestions(item.maPhan, 3, item.hard);
-                selectedQuestions.push(...hardQuestions);
+            if (item.clo3 > 0) {
+                const clo3Questions = await this.getQuestionsForCLO(item.maPhan, 3, item.clo3);
+                selectedQuestions.push(...clo3Questions);
+            }
+
+            if (item.clo4 > 0) {
+                const clo4Questions = await this.getQuestionsForCLO(item.maPhan, 4, item.clo4);
+                selectedQuestions.push(...clo4Questions);
+            }
+
+            if (item.clo5 > 0) {
+                const clo5Questions = await this.getQuestionsForCLO(item.maPhan, 5, item.clo5);
+                selectedQuestions.push(...clo5Questions);
             }
         }
 
         return selectedQuestions;
     }
 
-    private async getRandomQuestions(maPhan: string, capDo: number, count: number): Promise<CauHoi[]> {
-        // Get all questions matching the criteria
-        const questions = await this.cauHoiRepository.find({
-            where: {
-                MaPhan: maPhan,
-                CapDo: capDo,
-                XoaTamCauHoi: false,
-            },
-        });
+    private async getQuestionsForCLO(maPhan: string, cloOrder: number, count: number): Promise<CauHoi[]> {
+        try {
+            // Find questions that belong to the specified chapter and have CLOs with the given order
+            const questions = await this.cauHoiRepository
+                .createQueryBuilder('cauHoi')
+                .leftJoinAndSelect('cauHoi.CLO', 'clo')
+                .where('cauHoi.MaPhan = :maPhan', { maPhan })
+                .andWhere('cauHoi.XoaTamCauHoi = :xoaTam', { xoaTam: false })
+                .andWhere('clo.ThuTu = :cloOrder', { cloOrder })
+                .getMany();
 
-        // Shuffle the questions
-        const shuffled = [...questions].sort(() => 0.5 - Math.random());
+            // If not enough questions found with CLO, fallback to any question from the chapter
+            if (questions.length < count) {
+                this.logger.warn(
+                    `Not enough questions with CLO ${cloOrder} in chapter ${maPhan}. ` +
+                    `Found ${questions.length}, needed ${count}. Using random questions from chapter.`
+                );
 
-        // Return the requested number of questions
-        return shuffled.slice(0, count);
+                const additionalQuestions = await this.cauHoiRepository.find({
+                    where: {
+                        MaPhan: maPhan,
+                        XoaTamCauHoi: false,
+                    },
+                    take: count - questions.length,
+                });
+
+                questions.push(...additionalQuestions);
+            }
+
+            // Shuffle the questions
+            const shuffled = [...questions].sort(() => 0.5 - Math.random());
+
+            // Return the requested number of questions
+            return shuffled.slice(0, count);
+        } catch (error) {
+            this.logger.error(`Error getting questions for CLO ${cloOrder}: ${error.message}`);
+            return [];
+        }
     }
 
     private async prepareExamData(maDethi: string, hoanViDapAn: boolean): Promise<any> {
@@ -236,7 +269,6 @@ export class ExamService {
             title: deThi.TenDeThi,
             subject: deThi.MonHoc?.TenMonHoc || 'Không có tên môn học',
             date: new Date().toLocaleDateString('vi-VN'),
-            time: '90 phút', // TODO: Make this configurable
             questions: questionsList,
         };
     }

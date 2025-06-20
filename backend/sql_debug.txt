@@ -1,0 +1,188 @@
+Câu hỏi nhóm demo
+-- Kiểm tra cấu trúc bảng CauHoi
+SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'CauHoi';
+
+-- This script demonstrates the correct way to create a group question with child questions
+-- by properly setting the MaCauHoiCha relationship
+
+-- Step 1: Get current date for consistency
+DECLARE @CurrentDate DATETIME = GETDATE();
+
+-- Step 2: Create parent question with a known ID for testing
+DECLARE @ParentId UNIQUEIDENTIFIER = '14518D30-24D5-43F3-B264-D23DFE71E5D5';
+PRINT 'Parent ID: ' + CONVERT(NVARCHAR(36), @ParentId);
+
+-- Insert parent question
+INSERT INTO "CauHoi"(
+    "MaCauHoi",
+    "MaPhan",
+    "MaSoCauHoi",
+    "NoiDung",
+    "HoanVi",
+    "CapDo",
+    "SoCauHoiCon",
+    "DoPhanCachCauHoi",
+    "MaCauHoiCha",  -- IMPORTANT: This should be NULL for parent
+    "XoaTamCauHoi",
+    "SoLanDuocThi",
+    "SoLanDung",
+    "NgayTao",
+    "NgaySua",
+    "MaCLO"
+)
+VALUES (
+    @ParentId,
+    '051B8D30-24D5-43F3-B264-D23DFE71EAD4',  -- MaPhan (section ID)
+    5275,                                    -- MaSoCauHoi
+    '<p>This is a group question</p>',       -- NoiDung
+    1,                                       -- HoanVi
+    1,                                       -- CapDo
+    2,                                       -- SoCauHoiCon (number of child questions)
+    NULL,                                    -- DoPhanCachCauHoi
+    NULL,                                    -- MaCauHoiCha (NULL for parent question)
+    0,                                       -- XoaTamCauHoi
+    0,                                       -- SoLanDuocThi
+    0,                                       -- SoLanDung
+    @CurrentDate,                            -- NgayTao
+    NULL,                                    -- NgaySua
+    '1DAB16ED-219A-4BB4-B37B-2AE04E2996BA'   -- MaCLO
+);
+
+-- Step 3: Create first child question with explicit MaCauHoiCha reference to parent
+DECLARE @ChildId1 UNIQUEIDENTIFIER = NEWID();
+PRINT 'Child ID 1: ' + CONVERT(NVARCHAR(36), @ChildId1);
+
+INSERT INTO "CauHoi"(
+    "MaCauHoi",
+    "MaPhan",
+    "MaSoCauHoi",
+    "NoiDung",
+    "HoanVi",
+    "CapDo",
+    "SoCauHoiCon",
+    "DoPhanCachCauHoi",
+    "MaCauHoiCha",  -- IMPORTANT: This must reference the parent ID
+    "XoaTamCauHoi",
+    "SoLanDuocThi",
+    "SoLanDung",
+    "NgayTao",
+    "NgaySua",
+    "MaCLO"
+)
+VALUES (
+    @ChildId1,
+    '051B8D30-24D5-43F3-B264-D23DFE71EAD4',  -- MaPhan (same as parent)
+    52751,                                   -- MaSoCauHoi
+    '<p>This is child question 1</p>',       -- NoiDung
+    1,                                       -- HoanVi
+    1,                                       -- CapDo
+    0,                                       -- SoCauHoiCon (0 for child questions)
+    NULL,                                    -- DoPhanCachCauHoi
+    @ParentId,                               -- MaCauHoiCha (reference to parent)
+    0,                                       -- XoaTamCauHoi
+    0,                                       -- SoLanDuocThi
+    0,                                       -- SoLanDung
+    @CurrentDate,                            -- NgayTao
+    NULL,                                    -- NgaySua
+    '1DAB16ED-219A-4BB4-B37B-2AE04E2996BA'   -- MaCLO
+);
+
+-- Step 4: Add answers for the first child question
+INSERT INTO "CauTraLoi"(
+    "MaCauTraLoi",
+    "MaCauHoi",
+    "NoiDung",
+    "ThuTu",
+    "LaDapAn",
+    "HoanVi"
+)
+VALUES
+(NEWID(), @ChildId1, '<p>Answer 1 - correct</p>', 1, 1, 1),
+(NEWID(), @ChildId1, '<p>Answer 2</p>', 2, 0, 1),
+(NEWID(), @ChildId1, '<p>Answer 3</p>', 3, 0, 1);
+
+-- Step 5: Create second child question with explicit MaCauHoiCha reference to parent
+DECLARE @ChildId2 UNIQUEIDENTIFIER = NEWID();
+PRINT 'Child ID 2: ' + CONVERT(NVARCHAR(36), @ChildId2);
+
+INSERT INTO "CauHoi"(
+    "MaCauHoi",
+    "MaPhan",
+    "MaSoCauHoi",
+    "NoiDung",
+    "HoanVi",
+    "CapDo",
+    "SoCauHoiCon",
+    "DoPhanCachCauHoi",
+    "MaCauHoiCha",  -- IMPORTANT: This must reference the parent ID
+    "XoaTamCauHoi",
+    "SoLanDuocThi",
+    "SoLanDung",
+    "NgayTao",
+    "NgaySua",
+    "MaCLO"
+)
+VALUES (
+    @ChildId2,
+    '051B8D30-24D5-43F3-B264-D23DFE71EAD4',  -- MaPhan (same as parent)
+    52752,                                   -- MaSoCauHoi
+    '<p>This is child question 2</p>',       -- NoiDung
+    1,                                       -- HoanVi
+    1,                                       -- CapDo
+    0,                                       -- SoCauHoiCon (0 for child questions)
+    NULL,                                    -- DoPhanCachCauHoi
+    @ParentId,                               -- MaCauHoiCha (reference to parent)
+    0,                                       -- XoaTamCauHoi
+    0,                                       -- SoLanDuocThi
+    0,                                       -- SoLanDung
+    @CurrentDate,                            -- NgayTao
+    NULL,                                    -- NgaySua
+    '1DAB16ED-219A-4BB4-B37B-2AE04E2996BA'   -- MaCLO
+);
+
+-- Step 6: Add answers for the second child question
+INSERT INTO "CauTraLoi"(
+    "MaCauTraLoi",
+    "MaCauHoi",
+    "NoiDung",
+    "ThuTu",
+    "LaDapAn",
+    "HoanVi"
+)
+VALUES
+(NEWID(), @ChildId2, '<p>Answer 1</p>', 1, 0, 1),
+(NEWID(), @ChildId2, '<p>Answer 2 - correct</p>', 2, 1, 1),
+(NEWID(), @ChildId2, '<p>Answer 3</p>', 3, 0, 1);
+
+-- Step 7: Verify the parent-child relationships
+SELECT
+    parent."MaCauHoi" AS ParentId,
+    parent."NoiDung" AS ParentContent,
+    parent."SoCauHoiCon" AS ChildCount,
+    child."MaCauHoi" AS ChildId,
+    child."NoiDung" AS ChildContent,
+    child."MaCauHoiCha" AS ChildParentId
+FROM
+    "CauHoi" parent
+LEFT JOIN
+    "CauHoi" child ON child."MaCauHoiCha" = parent."MaCauHoi"
+WHERE
+    parent."MaCauHoi" = @ParentId
+ORDER BY
+    child."MaSoCauHoi";
+
+-- Step 8: Verify child questions have answers
+SELECT
+    q."MaCauHoi" AS QuestionId,
+    q."NoiDung" AS QuestionContent,
+    a."MaCauTraLoi" AS AnswerId,
+    a."NoiDung" AS AnswerContent,
+    a."LaDapAn" AS IsCorrect
+FROM
+    "CauHoi" q
+JOIN
+    "CauTraLoi" a ON q."MaCauHoi" = a."MaCauHoi"
+WHERE
+    q."MaCauHoiCha" = @ParentId
+ORDER BY
+    q."MaSoCauHoi", a."ThuTu";

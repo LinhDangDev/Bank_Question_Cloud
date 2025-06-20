@@ -1,13 +1,16 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useThemeStyles, cx } from '../../utils/theme';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { API_BASE_URL } from '@/config';
-import { useNavigate } from 'react-router-dom';
-import { AlertCircle } from 'lucide-react';
+import { Select } from '@/components/ui/select';
+import { Card, CardContent } from '@/components/ui/card';
+import { X, AlertCircle } from 'lucide-react';
 import MathModal from '@/components/Modal/MathModal';
 import SingleChoiceQuestion from './SingleChoiceQuestion';
+import { useToast } from '@/components/ui/toast';
+import { API_BASE_URL } from '@/config';
+import { useNavigate } from 'react-router-dom';
 
 interface SubQuestion {
   id: number;
@@ -22,6 +25,7 @@ interface SubQuestion {
 const GroupQuestion = () => {
   const navigate = useNavigate();
   const { isDark } = useThemeStyles();
+  const { toast } = useToast();
   const [title, setTitle] = useState('');
   const [difficulty, setDifficulty] = useState('1');
   const [chapterId, setChapterId] = useState('');
@@ -36,6 +40,12 @@ const GroupQuestion = () => {
     questionId: null,
     field: ''
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [parentContent, setParentContent] = useState('');
+  const [childContents, setChildContents] = useState<{ type: string; content: string; answers: { content: string; isCorrect: boolean; order: number }[]; score: number }[]>([]);
+  const [selectedChapter, setSelectedChapter] = useState<any>(null);
+  const [selectedCLO, setSelectedCLO] = useState<any>(null);
+  const [note, setNote] = useState('');
 
   const addSubQuestion = () => {
     const newId = subQuestions.length > 0 ? Math.max(...subQuestions.map(q => q.id)) + 1 : 1;
@@ -57,112 +67,102 @@ const GroupQuestion = () => {
     );
   };
 
-  const handleSave = async () => {
-    if (!title.trim()) {
-      setError('Vui lòng nhập tiêu đề câu hỏi nhóm');
-      return;
-    }
-
-    if (!chapterId) {
-      setError('Vui lòng chọn chương/phần');
-      return;
-    }
-
-    if (subQuestions.length === 0) {
-      setError('Cần ít nhất một câu hỏi con');
-      return;
-    }
-
-    // Kiểm tra các câu hỏi con
-    for (const question of subQuestions) {
-      if (!question.content.trim()) {
-        setError(`Câu hỏi con #${question.id} chưa có nội dung`);
-        return;
-      }
-
-      // Kiểm tra câu trả lời
-      if (question.answers.length < 2) {
-        setError(`Câu hỏi con #${question.id} cần ít nhất 2 câu trả lời`);
-        return;
-      }
-
-      if (!question.answers.some(a => a.correct)) {
-        setError(`Câu hỏi con #${question.id} chưa có đáp án đúng`);
-        return;
-      }
-
-      if (question.answers.some(a => !a.text.trim())) {
-        setError(`Câu hỏi con #${question.id} có câu trả lời trống`);
-        return;
-      }
-    }
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
 
     setLoading(true);
     setError('');
 
     try {
-      // Generate random question numbers
-      const parentQuestionNumber = Math.floor(Math.random() * 10000);
-      const childQuestionNumbers = subQuestions.map(() => Math.floor(Math.random() * 10000));
+      // Tạo số câu hỏi cho câu hỏi cha
+      const parentMaSoCauHoi = Math.floor(Math.random() * 9000) + 1000;
 
-      // Chuẩn bị dữ liệu cho API
-      const requestData = {
-        parentQuestion: {
-          MaPhan: chapterId,
-          MaSoCauHoi: parentQuestionNumber,
-          NoiDung: title,
-          HoanVi: true,
-          CapDo: parseInt(difficulty),
-          SoCauHoiCon: subQuestions.length,
-          XoaTamCauHoi: false,
-          SoLanDuocThi: 0,
-          SoLanDung: 0,
-          MaCLO: cloId || null
-        },
-        childQuestions: subQuestions.map((sq, index) => ({
+      // Chuẩn bị dữ liệu câu hỏi cha
+      const parentQuestion = {
+        MaPhan: chapterId,
+        MaSoCauHoi: parentMaSoCauHoi,
+        NoiDung: title,
+        CapDo: parseInt(difficulty),
+        HoanVi: true,
+        SoCauHoiCon: subQuestions.length,
+        XoaTamCauHoi: false,
+        SoLanDuocThi: 0,
+        SoLanDung: 0,
+        MaCLO: cloId || undefined
+        // MaCauHoiCha is intentionally undefined for parent questions
+      };
+
+      console.log("Dữ liệu câu hỏi cha:", parentQuestion);
+
+      // Chuẩn bị dữ liệu câu hỏi con
+      const childQuestions = subQuestions.map((sq, index) => {
+        // Tạo số câu hỏi con
+        const childMaSoCauHoi = parentMaSoCauHoi * 10 + index + 1;
+
+        // Tính toán các câu trả lời
+        const answers = sq.answers.map((ans, i) => ({
+          NoiDung: ans.text,
+          ThuTu: i + 1,
+          LaDapAn: ans.correct,
+          HoanVi: true
+        }));
+
+        // Tạo câu hỏi con với đầy đủ các trường bắt buộc
+        return {
           question: {
             MaPhan: chapterId,
-            MaSoCauHoi: childQuestionNumbers[index],
+            MaSoCauHoi: childMaSoCauHoi,
             NoiDung: sq.content,
-            HoanVi: true,
             CapDo: parseInt(difficulty),
+            HoanVi: true,
             SoCauHoiCon: 0,
             XoaTamCauHoi: false,
             SoLanDuocThi: 0,
             SoLanDung: 0,
-            MaCLO: cloId || null
+            MaCLO: cloId || undefined
+            // MaCauHoiCha will be set by the backend based on the parent ID
           },
-          answers: sq.answers.map((ans, i) => ({
-            NoiDung: ans.text,
-            ThuTu: i + 1,
-            LaDapAn: ans.correct,
-            HoanVi: true
-          }))
-        }))
-      };
+          answers
+        };
+      });
 
-      console.log('Sending request data:', JSON.stringify(requestData));
+      console.log("Dữ liệu câu hỏi con:", childQuestions);
 
-      // Gọi API
+      // Gửi request tạo câu hỏi nhóm
       const response = await fetch(`${API_BASE_URL}/cau-hoi/group`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
-        body: JSON.stringify(requestData)
+        body: JSON.stringify({
+          parentQuestion,
+          childQuestions
+        })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Lỗi khi tạo câu hỏi nhóm');
-      }
+      const data = await response.json();
+      console.log("Kết quả từ server:", data);
 
-      // Chuyển hướng đến trang danh sách câu hỏi nhóm
-      navigate('/questions/group');
-    } catch (err) {
-      console.error('Error creating group question:', err);
-      setError(err instanceof Error ? err.message : 'Đã xảy ra lỗi khi tạo câu hỏi nhóm');
+      if (response.ok && data.success) {
+        toast({
+          title: 'Thành công',
+          description: `Đã tạo câu hỏi nhóm thành công với ${data.childCount || childQuestions.length} câu hỏi con`,
+          variant: 'success'
+        });
+        resetForm();
+        navigate('/questions/group');
+      } else {
+        throw new Error(data.message || 'Không thể tạo câu hỏi nhóm');
+      }
+    } catch (error) {
+      console.error('Lỗi khi tạo câu hỏi nhóm:', error);
+      setError(error instanceof Error ? error.message : 'Đã xảy ra lỗi khi tạo câu hỏi nhóm');
+      toast({
+        title: 'Lỗi',
+        description: error instanceof Error ? error.message : 'Không thể tạo câu hỏi nhóm',
+        variant: 'destructive'
+      });
     } finally {
       setLoading(false);
     }
@@ -184,6 +184,63 @@ const GroupQuestion = () => {
       );
     }
     setShowMathModal(false);
+  };
+
+  const validateForm = () => {
+    if (!title.trim()) {
+      setError('Vui lòng nhập tiêu đề câu hỏi nhóm');
+      return false;
+    }
+
+    if (!chapterId) {
+      setError('Vui lòng chọn chương/phần');
+      return false;
+    }
+
+    if (subQuestions.length === 0) {
+      setError('Cần ít nhất một câu hỏi con');
+      return false;
+    }
+
+    // Kiểm tra các câu hỏi con
+    for (const question of subQuestions) {
+      if (!question.content.trim()) {
+        setError(`Câu hỏi con #${question.id} chưa có nội dung`);
+        return false;
+      }
+
+      // Kiểm tra câu trả lời
+      if (question.answers.length < 2) {
+        setError(`Câu hỏi con #${question.id} cần ít nhất 2 câu trả lời`);
+        return false;
+      }
+
+      if (!question.answers.some(a => a.correct)) {
+        setError(`Câu hỏi con #${question.id} chưa có đáp án đúng`);
+        return false;
+      }
+
+      if (question.answers.some(a => !a.text.trim())) {
+        setError(`Câu hỏi con #${question.id} có câu trả lời trống`);
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const resetForm = () => {
+    setTitle('');
+    setDifficulty('1');
+    setChapterId('');
+    setCloId('');
+    setSubQuestions([
+      { id: 1, content: '', answer: '', answers: [{ text: '', correct: true }, { text: '', correct: false }] }
+    ]);
+    setError('');
+    setLoading(false);
+    setShowMathModal(false);
+    setCurrentEditingField({ questionId: null, field: '' });
   };
 
   return (
@@ -378,11 +435,11 @@ const GroupQuestion = () => {
         ))}
       </div>
 
-      <div className="flex justify-end space-x-4">
+      <div className="mt-4 flex justify-between">
         <Button variant="outline" onClick={() => navigate('/questions')}>
           Hủy
         </Button>
-        <Button onClick={handleSave} disabled={loading}>
+        <Button onClick={handleSubmit} disabled={loading}>
           {loading ? 'Đang lưu...' : 'Lưu câu hỏi nhóm'}
         </Button>
       </div>

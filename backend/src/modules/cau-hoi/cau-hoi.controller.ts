@@ -1,10 +1,11 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, HttpException, HttpStatus, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
 import { CauHoiService } from './cau-hoi.service';
 import { CreateCauHoiDto, UpdateCauHoiDto, CreateQuestionWithAnswersDto, UpdateQuestionWithAnswersDto, CreateGroupQuestionDto } from '../../dto';
 import { CauHoi } from '../../entities/cau-hoi.entity';
 import { PaginationDto } from '../../dto/pagination.dto';
 import { CreateCauTraLoiDto } from 'src/dto/cau-tra-loi.dto';
+import { JwtAuthGuard } from '../../modules/auth/guards/jwt-auth.guard';
 
 @ApiTags('cau-hoi')
 @Controller('cau-hoi')
@@ -129,9 +130,23 @@ export class CauHoiController {
     }
 
     @Post('group')
+    @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Create a group question with child questions and answers' })
     async createGroupQuestion(@Body() dto: CreateGroupQuestionDto) {
-        return this.cauHoiService.createGroupQuestion(dto);
+        try {
+            const result = await this.cauHoiService.createGroupQuestion(dto);
+            return {
+                success: true,
+                message: 'Tạo câu hỏi nhóm thành công',
+                data: result
+            };
+        } catch (error) {
+            console.error('Lỗi tạo câu hỏi nhóm:', error);
+            throw new HttpException({
+                success: false,
+                message: `Lỗi tạo câu hỏi nhóm: ${error.message}`,
+            }, HttpStatus.BAD_REQUEST);
+        }
     }
 
     @Put(':id')

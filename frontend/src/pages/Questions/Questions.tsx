@@ -279,6 +279,8 @@ const Questions = () => {
             }
             return true;
           })
+          // Only show parent questions or questions without a parent (MaCauHoiCha is null)
+          .filter((question) => !question.MaCauHoiCha)
           // Only show questions that match the selected filter status (deleted or active)
           .filter((question) => question.XoaTamCauHoi === filters.isDeleted)
           .sort((a, b) => new Date(b.NgayTao).getTime() - new Date(a.NgayTao).getTime());
