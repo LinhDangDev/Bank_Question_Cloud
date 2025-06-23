@@ -31,7 +31,11 @@ api.interceptors.request.use((config) => {
 // Auth API
 export const authApi = {
     login: (credentials: { username: string; password: string }) => {
-        return api.post('/auth/login', credentials);
+        const payload = {
+            loginName: credentials.username,
+            password: credentials.password
+        };
+        return api.post('/auth/login', payload);
     },
     register: (userData: any) => {
         return api.post('/auth/register', userData);
@@ -41,6 +45,12 @@ export const authApi = {
     },
     logout: () => {
         return api.post('/auth/logout');
+    },
+    forceLogout: (userId: string) => {
+        return api.post('/auth/force-logout', { userId });
+    },
+    checkUsername: (username: string) => {
+        return api.get(`/users/check-username/${username}`);
     },
 };
 

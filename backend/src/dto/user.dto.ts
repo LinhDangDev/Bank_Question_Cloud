@@ -21,6 +21,10 @@ export class CreateUserDto {
     @IsOptional()
     IsLockedOut?: boolean;
 
+    @IsBoolean()
+    @IsOptional()
+    NeedChangePassword?: boolean;
+
     @IsString()
     @IsOptional()
     PasswordSalt?: string;
@@ -31,6 +35,10 @@ export class CreateUserDto {
 
     @IsBoolean()
     IsBuildInUser: boolean;
+
+    @IsUUID()
+    @IsOptional()
+    MaKhoa?: string;
 }
 
 export class UpdateUserDto extends CreateUserDto { }
@@ -56,6 +64,9 @@ export class UserResponseDto {
 
     @IsBoolean()
     IsLockedOut: boolean;
+
+    @IsBoolean()
+    NeedChangePassword: boolean;
 
     @IsDate()
     @IsOptional()
@@ -97,4 +108,11 @@ export class UserResponseDto {
 
     @IsBoolean()
     IsBuildInUser: boolean;
+
+    @IsUUID()
+    @IsOptional()
+    MaKhoa?: string;
+
+    @IsOptional()
+    Khoa?: any;
 }

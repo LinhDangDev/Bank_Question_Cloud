@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { examApi } from '@/services/api';
-import { ArrowLeft, Download, Edit, Printer, Clock, Book, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Download, Edit, Printer, Clock, Book, AlertTriangle, Eye, EyeOff, Pencil, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'react-toastify';
 import QuestionItem from '@/components/QuestionItem';
 import { useAuth } from '@/context/AuthContext';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 interface Exam {
   MaDeThi: string;
@@ -25,20 +27,19 @@ interface Phan {
   TenPhan: string;
 }
 
-interface CauHoi {
-  id: string;
-  content: string;
-  clo?: string | null;
-  type: 'single-choice' | 'multi-choice' | 'fill-blank' | 'group';
-  answers: Array<{
-    id: string;
-    content: string;
-    isCorrect: boolean;
-    order: number;
-  }>;
-  childQuestions?: any[];
-  groupContent?: string;
-  capDo?: number;
+interface BackendCauTraLoi {
+  MaCauTraLoi: string;
+  NoiDung: string;
+  LaDapAn: boolean;
+  ThuTu: number;
+}
+
+interface BackendCauHoi {
+  MaCauHoi: string;
+  NoiDung: string;
+  MaCLO?: string;
+  CapDo?: number;
+  CauTraLoi?: BackendCauTraLoi[];
 }
 
 interface ExamDetail {
@@ -47,7 +48,7 @@ interface ExamDetail {
   MaCauHoi: string;
   ThuTu: number;
   Phan: Phan;
-  CauHoi: CauHoi;
+  CauHoi: BackendCauHoi;
 }
 
 interface GroupedQuestions {
@@ -66,6 +67,8 @@ const ExamDetail = () => {
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const [showAnswers, setShowAnswers] = useState(true);
+  const printFrameRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     const fetchExamData = async () => {
@@ -83,7 +86,22 @@ const ExamDetail = () => {
         ]);
 
         setExam(examResponse.data);
-        setExamDetails(detailsResponse.data);
+
+        // Kiểm tra nếu dữ liệu trả về là object có thuộc tính items, hoặc là array
+        if (detailsResponse.data && typeof detailsResponse.data === 'object') {
+          if (Array.isArray(detailsResponse.data)) {
+            setExamDetails(detailsResponse.data);
+          } else if (detailsResponse.data.items && Array.isArray(detailsResponse.data.items)) {
+            setExamDetails(detailsResponse.data.items);
+          } else {
+            console.error("Unexpected response format:", detailsResponse.data);
+            setExamDetails([]);
+            setError("Định dạng dữ liệu không hợp lệ");
+          }
+        } else {
+          setExamDetails([]);
+          setError("Không có dữ liệu chi tiết đề thi");
+        }
       } catch (error) {
         console.error("Error fetching exam data:", error);
         setError("Không thể tải thông tin đề thi. Vui lòng thử lại sau.");
@@ -105,7 +123,134 @@ const ExamDetail = () => {
   };
 
   const handlePrintExam = () => {
-    window.print();
+    // Tạo nội dung trang in chuyên nghiệp
+    const printContent = generatePrintableHTML();
+
+    // Sử dụng iframe để in đề thi
+    if (printFrameRef.current) {
+      const frameWindow = printFrameRef.current.contentWindow;
+      if (frameWindow) {
+        frameWindow.document.open();
+        frameWindow.document.write(printContent);
+        frameWindow.document.close();
+        setTimeout(() => {
+          frameWindow.print();
+        }, 500);
+      }
+    } else {
+      // Fallback nếu iframe không khả dụng
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        printWindow.print();
+        setTimeout(() => {
+          printWindow.close();
+        }, 500);
+      }
+    }
+  };
+
+  const generatePrintableHTML = () => {
+    // Đảm bảo examDetails là mảng
+    const detailsArray = Array.isArray(examDetails) ? examDetails : [];
+
+    // Sắp xếp câu hỏi theo thứ tự
+    const sortedQuestions = [...detailsArray].sort((a, b) => a.ThuTu - b.ThuTu);
+
+    // Tạo HTML cho trang in
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${exam?.TenDeThi || 'Đề thi'}</title>
+        <meta charset="UTF-8">
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            line-height: 1.5;
+            margin: 0;
+            padding: 20px;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #000;
+            padding-bottom: 10px;
+          }
+          .school-info {
+            font-size: 12px;
+            text-transform: uppercase;
+            font-weight: bold;
+          }
+          .exam-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 10px 0;
+          }
+          .exam-info {
+            font-size: 12px;
+            font-style: italic;
+          }
+          .question {
+            margin-bottom: 15px;
+          }
+          .question-number {
+            font-weight: bold;
+          }
+          .answer {
+            margin-left: 20px;
+            margin-bottom: 5px;
+          }
+          .answer-letter {
+            font-weight: bold;
+          }
+          .correct-answer {
+            font-weight: ${showAnswers ? 'bold' : 'normal'};
+            color: ${showAnswers ? '#008000' : 'inherit'};
+          }
+          .page-break {
+            page-break-after: always;
+          }
+          @media print {
+            body {
+              padding: 0;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="school-info">
+            <div>BỘ GIÁO DỤC VÀ ĐÀO TẠO</div>
+            <div>TRƯỜNG ĐẠI HỌC HUTECH</div>
+          </div>
+          <div class="exam-title">${exam?.TenDeThi || 'ĐỀ THI'}</div>
+          <div class="exam-info">
+            <div>Môn: ${exam?.MonHoc?.TenMonHoc || ''}</div>
+            <div>Thời gian: 90 phút</div>
+          </div>
+        </div>
+
+        ${sortedQuestions.map((detail, index) => {
+          const question = detail.CauHoi;
+          return `
+            <div class="question">
+              <div class="question-number">Câu ${index + 1}: ${question.NoiDung || ''}</div>
+              ${question.CauTraLoi ? question.CauTraLoi.map((answer, idx) => {
+                const letter = String.fromCharCode(65 + idx);
+                return `
+                  <div class="answer ${answer.LaDapAn ? 'correct-answer' : ''}">
+                    <span class="answer-letter">${letter}.</span> ${answer.NoiDung || ''}
+                  </div>
+                `;
+              }).join('') : ''}
+            </div>
+          `;
+        }).join('')}
+      </body>
+      </html>
+    `;
   };
 
   const handleDownloadExam = () => {
@@ -114,8 +259,20 @@ const ExamDetail = () => {
     }
   };
 
+  const handleDownloadPDF = () => {
+    if (id) {
+      window.open(`/api/de-thi/${id}/pdf`, '_blank');
+    }
+  };
+
   const handleBack = () => {
     navigate('/exams');
+  };
+
+  const handleEditAllQuestions = () => {
+    if (id) {
+      navigate(`/exams/edit-questions/${id}`);
+    }
   };
 
   if (loading) {
@@ -157,8 +314,11 @@ const ExamDetail = () => {
     );
   }
 
+  // Đảm bảo examDetails là mảng trước khi dùng reduce
+  const detailsArray = Array.isArray(examDetails) ? examDetails : [];
+
   // Group questions by chapter (phan)
-  const groupedQuestions: GroupedQuestions = examDetails.reduce((acc: GroupedQuestions, detail) => {
+  const groupedQuestions: GroupedQuestions = detailsArray.reduce((acc: GroupedQuestions, detail) => {
     const phanId = detail.MaPhan;
     if (!acc[phanId]) {
       acc[phanId] = {
@@ -171,16 +331,16 @@ const ExamDetail = () => {
   }, {});
 
   // Transform CauHoi to the format expected by QuestionItem
-  const transformQuestion = (cauHoi: any): CauHoi => {
+  const transformQuestion = (cauHoi: BackendCauHoi, showAnswers: boolean): CauHoi => {
     return {
       id: cauHoi.MaCauHoi,
       content: cauHoi.NoiDung || '',
       clo: cauHoi.MaCLO ? `CLO ${cauHoi.MaCLO}` : null,
       type: 'single-choice', // Default, adjust based on your data
-      answers: cauHoi.CauTraLoi?.map((answer: any, idx: number) => ({
+      answers: cauHoi.CauTraLoi?.map((answer, idx) => ({
         id: answer.MaCauTraLoi,
         content: answer.NoiDung || '',
-        isCorrect: answer.LaDapAn,
+        isCorrect: showAnswers ? answer.LaDapAn : false, // Ẩn đáp án nếu không hiển thị
         order: answer.ThuTu || idx
       })) || [],
       capDo: cauHoi.CapDo
@@ -189,6 +349,13 @@ const ExamDetail = () => {
 
   return (
     <div className="p-6">
+      {/* Hidden iframe for printing */}
+      <iframe
+        ref={printFrameRef}
+        style={{ display: 'none' }}
+        title="print-frame"
+      />
+
       <div className="flex items-center mb-6 space-x-4">
         <Button variant="outline" onClick={handleBack}>
           <ArrowLeft className="mr-2" size={16} />
@@ -197,10 +364,16 @@ const ExamDetail = () => {
         <h1 className="text-2xl font-bold flex-grow">{exam.TenDeThi}</h1>
         <div className="flex space-x-2">
           {isAdmin && (
-            <Button variant="outline" onClick={handleEditExam}>
-              <Edit className="mr-2" size={16} />
-              Chỉnh sửa
-            </Button>
+            <>
+              <Button variant="outline" onClick={handleEditExam}>
+                <Edit className="mr-2" size={16} />
+                Chỉnh sửa
+              </Button>
+              <Button variant="outline" onClick={handleEditAllQuestions}>
+                <Pencil className="mr-2" size={16} />
+                Chỉnh sửa câu hỏi
+              </Button>
+            </>
           )}
           <Button variant="outline" onClick={handlePrintExam}>
             <Printer className="mr-2" size={16} />
@@ -208,7 +381,11 @@ const ExamDetail = () => {
           </Button>
           <Button onClick={handleDownloadExam}>
             <Download className="mr-2" size={16} />
-            Tải xuống
+            Tải Word
+          </Button>
+          <Button variant="secondary" onClick={handleDownloadPDF}>
+            <FileText className="mr-2" size={16} />
+            Tải PDF
           </Button>
         </div>
       </div>
@@ -246,6 +423,27 @@ const ExamDetail = () => {
                   {exam.DaDuyet ? 'Đã duyệt' : 'Chưa duyệt'}
                 </Badge>
               </div>
+
+              <div className="flex items-center space-x-2 pt-4">
+                <Switch
+                  id="show-answers"
+                  checked={showAnswers}
+                  onCheckedChange={setShowAnswers}
+                />
+                <Label htmlFor="show-answers">
+                  {showAnswers ? (
+                    <div className="flex items-center">
+                      <Eye className="w-4 h-4 mr-1" />
+                      Hiển thị đáp án
+                    </div>
+                  ) : (
+                    <div className="flex items-center">
+                      <EyeOff className="w-4 h-4 mr-1" />
+                      Ẩn đáp án
+                    </div>
+                  )}
+                </Label>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -271,7 +469,7 @@ const ExamDetail = () => {
                         {group.questions.map((detail, qIndex) => (
                           <QuestionItem
                             key={detail.MaCauHoi}
-                            question={transformQuestion(detail.CauHoi)}
+                            question={transformQuestion(detail.CauHoi, showAnswers)}
                             index={qIndex + 1}
                           />
                         ))}

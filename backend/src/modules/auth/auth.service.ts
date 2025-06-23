@@ -15,15 +15,34 @@ export class AuthService {
     ) { }
 
     async validateUser(loginName: string, password: string): Promise<any> {
-        const user = await this.userRepository.findOne({ where: { LoginName: loginName } });
-        if (user && await bcrypt.compare(password, user.Password)) {
-            const { Password, ...result } = user;
-            return result;
+        if (!loginName || !password) {
+            return null;
         }
+
+        const user = await this.userRepository.findOne({ where: { LoginName: loginName } });
+
+        if (!user || !user.Password) {
+            return null;
+        }
+
+        try {
+            const isPasswordValid = await bcrypt.compare(password, user.Password);
+            if (isPasswordValid) {
+                const { Password, PasswordSalt, ...result } = user;
+                return result;
+            }
+        } catch (error) {
+            console.error('Error validating password:', error);
+        }
+
         return null;
     }
 
     async login(loginDto: LoginDto): Promise<TokenResponseDto> {
+        if (!loginDto || !loginDto.loginName || !loginDto.password) {
+            throw new UnauthorizedException('Invalid credentials: Missing username or password');
+        }
+
         const user = await this.validateUser(loginDto.loginName, loginDto.password);
         if (!user) {
             throw new UnauthorizedException('Invalid credentials');
@@ -55,7 +74,8 @@ export class AuthService {
             email: user.Email,
             name: user.Name,
             role: userRole,
-            IsBuildInUser: user.IsBuildInUser
+            IsBuildInUser: user.IsBuildInUser,
+            needChangePassword: user.NeedChangePassword
         };
 
         return {
@@ -66,7 +86,8 @@ export class AuthService {
                 email: user.Email,
                 name: user.Name,
                 role: userRole,
-                IsBuildInUser: user.IsBuildInUser
+                IsBuildInUser: user.IsBuildInUser,
+                needChangePassword: user.NeedChangePassword
             }
         };
     }
@@ -127,6 +148,36 @@ export class AuthService {
             return user;
         } catch {
             throw new UnauthorizedException('Invalid token');
+        }
+    }
+
+    async forceLogout(userId: string): Promise<{ success: boolean, message: string }> {
+        try {
+            const user = await this.userRepository.findOne({ where: { UserId: userId } });
+
+            if (!user) {
+                throw new BadRequestException('User not found');
+            }
+
+            if (user.IsBuildInUser) {
+                throw new BadRequestException('Cannot force logout an admin user');
+            }
+
+            // Update last activity date to invalidate token
+            // We use a past date to ensure token is invalid
+            await this.userRepository.update(userId, {
+                LastActivityDate: new Date(2000, 1, 1)
+            });
+
+            return {
+                success: true,
+                message: 'User has been logged out successfully'
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: error.message || 'Failed to logout user'
+            };
         }
     }
 }

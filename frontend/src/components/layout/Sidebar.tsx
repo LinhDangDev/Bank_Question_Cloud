@@ -222,21 +222,6 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
                 Danh sách người dùng
               </span>
             </Link>
-            <Link
-              to="/add-user"
-              className={`flex items-center px-2 py-2 text-sm rounded-lg ${
-                !isExpanded ? 'justify-center' : ''
-              } ${isDark
-                ? 'hover:bg-gray-700'
-                : 'hover:bg-gray-100'
-              }`}
-              aria-label="Thêm người dùng"
-            >
-              <PlusCircle className="w-5 h-5" />
-              <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
-                Thêm người dùng
-              </span>
-            </Link>
           </div>
         </div>
         )}

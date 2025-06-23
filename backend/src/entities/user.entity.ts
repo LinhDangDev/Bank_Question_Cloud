@@ -1,4 +1,5 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Khoa } from './khoa.entity';
 
 @Entity('User')
 export class User {
@@ -25,6 +26,9 @@ export class User {
 
     @Column({ default: false })
     IsLockedOut: boolean;
+
+    @Column({ default: true })
+    NeedChangePassword: boolean;
 
     @Column({ nullable: true })
     LastActivityDate: Date;
@@ -58,4 +62,11 @@ export class User {
 
     @Column({ default: false })
     IsBuildInUser: boolean;
+
+    @Column({ nullable: true })
+    MaKhoa: string;
+
+    @ManyToOne(() => Khoa)
+    @JoinColumn({ name: 'MaKhoa' })
+    Khoa: Khoa;
 }

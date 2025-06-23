@@ -7,6 +7,7 @@ export interface User {
   name: string;
   role: 'admin' | 'teacher';
   IsBuildInUser: boolean;
+  needChangePassword?: boolean;
 }
 
 interface AuthContextType {

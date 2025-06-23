@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { useThemeStyles, cx } from '../../utils/theme'
 import { useAuth } from '../../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import { API_BASE_URL } from '@/config'
+import { authApi } from '@/services/api'
 
 const SignIn = () => {
   const [showPassword, setShowPassword] = useState(false)
@@ -23,32 +23,20 @@ const SignIn = () => {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          loginName: username,
-          password,
-        }),
-      });
+      const response = await authApi.login({ username, password });
 
-      const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to login');
-      }
-
-      // Debug logging to examine the login response
-      console.log('Login response:', data);
-      console.log('Token received:', data.access_token);
-
-      login(data.user, data.access_token);
+      login(response.data.user, response.data.access_token);
       navigate('/');
     } catch (err: any) {
       console.error('Login error:', err);
-      setError(err.message || 'An error occurred during login');
+      if (err.response?.data?.message) {
+        setError(err.response.data.message);
+      } else if (err.message) {
+        setError(err.message);
+      } else {
+        setError('An error occurred during login');
+      }
     } finally {
       setLoading(false);
     }

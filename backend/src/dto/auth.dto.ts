@@ -49,5 +49,6 @@ export class TokenResponseDto {
         name: string;
         role: string;
         IsBuildInUser: boolean;
+        needChangePassword?: boolean;
     };
 }

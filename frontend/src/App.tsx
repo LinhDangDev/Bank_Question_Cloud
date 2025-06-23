@@ -1,33 +1,34 @@
-import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
-import Layout from './components/layout/Layout'
-import Home from './pages/Home/Home'
-import SignIn from './pages/Auth/SignIn'
-import Questions from './pages/Questions/Questions'
-import ChapterQuestions from './pages/Questions/ChapterQuestions'
-import CreateQuestion from './pages/Questions/CreateQuestion'
-import UploadQuestions from './pages/Questions/UploadQuestions'
-import Faculty from './pages/Subject/Faculty'
-import SubjectList from './pages/Subject/SubjectList'
-import ChapterList from './pages/Subject/ChapterList'
-import PDF from './pages/Tool/PDF'
-import Search from './pages/Home/Search'
-import Exams from './pages/Tool/Exams'
-import Users from './pages/Users/Users'
-import AddUser from './pages/Users/AddUser'
-import Extract from './pages/Tool/Extract'
-import Help from './pages/Support/Help'
-import Feedback from './pages/Support/Feedback'
-import Settings from './pages/Settings/Settings'
-import NotFound from './pages/NotFound'
-import EditQuestion from './pages/Questions/EditQuestion'
-import { ThemeProvider } from './context/ThemeContext'
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import Layout from '@/components/layout/Layout'
+import Home from '@/pages/Home/Home'
+import SignIn from '@/pages/Auth/SignIn'
+import Questions from '@/pages/Questions/Questions'
+import ChapterQuestions from '@/pages/Questions/ChapterQuestions'
+import CreateQuestion from '@/pages/Questions/CreateQuestion'
+import UploadQuestions from '@/pages/Questions/UploadQuestions'
+import Faculty from '@/pages/Subject/Faculty'
+import SubjectList from '@/pages/Subject/SubjectList'
+import ChapterList from '@/pages/Subject/ChapterList'
+import PDF from '@/pages/Tool/PDF'
+import Search from '@/pages/Home/Search'
+import Exams from '@/pages/Tool/Exams'
+import Users from '@/pages/Users/Users'
+import AddUser from '@/pages/Users/AddUser'
+import Extract from '@/pages/Tool/Extract'
+import Help from '@/pages/Support/Help'
+import Feedback from '@/pages/Support/Feedback'
+import Settings from '@/pages/Settings/Settings'
+import NotFound from '@/pages/NotFound'
+import EditQuestion from '@/pages/Questions/EditQuestion'
+import { ThemeProvider } from '@/context/ThemeContext'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 import 'katex/dist/katex.min.css'
-import './styles/mathlive.css'
-import ExamDetail from './pages/Tool/ExamDetail/ExamDetail'
-import EditUser from './pages/Users/EditUser'
-import { AuthProvider, useAuth } from './context/AuthContext'
+import '@/styles/mathlive.css'
+import ExamDetail from '@/pages/Tool/ExamDetail/ExamDetail'
+import EditUser from '@/pages/Users/EditUser'
+import { AuthProvider, useAuth } from '@/context/AuthContext'
+import FirstTimePassword from '@/pages/Auth/FirstTimePassword'
 
 // RequireAuth component
 function RequireAuth() {
@@ -35,13 +36,38 @@ function RequireAuth() {
   const location = useLocation();
 
   // Log authentication status
-  console.log('RequireAuth - Authentication status:', { isAuthenticated: !!user, user });
+//   console.log('RequireAuth - Authentication status:', { isAuthenticated: !!user, user });
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // Redirect to password change if needed
+  if (user.needChangePassword) {
+    return <Navigate to="/change-password" replace />;
+  }
+
   return <Outlet />;
+}
+
+function AuthenticatedRoute({ element, requireAdmin = false }: { element: React.ReactNode, requireAdmin?: boolean }) {
+  const { user } = useAuth()
+
+  if (!user) {
+    return <Navigate to="/signin" replace />
+  }
+
+  // Redirect to password change if needed
+  if (user.needChangePassword) {
+    return <Navigate to="/change-password" replace />
+  }
+
+  // Check admin requirement
+  if (requireAdmin && user.role !== 'admin') {
+    return <Navigate to="/" replace />
+  }
+
+  return element
 }
 
 function App() {
@@ -62,6 +88,7 @@ function App() {
         />
         <Routes>
           <Route path="/login" element={<SignIn />} />
+          <Route path="/change-password" element={<FirstTimePassword />} />
           <Route element={<RequireAuth />}>
             <Route path="/" element={<Layout />}>
               <Route index element={<Home />} />

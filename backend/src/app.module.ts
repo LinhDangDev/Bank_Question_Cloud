@@ -20,6 +20,7 @@ import { QueueModule } from './modules/queue/queue.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import { FilesModule } from './modules/files/files.module';
 import { QuestionsImportModule } from './modules/questions-import/questions-import.module';
+import { UsersModule } from './modules/users/users.module';
 
 
 @Module({
@@ -51,6 +52,7 @@ import { QuestionsImportModule } from './modules/questions-import/questions-impo
         QueueModule,
         FilesModule,
         QuestionsImportModule,
+        UsersModule,
     ],
     controllers: [AppController],
     providers: [AppService],
