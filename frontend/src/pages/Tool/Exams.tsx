@@ -1,38 +1,243 @@
-import { useState } from 'react'
-import { Search, Filter, Plus, FileText, Download, Edit, Trash2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Search, Filter, Plus, FileText, Download, Edit, Trash2, Eye, CheckCircle, XCircle } from 'lucide-react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { examApi } from '@/services/api'
+import { useNavigate } from 'react-router-dom'
+import { toast } from 'react-toastify'
+import { useAuth } from '../../context/AuthContext'
 
 const Exams = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedSubject, setSelectedSubject] = useState('')
   const [selectedSemester, setSelectedSemester] = useState('')
-
-  // Mock data - would be replaced with API data
-  const exams = [
-    { id: 1, title: 'Đề thi cuối kỳ Lập trình Web HK1 2022-2023', subject: 'Lập trình Web', semester: 'HK1 2022-2023', questionCount: 40, createdBy: 'Nguyễn Văn A', createdAt: '10/12/2022' },
-    { id: 2, title: 'Đề thi giữa kỳ Mạng máy tính HK2 2022-2023', subject: 'Mạng máy tính', semester: 'HK2 2022-2023', questionCount: 30, createdBy: 'Trần Thị B', createdAt: '15/03/2023' },
-    { id: 3, title: 'Đề thi cuối kỳ Hệ điều hành HK1 2023-2024', subject: 'Hệ điều hành', semester: 'HK1 2023-2024', questionCount: 35, createdBy: 'Lê Văn C', createdAt: '20/12/2023' },
-    { id: 4, title: 'Đề thi giữa kỳ Cơ sở dữ liệu HK1 2023-2024', subject: 'Cơ sở dữ liệu', semester: 'HK1 2023-2024', questionCount: 25, createdBy: 'Phạm Thị D', createdAt: '25/10/2023' },
-  ]
+  const [loading, setLoading] = useState(false)
+  const [approvedExams, setApprovedExams] = useState([])
+  const [pendingExams, setPendingExams] = useState([])
+  const navigate = useNavigate()
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
 
   const subjects = ['Tất cả', 'Lập trình Web', 'Mạng máy tính', 'Hệ điều hành', 'Cơ sở dữ liệu']
   const semesters = ['Tất cả', 'HK1 2022-2023', 'HK2 2022-2023', 'HK1 2023-2024', 'HK2 2023-2024']
 
-  const filteredExams = exams.filter(exam => {
-    const matchesQuery = exam.title.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesSubject = selectedSubject === '' || selectedSubject === 'Tất cả' || exam.subject === selectedSubject
-    const matchesSemester = selectedSemester === '' || selectedSemester === 'Tất cả' || exam.semester === selectedSemester
+  const fetchExams = async () => {
+    try {
+      setLoading(true)
+      console.log('Fetching exams...');
 
-    return matchesQuery && matchesSubject && matchesSemester
-  })
+      // Fetch all exams and filter them on the frontend
+      const response = await examApi.getAll();
+
+      console.log('All exams response:', response);
+
+      const allExams = response.data?.items || response.data || [];
+
+      console.log('All exams data:', allExams);
+
+      // Filter exams by approval status
+      const approved = allExams.filter((exam: any) => exam.DaDuyet === true);
+      const pending = allExams.filter((exam: any) => exam.DaDuyet === false);
+
+      console.log('Filtered - Approved:', approved.length, 'Pending:', pending.length);
+
+      setApprovedExams(approved)
+      setPendingExams(pending)
+
+    } catch (error: any) {
+      console.error('Error fetching exams:', error)
+      toast.error('Không thể tải danh sách đề thi')
+      // Set empty arrays to avoid undefined errors
+      setApprovedExams([])
+      setPendingExams([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchExams()
+  }, [])
+
+  const filterExams = (exams: any) => {
+    return exams.filter((exam: any) => {
+      const matchesQuery = exam.TenDeThi?.toLowerCase().includes(searchQuery.toLowerCase())
+      const matchesSubject = selectedSubject === '' || selectedSubject === 'Tất cả' || exam.MonHoc?.TenMonHoc === selectedSubject
+      // Implement semester filtering when available in the API
+      //const matchesSemester = selectedSemester === '' || selectedSemester === 'Tất cả' || exam.semester === selectedSemester
+      return matchesQuery && matchesSubject // && matchesSemester
+    })
+  }
+
+  const handleViewExam = (examId: any) => {
+    navigate(`/exams/${examId}`)
+  }
+
+  const handleEditExam = (examId: any) => {
+    navigate(`/exams/edit/${examId}`)
+  }
+
+  const handleDeleteExam = async (examId: any) => {
+    if (window.confirm('Bạn có chắc chắn muốn xóa đề thi này không?')) {
+      try {
+        await examApi.deleteExam(examId)
+        toast.success('Xóa đề thi thành công')
+        fetchExams()
+      } catch (error) {
+        console.error('Error deleting exam:', error)
+        toast.error('Không thể xóa đề thi')
+      }
+    }
+  }
+
+  const handleApproveExam = async (examId: any) => {
+    try {
+      await examApi.approveExam(examId)
+      toast.success('Duyệt đề thi thành công')
+      fetchExams()
+    } catch (error) {
+      console.error('Error approving exam:', error)
+      toast.error('Không thể duyệt đề thi')
+    }
+  }
+
+  const handleCreateExam = () => {
+    navigate('/extract')
+  }
+
+  const renderExamTable = (exams: any, isApproved = false) => {
+    const filteredExams = filterExams(exams)
+
+    return (
+      <div className="overflow-x-auto">
+        <table className="min-w-full bg-white">
+          <thead>
+            <tr className="bg-gray-100 text-gray-600 uppercase text-sm leading-normal">
+              <th className="py-3 px-6 text-left">Tên đề thi</th>
+              <th className="py-3 px-6 text-left">Môn học</th>
+              <th className="py-3 px-6 text-center">Số câu hỏi</th>
+              <th className="py-3 px-6 text-center">Trạng thái</th>
+              <th className="py-3 px-6 text-center">Ngày tạo</th>
+              <th className="py-3 px-6 text-center">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody className="text-gray-600 text-sm">
+            {loading ? (
+              <tr>
+                <td colSpan={6} className="py-4 px-6 text-center">
+                  Đang tải...
+                </td>
+              </tr>
+            ) : filteredExams.length > 0 ? (
+              filteredExams.map((exam: any)  => (
+                <tr key={exam.MaDeThi} className="border-b border-gray-200 hover:bg-gray-50">
+                  <td className="py-3 px-6 text-left">
+                    <div className="flex items-center">
+                      <FileText size={16} className="mr-2 text-blue-500" />
+                      <span>{exam.TenDeThi}</span>
+                    </div>
+                  </td>
+                  <td className="py-3 px-6 text-left">{exam.MonHoc?.TenMonHoc || '-'}</td>
+                  <td className="py-3 px-6 text-center">{exam.SoCauHoi || 0}</td>
+                  <td className="py-3 px-6 text-center">
+                    {exam.DaDuyet ? (
+                      <span className="flex items-center justify-center text-green-500">
+                        <CheckCircle size={16} className="mr-1" /> Đã duyệt
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center text-yellow-500">
+                        <XCircle size={16} className="mr-1" /> Chưa duyệt
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3 px-6 text-center">
+                    {new Date(exam.NgayTao).toLocaleDateString('vi-VN')}
+                  </td>
+                  <td className="py-3 px-6 text-center">
+                    <div className="flex items-center justify-center">
+                      <button
+                        onClick={() => handleViewExam(exam.MaDeThi)}
+                        className="transform hover:text-blue-500 hover:scale-110 transition-all p-1"
+                        title="Xem chi tiết"
+                      >
+                        <Eye size={18} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          examApi.downloadExam(exam.MaDeThi, 'pdf')
+                            .then(response => {
+                              const url = window.URL.createObjectURL(new Blob([response.data]));
+                              const link = document.createElement('a');
+                              link.href = url;
+                              link.setAttribute('download', `exam-${exam.MaDeThi}.pdf`);
+                              document.body.appendChild(link);
+                              link.click();
+                              link.remove();
+                            })
+                            .catch(error => {
+                              console.error('Error downloading exam:', error);
+                              toast.error('Không thể tải xuống đề thi');
+                            });
+                        }}
+                        className="transform hover:text-green-500 hover:scale-110 transition-all p-1 ml-2"
+                        title="Tải xuống"
+                      >
+                        <Download size={18} />
+                      </button>
+                      {!isApproved && isAdmin && (
+                        <>
+                          <button
+                            onClick={() => handleEditExam(exam.MaDeThi)}
+                            className="transform hover:text-yellow-500 hover:scale-110 transition-all p-1 ml-2"
+                            title="Chỉnh sửa"
+                          >
+                            <Edit size={18} />
+                          </button>
+                          <button
+                            onClick={() => handleApproveExam(exam.MaDeThi)}
+                            className="transform hover:text-green-500 hover:scale-110 transition-all p-1 ml-2"
+                            title="Duyệt"
+                          >
+                            <CheckCircle size={18} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteExam(exam.MaDeThi)}
+                            className="transform hover:text-red-500 hover:scale-110 transition-all p-1 ml-2"
+                            title="Xóa"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={6} className="py-4 px-6 text-center">
+                  Không tìm thấy đề thi nào
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
         <h1 className="text-2xl font-bold">Danh sách đề thi</h1>
-        <button className="mt-4 sm:mt-0 flex items-center bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
-          <Plus size={18} className="mr-2" />
-          Tạo đề thi mới
-        </button>
+        {isAdmin && (
+          <button
+            onClick={handleCreateExam}
+            className="mt-4 sm:mt-0 flex items-center bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+          >
+            <Plus size={18} className="mr-2" />
+            Tạo đề thi mới
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-lg shadow p-6 mb-6">
@@ -86,57 +291,20 @@ const Exams = () => {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full bg-white">
-            <thead>
-              <tr className="bg-gray-100 text-gray-600 uppercase text-sm leading-normal">
-                <th className="py-3 px-6 text-left">Tên đề thi</th>
-                <th className="py-3 px-6 text-left">Môn học</th>
-                <th className="py-3 px-6 text-left">Học kỳ</th>
-                <th className="py-3 px-6 text-center">Số câu hỏi</th>
-                <th className="py-3 px-6 text-center">Ngày tạo</th>
-                <th className="py-3 px-6 text-center">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="text-gray-600 text-sm">
-              {filteredExams.length > 0 ? (
-                filteredExams.map(exam => (
-                  <tr key={exam.id} className="border-b border-gray-200 hover:bg-gray-50">
-                    <td className="py-3 px-6 text-left">
-                      <div className="flex items-center">
-                        <FileText size={16} className="mr-2 text-blue-500" />
-                        <span>{exam.title}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-6 text-left">{exam.subject}</td>
-                    <td className="py-3 px-6 text-left">{exam.semester}</td>
-                    <td className="py-3 px-6 text-center">{exam.questionCount}</td>
-                    <td className="py-3 px-6 text-center">{exam.createdAt}</td>
-                    <td className="py-3 px-6 text-center">
-                      <div className="flex item-center justify-center">
-                        <button className="transform hover:text-blue-500 hover:scale-110 transition-all p-1">
-                          <Download size={18} />
-                        </button>
-                        <button className="transform hover:text-yellow-500 hover:scale-110 transition-all p-1 ml-2">
-                          <Edit size={18} />
-                        </button>
-                        <button className="transform hover:text-red-500 hover:scale-110 transition-all p-1 ml-2">
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={6} className="py-4 px-6 text-center">
-                    Không tìm thấy đề thi nào
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <Tabs defaultValue="pending" className="w-full">
+          <TabsList className="mb-4">
+            <TabsTrigger value="pending">Chưa duyệt</TabsTrigger>
+            <TabsTrigger value="approved">Đã duyệt</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="pending">
+            {renderExamTable(pendingExams, false)}
+          </TabsContent>
+
+          <TabsContent value="approved">
+            {renderExamTable(approvedExams, true)}
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   )

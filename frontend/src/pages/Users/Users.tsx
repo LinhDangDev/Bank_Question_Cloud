@@ -7,9 +7,14 @@ import { Link } from 'react-router-dom'
 import PageContainer from '../../components/ui/PageContainer'
 import { Card } from '@/components/ui/card'
 import { Input } from "@/components/ui/input"
+import { useAuth } from '../../context/AuthContext'
 
 
 const Users = () => {
+  const { user } = useAuth();
+  if (user?.role !== 'admin') {
+    return <div className="p-8 text-center text-red-500 font-semibold">Bạn không có quyền truy cập trang này.</div>;
+  }
   const [searchQuery, setSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -40,7 +45,7 @@ const Users = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
         <h1 className="text-2xl font-bold">Danh sách người dùng</h1>
         <Link
-          to="/add-user"
+          to="/users/add"
           className={cx("mt-4 sm:mt-0 flex items-center px-4 py-2 rounded-lg transition", styles.primaryButton)}
         >
           <Plus size={18} className="mr-2" />
@@ -133,9 +138,12 @@ const Users = () => {
                         <button className="transform hover:text-green-500 hover:scale-110 transition-all p-1">
                           {user.status === 'Hoạt động' ? <UserX size={18} /> : <UserCheck size={18} />}
                         </button>
-                        <button className="transform hover:text-yellow-500 hover:scale-110 transition-all p-1 ml-2">
+                        <Link
+                          to={`/users/edit/${user.id}`}
+                          className="transform hover:text-yellow-500 hover:scale-110 transition-all p-1 ml-2"
+                        >
                           <Edit size={18} />
-                        </button>
+                        </Link>
                         <button className="transform hover:text-red-500 hover:scale-110 transition-all p-1 ml-2">
                           <Trash2 size={18} />
                         </button>

@@ -14,6 +14,8 @@ import QuestionItem, { Question as FrontendQuestionType } from '@/components/Que
 import PaginationBar from '@/components/PaginationBar'
 import Filters, { FilterOptions } from '@/components/Filters'
 import { renderLatex } from '@/utils/latex'
+import { fetchWithAuth } from '@/services/api'
+import { useAuth } from '@/context/AuthContext'
 
 // Define the Answer interface based on the API response
 interface Answer {
@@ -132,9 +134,15 @@ const Questions = () => {
   const [processedGroupIds, setProcessedGroupIds] = useState<Set<string>>(new Set());
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
   const [questionToDelete, setQuestionToDelete] = useState<string | null>(null);
+  const { token } = useAuth();
 
   const fetchQuestions = useCallback(async () => {
       try {
+        // Debug logging to see authentication information
+        console.log('API URL:', API_BASE_URL);
+        console.log('Token from useAuth:', token);
+        console.log('Token from localStorage:', localStorage.getItem('token'));
+
         setLoading(true);
         const newProcessedGroupIds = new Set<string>();
         setProcessedGroupIds(newProcessedGroupIds);
@@ -168,8 +176,8 @@ const Questions = () => {
           queryParams.append('capDo', filters.difficulty.toString());
         }
 
-        // Fetch regular questions with full details
-        const response = await fetch(`${API_BASE_URL}/cau-hoi?${queryParams.toString()}`);
+        // Fetch regular questions with full details using fetchWithAuth
+        const response = await fetchWithAuth(`${API_BASE_URL}/cau-hoi?${queryParams.toString()}`);
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);
         }
@@ -179,8 +187,8 @@ const Questions = () => {
         const regularQuestionsWithDetails = await Promise.all(
           data.items.map(async (question) => {
             try {
-              // Fetch full details for each question
-              const detailsResponse = await fetch(`${API_BASE_URL}/cau-hoi/${question.MaCauHoi}/full-details`);
+              // Fetch full details for each question using fetchWithAuth
+              const detailsResponse = await fetchWithAuth(`${API_BASE_URL}/cau-hoi/${question.MaCauHoi}/full-details`);
               if (detailsResponse.ok) {
                 const details = await detailsResponse.json();
                 return {
@@ -198,9 +206,9 @@ const Questions = () => {
           })
         );
 
-        // Now fetch group questions with all details
+        // Now fetch group questions with all details using fetchWithAuth
         const groupQueryParams = new URLSearchParams(queryParams);
-        const groupResponse = await fetch(`${API_BASE_URL}/cau-hoi/group?${groupQueryParams.toString()}`);
+        const groupResponse = await fetchWithAuth(`${API_BASE_URL}/cau-hoi/group?${groupQueryParams.toString()}`);
         if (!groupResponse.ok) {
           throw new Error(`HTTP error fetching group questions! Status: ${groupResponse.status}`);
         }
@@ -210,16 +218,16 @@ const Questions = () => {
         const groupQuestionsWithDetails = await Promise.all(
           groupData.items.map(async (groupQuestion: BackendQuestion) => {
             try {
-              // Fetch full details for the group question
-              const detailsResponse = await fetch(`${API_BASE_URL}/cau-hoi/${groupQuestion.MaCauHoi}/full-details`);
+              // Fetch full details for the group question using fetchWithAuth
+              const detailsResponse = await fetchWithAuth(`${API_BASE_URL}/cau-hoi/${groupQuestion.MaCauHoi}/full-details`);
               if (!detailsResponse.ok) {
                 return { ...groupQuestion, LaCauHoiNhom: true };
               }
 
               const details = await detailsResponse.json();
 
-              // Fetch child questions
-              const childQuestionsResponse = await fetch(`${API_BASE_URL}/cau-hoi/con/${groupQuestion.MaCauHoi}?limit=50`);
+              // Fetch child questions using fetchWithAuth
+              const childQuestionsResponse = await fetchWithAuth(`${API_BASE_URL}/cau-hoi/con/${groupQuestion.MaCauHoi}?limit=50`);
               if (!childQuestionsResponse.ok) {
                 return {
                   ...groupQuestion,
@@ -232,11 +240,11 @@ const Questions = () => {
 
               const childQuestionsData = await childQuestionsResponse.json();
 
-              // Fetch answers for each child question
+              // Fetch answers for each child question using fetchWithAuth
               const childQuestionsWithAnswers = await Promise.all(
                 childQuestionsData.items.map(async (childQ: any) => {
                   try {
-                    const answersResponse = await fetch(`${API_BASE_URL}/cau-tra-loi/cau-hoi/${childQ.MaCauHoi}`);
+                    const answersResponse = await fetchWithAuth(`${API_BASE_URL}/cau-tra-loi/cau-hoi/${childQ.MaCauHoi}`);
                     if (answersResponse.ok) {
                       const answersData = await answersResponse.json();
                       return {
@@ -309,8 +317,16 @@ const Questions = () => {
 
   // Fetch questions when component mounts or dependencies change
   useEffect(() => {
-    fetchQuestions();
-  }, [fetchQuestions]);
+    // Only fetch questions if token exists
+    if (token) {
+      console.log('Token exists, fetching questions...');
+      fetchQuestions();
+    } else {
+      console.log('No token available, skipping API call');
+      setError('Authentication required. Please log in.');
+      setLoading(false);
+    }
+  }, [fetchQuestions, token]);
 
   // Function to toggle expanded state for group questions
   const toggleGroup = (questionId: string) => {
@@ -335,7 +351,7 @@ const Questions = () => {
   // Function to restore a deleted question
   const handleRestoreQuestion = async (questionId: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/cau-hoi/${questionId}/restore`, {
+      const response = await fetchWithAuth(`${API_BASE_URL}/cau-hoi/${questionId}/restore`, {
         method: 'PATCH',
       });
 
@@ -367,7 +383,7 @@ const Questions = () => {
     if (!questionToDelete) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/cau-hoi/${questionToDelete}/soft-delete`, {
+      const response = await fetchWithAuth(`${API_BASE_URL}/cau-hoi/${questionToDelete}/soft-delete`, {
         method: 'PATCH',
       });
 

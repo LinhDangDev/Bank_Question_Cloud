@@ -9,31 +9,30 @@ interface MathRendererProps {
   className?: string;
 }
 
-/**
- * Component for rendering Markdown, HTML, and math/LaTeX expressions using react-markdown.
- */
 export const MathRenderer = ({ content, className = '' }: MathRendererProps) => {
+  const MarkdownComponent = ReactMarkdown as any;
   return (
-    <ReactMarkdown
-      className={`math-renderer ${className}`}
-      remarkPlugins={[remarkMath]}
-      rehypePlugins={[rehypeKatex]}
-      components={{
-        // Allow rendering of basic HTML tags if needed.
-        // For security, this should be carefully managed.
-        // Here we are allowing a few safe tags to pass through.
-        p: ({ node, ...props }) => <p {...props} />,
-        span: ({ node, ...props }) => <span {...props} />,
-        div: ({ node, ...props }) => <div {...props} />,
-        strong: ({ node, ...props }) => <strong {...props} />,
-        em: ({ node, ...props }) => <em {...props} />,
-        ul: ({ node, ...props }) => <ul {...props} />,
-        ol: ({ node, ...props }) => <ol {...props} />,
-        li: ({ node, ...props }) => <li {...props} />,
-        br: ({ node, ...props }) => <br {...props} />,
-      }}
-    >
-      {content}
-    </ReactMarkdown>
+    <div className={`math-renderer ${className}`}>
+      <MarkdownComponent
+        remarkPlugins={[remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+        components={{
+          // Allow rendering of basic HTML tags if needed.
+          // For security, this should be carefully managed.
+          // Here we are allowing a few safe tags to pass through.
+          p: ({ node, ...props }: any) => <p {...props} />,
+          span: ({ node, ...props }: any) => <span {...props} />,
+          div: ({ node, ...props }: any) => <div {...props} />,
+          strong: ({ node, ...props }: any) => <strong {...props} />,
+          em: ({ node, ...props }: any) => <em {...props} />,
+          ul: ({ node, ...props }: any) => <ul {...props} />,
+          ol: ({ node, ...props }: any) => <ol {...props} />,
+          li: ({ node, ...props }: any) => <li {...props} />,
+          br: ({ node, ...props }: any) => <br {...props} />,
+        }}
+      >
+        {content}
+      </MarkdownComponent>
+    </div>
   );
 };

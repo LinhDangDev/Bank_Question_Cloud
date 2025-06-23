@@ -1,7 +1,10 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { KhoaService } from './khoa.service';
 import { CreateKhoaDto, UpdateKhoaDto, KhoaResponseDto } from '../../dto/khoa.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @ApiTags('Khoa')
 @Controller('khoa')
@@ -43,6 +46,8 @@ export class KhoaController {
     }
 
     @Delete(':id')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin')
     @HttpCode(HttpStatus.NO_CONTENT)
     @ApiOperation({ summary: 'Delete faculty permanently' })
     @ApiParam({ name: 'id', description: 'Faculty ID' })
@@ -53,6 +58,8 @@ export class KhoaController {
     }
 
     @Patch(':id/soft-delete')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
     @ApiOperation({ summary: 'Soft delete faculty' })
     @ApiParam({ name: 'id', description: 'Faculty ID' })
     @ApiResponse({ status: 200, description: 'Faculty soft deleted successfully', type: KhoaResponseDto })

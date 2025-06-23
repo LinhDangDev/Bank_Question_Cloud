@@ -14,6 +14,7 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 
 interface SidebarProps {
   isExpanded: boolean;
@@ -23,6 +24,8 @@ interface SidebarProps {
 const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
+  const { user } = useAuth();
+  const role = user?.role;
 
   return (
     <nav
@@ -193,7 +196,8 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
           </div>
         </div>
 
-        {/* Quản lý người dùng section */}
+        {/* Quản lý người dùng section - chỉ admin */}
+        {role === 'admin' && (
         <div>
           <h2
             className={`text-xs uppercase font-semibold mb-1 ${
@@ -235,6 +239,7 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
             </Link>
           </div>
         </div>
+        )}
 
         {/* Công cụ section */}
         <div>

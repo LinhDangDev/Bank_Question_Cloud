@@ -1,10 +1,10 @@
-import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryColumn } from 'typeorm';
 import { ChiTietDeThi } from './chi-tiet-de-thi.entity';
 import { MonHoc } from './mon-hoc.entity';
 
 @Entity('DeThi')
 export class DeThi {
-    @PrimaryGeneratedColumn('uuid')
+    @PrimaryColumn({ type: 'uniqueidentifier', default: () => 'NEWID()' })
     MaDeThi: string;
 
     @Column({ type: 'uuid' })
@@ -18,6 +18,9 @@ export class DeThi {
 
     @Column({ type: 'bit', default: false })
     DaDuyet: boolean;
+
+    @Column({ type: 'int', nullable: true })
+    SoCauHoi: number;
 
     @Column({ type: 'nvarchar', length: 255, nullable: true })
     NguoiTao: string;

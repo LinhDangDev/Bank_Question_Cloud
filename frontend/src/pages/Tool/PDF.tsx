@@ -1,5 +1,4 @@
-import React, { useState, useEffect, ChangeEvent } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,106 +7,128 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { FileText, Download, Eye, Upload, BookOpen, GraduationCap, Calculator, Globe } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from 'react-toastify';
+import ExamPackageCard from '@/components/ExamPackageCard';
 import PDFPreview from '@/components/PDFPreview';
 import TemplateUpload from '@/components/TemplateUpload';
-import { API_BASE_URL } from '@/config';
 
-// Updated interfaces to match backend
-interface ExamQuestion {
-  id: string;
-  number: number;
-  content: string;
-  answers: {
-    id: string;
-    label: string;
-    content: string;
-    isCorrect: boolean;
-  }[];
-}
+const examPackages = [
+  {
+    id: 1,
+    title: "Toán học THPT",
+    subject: "Toán",
+    grade: "12",
+    questionCount: 50,
+    difficulty: "Khó",
+    category: "math",
+    description: "Bộ đề toán học lớp 12 với các dạng bài từ cơ bản đến nâng cao",
+    topics: ["Đạo hàm", "Tích phân", "Hình học không gian", "Xác suất"]
+  },
+  {
+    id: 2,
+    title: "Ngữ văn THPT",
+    subject: "Ngữ văn",
+    grade: "12",
+    questionCount: 40,
+    difficulty: "Trung bình",
+    category: "literature",
+    description: "Tuyển tập câu hỏi ngữ văn 12 theo chương trình mới",
+    topics: ["Văn học hiện đại", "Tác phẩm trong chương trình", "Nghị luận", "Làm văn"]
+  },
+  {
+    id: 3,
+    title: "Tiếng Anh THPT",
+    subject: "Tiếng Anh",
+    grade: "12",
+    questionCount: 60,
+    difficulty: "Trung bình",
+    category: "english",
+    description: "Đề thi tiếng Anh với các kỹ năng nghe, nói, đọc, viết",
+    topics: ["Grammar", "Vocabulary", "Reading", "Listening"]
+  },
+  {
+    id: 4,
+    title: "Vật lý THPT",
+    subject: "Vật lý",
+    grade: "12",
+    questionCount: 45,
+    difficulty: "Khó",
+    category: "physics",
+    description: "Bộ câu hỏi vật lý 12 bao gồm các chương quan trọng",
+    topics: ["Dao động", "Sóng", "Điện học", "Quang học"]
+  }
+];
 
-interface ExamPackage {
-  examId: string;
-  title: string;
-  subject: string;
-  questions: ExamQuestion[];
-}
-
-const PDF: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
-  const [examPackage, setExamPackage] = useState<ExamPackage | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [customTemplate, setCustomTemplate] = useState<File | null>(null);
+const PDF = () => {
+  const [selectedPackage, setSelectedPackage] = useState<any>(null);
+  const [selectedQuestions, setSelectedQuestions] = useState<any[]>([]);
+  const [customTemplate, setCustomTemplate] = useState<any>(null);
   const [examTitle, setExamTitle] = useState("Đề thi rút trích");
   const [examInstructions, setExamInstructions] = useState("Thời gian làm bài: 90 phút. Không được sử dụng tài liệu.");
 
-  useEffect(() => {
-    const lastGeneratedExamId = localStorage.getItem('lastGeneratedExamId');
-    const examId = id || lastGeneratedExamId;
-
-    if (examId) {
-      fetchExamPackage(examId);
-    } else {
-      setLoading(false);
-      toast.info("Không có đề thi nào được chọn", {
-        description: "Vui lòng tạo một đề thi trước khi xem trước PDF."
-      });
-    }
-  }, [id]);
-
-  const fetchExamPackage = async (examId: string) => {
-    try {
-      setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/de-thi/packages/${examId}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch exam package');
-      }
-      const data: ExamPackage = await response.json();
-      setExamPackage(data);
-      setExamTitle(data.title);
-    } catch (error) {
-      console.error('Error fetching exam package:', error);
-      toast.error("Lỗi khi tải dữ liệu đề thi");
-    } finally {
-      setLoading(false);
-    }
+  const handlePackageSelect = (pkg: any) => {
+    setSelectedPackage(pkg);
+    // Generate sample questions for the selected package
+    const sampleQuestions = Array.from({ length: Math.min(pkg.questionCount, 10) }, (_, i) => ({
+      id: i + 1,
+      question: `Câu ${i + 1}: Đây là câu hỏi mẫu cho môn ${pkg.subject}. Nội dung câu hỏi sẽ được hiển thị tại đây.`,
+      options: ["A. Đáp án A", "B. Đáp án B", "C. Đáp án C", "D. Đáp án D"],
+      correct: 0,
+      topic: pkg.topics[i % pkg.topics.length]
+    }));
+    setSelectedQuestions(sampleQuestions);
+    toast.success(`Đã chọn gói đề: ${pkg.title}`);
   };
 
-
   const handleExportPDF = () => {
-    if (!examPackage) {
+    if (!selectedPackage) {
       toast.error("Vui lòng chọn một gói đề trước khi xuất PDF");
       return;
     }
-    const url = `${API_BASE_URL}/de-thi/${examPackage.examId}/pdf`;
-    window.open(url, '_blank');
-    toast.success("Đang tải xuống file PDF...");
+
+    // Simulate PDF export
+    toast.info("Đang xuất PDF...", {
+      autoClose: 2000,
+    });
+
+    setTimeout(() => {
+      toast.success(`Đã tạo file ${examTitle}.pdf`, {
+        autoClose: 5000,
+      });
+    }, 2000);
   };
 
-  const getCategoryIcon = (subject: string) => {
-    const lowerSubject = subject.toLowerCase();
-    if (lowerSubject.includes('toán')) return <Calculator className="h-5 w-5" />;
-    if (lowerSubject.includes('văn')) return <BookOpen className="h-5 w-5" />;
-    if (lowerSubject.includes('anh')) return <Globe className="h-5 w-5" />;
-    if (lowerSubject.includes('lý')) return <GraduationCap className="h-5 w-5" />;
-    return <FileText className="h-5 w-5" />;
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case 'math': return <Calculator className="h-5 w-5" />;
+      case 'literature': return <BookOpen className="h-5 w-5" />;
+      case 'english': return <Globe className="h-5 w-5" />;
+      case 'physics': return <GraduationCap className="h-5 w-5" />;
+      default: return <FileText className="h-5 w-5" />;
+    }
   };
 
-  if (loading) {
-    return (
-      <div className="container mx-auto px-4 py-8 text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-        <p className="mt-4">Đang tải dữ liệu đề thi...</p>
-      </div>
-    );
-  }
+  const filteredPackages = examPackages;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
+            Hệ thống rút trích đề thi PDF
+          </h1>
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            Chọn gói đề thi, tùy chỉnh nội dung và xuất file PDF chất lượng cao một cách dễ dàng
+          </p>
+        </div>
 
-        <Tabs defaultValue="preview" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-8">
+        <Tabs defaultValue="packages" className="w-full">
+          <TabsList className="grid w-full grid-cols-4 mb-8">
+            <TabsTrigger value="packages" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Chọn đề thi
+            </TabsTrigger>
             <TabsTrigger value="customize" className="flex items-center gap-2">
               <BookOpen className="h-4 w-4" />
               Tùy chỉnh
@@ -122,6 +143,21 @@ const PDF: React.FC = () => {
             </TabsTrigger>
           </TabsList>
 
+          {/* Package Selection Tab */}
+          <TabsContent value="packages" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {filteredPackages.map((pkg) => (
+                <ExamPackageCard
+                  key={pkg.id}
+                  package={pkg as any}
+                  isSelected={selectedPackage?.id === pkg.id}
+                  onSelect={() => handlePackageSelect(pkg)}
+                  icon={getCategoryIcon(pkg.category)}
+                />
+              ))}
+            </div>
+          </TabsContent>
+
           {/* Customize Tab */}
           <TabsContent value="customize" className="space-y-6">
             <Card>
@@ -135,7 +171,7 @@ const PDF: React.FC = () => {
                     <Input
                       id="exam-title"
                       value={examTitle}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => setExamTitle(e.target.value)}
+                      onChange={(e) => setExamTitle(e.target.value)}
                       placeholder="Nhập tiêu đề đề thi"
                     />
                   </div>
@@ -152,13 +188,38 @@ const PDF: React.FC = () => {
                   <Textarea
                     id="exam-instructions"
                     value={examInstructions}
-                    onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setExamInstructions(e.target.value)}
+                    onChange={(e) => setExamInstructions(e.target.value)}
                     placeholder="Nhập hướng dẫn làm bài"
                     rows={3}
                   />
                 </div>
               </CardContent>
             </Card>
+
+            {selectedPackage && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Danh sách câu hỏi - {selectedPackage.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4 max-h-96 overflow-y-auto">
+                    {selectedQuestions.map((question) => (
+                      <div key={question.id} className="p-4 border rounded-lg">
+                        <div className="flex items-start justify-between mb-2">
+                          <h4 className="font-medium">{question.question}</h4>
+                          <Badge variant="outline">{question.topic}</Badge>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
+                          {question.options.map((option: string, idx: number) => (
+                            <div key={idx}>{option}</div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Preview Tab */}
@@ -166,8 +227,8 @@ const PDF: React.FC = () => {
             <PDFPreview
               examTitle={examTitle}
               examInstructions={examInstructions}
-              selectedPackage={examPackage}
-              questions={examPackage?.questions || []}
+              selectedPackage={selectedPackage}
+              questions={selectedQuestions}
             />
           </TabsContent>
 
@@ -182,8 +243,7 @@ const PDF: React.FC = () => {
           <Button
             onClick={handleExportPDF}
             size="lg"
-            disabled={!examPackage || loading}
-            className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
+            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg"
           >
             <Download className="h-5 w-5 mr-2" />
             Xuất PDF

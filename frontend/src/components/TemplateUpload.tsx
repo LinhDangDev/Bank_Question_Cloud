@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Upload, FileText, File, Trash2, Eye } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from 'react-toastify';
 
 interface TemplateUploadProps {
   onTemplateUpload: (template: File | null) => void;
@@ -22,24 +22,18 @@ const TemplateUpload: React.FC<TemplateUploadProps> = ({ onTemplateUpload }) => 
     ];
 
     if (!allowedTypes.includes(file.type)) {
-      toast.error("Định dạng file không được hỗ trợ", {
-        description: "Vui lòng chọn file PDF hoặc Word (.doc, .docx)"
-      });
+      toast.error("Định dạng file không được hỗ trợ. Vui lòng chọn file PDF hoặc Word (.doc, .docx)");
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) { // 10MB limit
-      toast.error("File quá lớn", {
-        description: "Vui lòng chọn file có kích thước nhỏ hơn 10MB"
-      });
+      toast.error("File quá lớn. Vui lòng chọn file có kích thước nhỏ hơn 10MB");
       return;
     }
 
     setUploadedTemplate(file);
     onTemplateUpload(file);
-    toast.success("Upload template thành công!", {
-      description: `Đã tải lên file ${file.name}`
-    });
+    toast.success(`Đã tải lên file ${file.name} thành công!`);
   };
 
   const handleDrop = (e: React.DragEvent) => {

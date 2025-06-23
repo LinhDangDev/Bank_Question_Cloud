@@ -1,6 +1,9 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
 import { MonHocService } from './mon-hoc.service';
 import { CreateMonHocDto, UpdateMonHocDto } from '../../dto/mon-hoc.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('mon-hoc')
 export class MonHocController {
@@ -32,11 +35,15 @@ export class MonHocController {
     }
 
     @Delete(':id')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin')
     async remove(@Param('id') id: string) {
         return await this.monHocService.remove(id);
     }
 
     @Patch(':id/soft-delete')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
     async softDelete(@Param('id') id: string) {
         return await this.monHocService.softDelete(id);
     }

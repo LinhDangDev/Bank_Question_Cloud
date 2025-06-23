@@ -2,7 +2,9 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Calendar, FileText } from 'lucide-react';
+import { format } from 'date-fns';
+import { vi } from 'date-fns/locale';
 
 interface ExamPackage {
   id: number;
@@ -14,6 +16,7 @@ interface ExamPackage {
   category: string;
   description: string;
   topics: string[];
+  createdAt: string;
 }
 
 interface ExamPackageCardProps {
@@ -38,77 +41,33 @@ const ExamPackageCard: React.FC<ExamPackageCardProps> = ({
     }
   };
 
+  const formattedDate = format(new Date(pkg.createdAt), 'dd/MM/yyyy', { locale: vi });
+
   return (
-    <Card
-      className={`relative transition-all duration-300 hover:shadow-lg cursor-pointer ${
-        isSelected
-          ? 'ring-2 ring-blue-500 shadow-lg transform scale-105'
-          : 'hover:shadow-md'
-      }`}
-      onClick={onSelect}
-    >
-      {isSelected && (
-        <div className="absolute -top-2 -right-2 z-10">
-          <CheckCircle className="h-6 w-6 text-blue-500 bg-white rounded-full" />
-        </div>
-      )}
-
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
-            {icon}
-          </div>
-          <div className="flex-1">
-            <Badge variant="outline" className="text-xs">
-              Lớp {pkg.grade}
-            </Badge>
-          </div>
-        </div>
-        <CardTitle className="text-lg font-semibold text-gray-800">
-          {pkg.title}
-        </CardTitle>
-      </CardHeader>
-
-      <CardContent className="space-y-3">
-        <p className="text-sm text-gray-600 line-clamp-2">
-          {pkg.description}
-        </p>
-
+    <Card className="h-full flex flex-col">
+      <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-gray-700">
-            {pkg.questionCount} câu hỏi
-          </span>
-          <Badge className={`text-xs ${getDifficultyColor(pkg.difficulty)}`}>
-            {pkg.difficulty}
-          </Badge>
+          <CardTitle className="text-lg font-medium truncate">{pkg.title}</CardTitle>
         </div>
-
+        <p className="text-sm text-muted-foreground">{pkg.subject}</p>
+      </CardHeader>
+      <CardContent className="flex-grow flex flex-col">
         <div className="space-y-2">
-          <p className="text-xs font-medium text-gray-700">Chủ đề:</p>
-          <div className="flex flex-wrap gap-1">
-            {pkg.topics.slice(0, 3).map((topic, index) => (
-              <Badge key={index} variant="secondary" className="text-xs">
-                {topic}
-              </Badge>
-            ))}
-            {pkg.topics.length > 3 && (
-              <Badge variant="secondary" className="text-xs">
-                +{pkg.topics.length - 3}
-              </Badge>
-            )}
+          <div className="flex items-center">
+            <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
+            <span className="text-sm">{formattedDate}</span>
+          </div>
+          <div className="flex items-center">
+            <FileText className="h-4 w-4 mr-2 text-muted-foreground" />
+            <span className="text-sm">{pkg.questionCount} câu hỏi</span>
           </div>
         </div>
-
         <Button
-          variant={isSelected ? "primary" : "outline"}
-          size="sm"
-          className="w-full mt-3"
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect();
-          }}
+          onClick={onSelect}
+          className="w-full mt-auto"
+          variant="primary"
         >
-          {isSelected ? "Đã chọn" : "Chọn gói này"}
+          Chọn bộ đề này
         </Button>
       </CardContent>
     </Card>

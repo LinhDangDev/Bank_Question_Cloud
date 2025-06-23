@@ -10,6 +10,7 @@ import { Search, Plus, ArrowLeft, Trash2, RefreshCw, BookOpen } from 'lucide-rea
 import PageContainer from '@/components/ui/PageContainer'
 import axios from 'axios'
 import { API_BASE_URL } from '@/config'
+import { monHocApi, khoaApi } from '@/services/api'
 
 interface Subject {
   MaMonHoc: string
@@ -31,7 +32,7 @@ interface Faculty {
 
 const SubjectList = () => {
   const navigate = useNavigate()
-  const { maKhoa } = useParams()
+  const { facultyId } = useParams()
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [faculty, setFaculty] = useState<Faculty | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -41,35 +42,47 @@ const SubjectList = () => {
   const [isLoading, setIsLoading] = useState(false)
 
   const fetchFaculty = async () => {
+    if (!facultyId) {
+      console.error('No facultyId provided');
+      toast.error('Không thể tải thông tin khoa - thiếu ID');
+      return;
+    }
+
     try {
-      const response = await axios.get(`${API_BASE_URL}/khoa/${maKhoa}`)
-      setFaculty(response.data)
+      const response = await khoaApi.getKhoaById(facultyId);
+      setFaculty(response.data);
     } catch (error) {
-      toast.error('Không thể tải thông tin khoa')
-      console.error('Error fetching faculty:', error)
+      console.error('Error fetching faculty:', error);
+      toast.error('Không thể tải thông tin khoa');
     }
   }
 
   const fetchSubjects = async () => {
+    if (!facultyId) {
+      console.error('No facultyId provided');
+      toast.error('Không thể tải danh sách môn học - thiếu ID khoa');
+      return;
+    }
+
     try {
-      setIsLoading(true)
-      const response = await axios.get(`${API_BASE_URL}/mon-hoc/khoa/${maKhoa}`)
-      setSubjects(Array.isArray(response.data) ? response.data : [])
+      setIsLoading(true);
+      const response = await monHocApi.getMonHocByKhoa(facultyId);
+      setSubjects(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      toast.error('Không thể tải danh sách môn học')
-      setSubjects([])
-      console.error('Error fetching subjects:', error)
+      console.error('Error fetching subjects:', error);
+      toast.error('Không thể tải danh sách môn học');
+      setSubjects([]);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
   useEffect(() => {
-    if (maKhoa) {
-      fetchFaculty()
-      fetchSubjects()
+    if (facultyId) {
+      fetchFaculty();
+      fetchSubjects();
     }
-  }, [maKhoa])
+  }, [facultyId])
 
   const handleCreateSubject = async () => {
     if (!newSubjectName.trim() || !newSubjectCode.trim()) {
@@ -78,11 +91,11 @@ const SubjectList = () => {
     }
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/mon-hoc`, {
+      await monHocApi.createMonHoc({
         TenMonHoc: newSubjectName.trim(),
         MaSoMonHoc: newSubjectCode.trim(),
-        MaKhoa: maKhoa
-      })
+        MaKhoa: facultyId as string
+      });
 
       toast.success('Tạo môn học mới thành công')
       setIsCreateDialogOpen(false)
@@ -103,7 +116,7 @@ const SubjectList = () => {
     if (!confirm('Bạn có chắc chắn muốn xóa môn học này?')) return
 
     try {
-      await axios.patch(`${API_BASE_URL}/mon-hoc/${maMonHoc}/soft-delete`)
+      await monHocApi.softDeleteMonHoc(maMonHoc);
       toast.success('Xóa môn học thành công')
       fetchSubjects()
     } catch (error: any) {
@@ -114,7 +127,7 @@ const SubjectList = () => {
 
   const handleRestoreSubject = async (maMonHoc: string) => {
     try {
-      await axios.patch(`${API_BASE_URL}/mon-hoc/${maMonHoc}/restore`)
+      await monHocApi.restoreMonHoc(maMonHoc);
       toast.success('Khôi phục môn học thành công')
       fetchSubjects()
     } catch (error: any) {
@@ -156,7 +169,7 @@ const SubjectList = () => {
     <PageContainer className="p-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div className="flex gap-4">
-          <Button variant="outline" onClick={() => navigate('/faculty')}>
+          <Button variant="outline" onClick={() => navigate(-1)}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Quay lại
           </Button>
@@ -214,58 +227,72 @@ const SubjectList = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredSubjects.map((subject) => (
-          <Card
-            key={subject.MaMonHoc}
-            className={`${subject.XoaTamMonHoc ? 'opacity-50' : ''} hover:shadow-lg transition-shadow`}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-lg font-medium">{subject.TenMonHoc}</CardTitle>
-              <Badge variant={subject.XoaTamMonHoc ? 'destructive' : 'default'}
-                className={!subject.XoaTamMonHoc ? 'bg-blue-500 hover:bg-blue-600' : ''}>
-                {subject.XoaTamMonHoc ? 'Đã xóa' : 'Đang hoạt động'}
-              </Badge>
-            </CardHeader>
-            <CardContent>
-              <div className="text-sm text-muted-foreground">
-                <p>Mã môn học: {subject.MaSoMonHoc}</p>
-                <p>Khoa: {subject.Khoa?.TenKhoa || faculty?.TenKhoa}</p>
-                <p>Ngày tạo: {formatDate(subject.NgayTao)}</p>
-                <p>Ngày sửa: {formatDate(subject.NgaySua)}</p>
-              </div>
-              <div className="flex justify-end gap-2 mt-4">
-                {subject.XoaTamMonHoc ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleRestoreSubject(subject.MaMonHoc)}
-                  >
-                    Khôi phục
-                  </Button>
-                ) : (
-                  <>
+        {filteredSubjects.length > 0 ? (
+          filteredSubjects.map((subject) => (
+            <Card
+              key={subject.MaMonHoc}
+              className={`${subject.XoaTamMonHoc ? 'opacity-50' : ''} hover:shadow-lg transition-shadow`}
+            >
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-lg font-medium">{subject.TenMonHoc}</CardTitle>
+                <Badge variant={subject.XoaTamMonHoc ? 'destructive' : 'default'}
+                  className={!subject.XoaTamMonHoc ? 'bg-blue-500 hover:bg-blue-600' : ''}>
+                  {subject.XoaTamMonHoc ? 'Đã xóa' : 'Đang hoạt động'}
+                </Badge>
+              </CardHeader>
+              <CardContent>
+                <div className="text-sm text-muted-foreground">
+                  <p>Mã môn học: {subject.MaSoMonHoc}</p>
+                  <p>Khoa: {subject.Khoa?.TenKhoa || faculty?.TenKhoa}</p>
+                  <p>Ngày tạo: {formatDate(subject.NgayTao)}</p>
+                  <p>Ngày sửa: {formatDate(subject.NgaySua)}</p>
+                </div>
+                <div className="flex justify-end gap-2 mt-4">
+                  {subject.XoaTamMonHoc ? (
                     <Button
                       variant="outline"
                       size="sm"
-                      className="flex items-center"
-                      onClick={() => viewChapters(subject.MaMonHoc)}
+                      onClick={() => handleRestoreSubject(subject.MaMonHoc)}
                     >
-                      <BookOpen className="w-4 h-4 mr-2" />
-                      Xem chương
+                      Khôi phục
                     </Button>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      onClick={() => handleDeleteSubject(subject.MaMonHoc)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </>
-                )}
+                  ) : (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center"
+                        onClick={() => viewChapters(subject.MaMonHoc)}
+                      >
+                        <BookOpen className="w-4 h-4 mr-2" />
+                        Chương/Phần
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center text-red-500 hover:bg-red-50"
+                        onClick={() => handleDeleteSubject(subject.MaMonHoc)}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Xóa
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          <div className="col-span-full text-center py-10 text-gray-500">
+            {isLoading ? (
+              <div className="flex justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
               </div>
-            </CardContent>
-          </Card>
-        ))}
+            ) : (
+              'Không tìm thấy môn học nào'
+            )}
+          </div>
+        )}
       </div>
 
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
@@ -275,33 +302,27 @@ const SubjectList = () => {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label htmlFor="name" className="text-sm font-medium">
-                Tên Môn Học
-              </label>
+              <label htmlFor="subject-name" className="text-sm font-medium">Tên Môn Học</label>
               <Input
-                id="name"
+                id="subject-name"
                 value={newSubjectName}
                 onChange={(e) => setNewSubjectName(e.target.value)}
-                placeholder="Nhập tên môn học..."
+                placeholder="Nhập tên môn học"
               />
             </div>
             <div className="space-y-2">
-              <label htmlFor="code" className="text-sm font-medium">
-                Mã Môn Học
-              </label>
+              <label htmlFor="subject-code" className="text-sm font-medium">Mã Môn Học</label>
               <Input
-                id="code"
+                id="subject-code"
                 value={newSubjectCode}
                 onChange={(e) => setNewSubjectCode(e.target.value)}
-                placeholder="Nhập mã môn học..."
+                placeholder="Nhập mã môn học"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-              Hủy
-            </Button>
-            <Button onClick={handleCreateSubject}>Thêm</Button>
+            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>Hủy</Button>
+            <Button onClick={handleCreateSubject}>Tạo Môn Học</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

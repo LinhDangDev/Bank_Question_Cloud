@@ -1,4 +1,4 @@
-import { Controller, Post, Get, UseInterceptors, UploadedFile, Body, Param, Query } from '@nestjs/common';
+import { Controller, Post, Get, UseInterceptors, UploadedFile, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiConsumes, ApiOperation, ApiBody } from '@nestjs/swagger';
 import { QuestionsImportService } from './questions-import.service';
@@ -7,6 +7,9 @@ import { MulterFile } from '../../interfaces/multer-file.interface';
 import { diskStorage } from 'multer';
 import * as path from 'path';
 import * as fs from 'fs';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @ApiTags('questions-import')
 @Controller('questions-import')
@@ -20,6 +23,8 @@ export class QuestionsImportController {
     }
 
     @Post('upload')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
     @ApiOperation({ summary: 'Upload and parse Word document with questions' })
     @ApiConsumes('multipart/form-data')
     @ApiBody({
@@ -91,6 +96,8 @@ export class QuestionsImportController {
     }
 
     @Get('preview/:fileId')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
     @ApiOperation({ summary: 'Preview parsed questions from a previously uploaded file' })
     async previewQuestions(
         @Param('fileId') fileId: string,
@@ -106,6 +113,8 @@ export class QuestionsImportController {
     }
 
     @Post('save')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
     @ApiOperation({ summary: 'Save previewed questions to the database' })
     async saveQuestions(
         @Body() payload: {

@@ -6,6 +6,8 @@ import { CauHoi } from '../../entities/cau-hoi.entity';
 import { PaginationDto } from '../../dto/pagination.dto';
 import { CreateCauTraLoiDto } from 'src/dto/cau-tra-loi.dto';
 import { JwtAuthGuard } from '../../modules/auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../modules/auth/guards/roles.guard';
+import { Roles } from '../../modules/auth/decorators/roles.decorator';
 
 @ApiTags('cau-hoi')
 @Controller('cau-hoi')
@@ -13,6 +15,8 @@ export class CauHoiController {
     constructor(private readonly cauHoiService: CauHoiService) { }
 
     @Get()
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
     @ApiOperation({ summary: 'Get all questions with pagination' })
     @ApiResponse({ status: 200, description: 'Return all questions with pagination' })
     async findAll(
@@ -34,6 +38,8 @@ export class CauHoiController {
     }
 
     @Get('group')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
     @ApiOperation({ summary: 'Get all group questions with child questions and answers' })
     @ApiResponse({ status: 200, description: 'Return all group questions with child questions and answers' })
     async findGroupQuestions(
@@ -43,6 +49,8 @@ export class CauHoiController {
     }
 
     @Get(':id')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
     @ApiOperation({ summary: 'Get a question by ID' })
     @ApiResponse({ status: 200, description: 'Return a question by ID' })
     @ApiResponse({ status: 404, description: 'Question not found' })
@@ -52,6 +60,8 @@ export class CauHoiController {
     }
 
     @Get(':id/with-answers')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
     @ApiOperation({ summary: 'Get a question with its answers' })
     @ApiResponse({ status: 200, description: 'Return a question with its answers' })
     @ApiResponse({ status: 404, description: 'Question not found' })
@@ -61,6 +71,8 @@ export class CauHoiController {
     }
 
     @Get(':id/full-details')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
     @ApiOperation({ summary: 'Get a question with full details including faculty, subject, section, and CLO' })
     @ApiResponse({ status: 200, description: 'Return a question with full details' })
     @ApiResponse({ status: 404, description: 'Question not found' })
@@ -70,6 +82,8 @@ export class CauHoiController {
     }
 
     @Get('phan/:maPhan')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
     @ApiOperation({ summary: 'Get questions by section ID' })
     @ApiResponse({ status: 200, description: 'Return questions by section ID' })
     @ApiParam({ name: 'maPhan', description: 'Section ID' })
@@ -81,6 +95,8 @@ export class CauHoiController {
     }
 
     @Get('phan/:maPhan/with-answers')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
     @ApiOperation({ summary: 'Get questions with answers by section ID' })
     @ApiResponse({ status: 200, description: 'Return questions with answers by section ID' })
     @ApiParam({ name: 'maPhan', description: 'Section ID' })
@@ -92,6 +108,8 @@ export class CauHoiController {
     }
 
     @Get('clo/:maCLO')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
     @ApiOperation({ summary: 'Get questions by CLO ID' })
     @ApiResponse({ status: 200, description: 'Return questions by CLO ID' })
     @ApiParam({ name: 'maCLO', description: 'CLO ID' })
@@ -103,6 +121,8 @@ export class CauHoiController {
     }
 
     @Get('con/:maCauHoiCha')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
     @ApiOperation({ summary: 'Get child questions by parent question ID' })
     @ApiResponse({ status: 200, description: 'Return child questions by parent question ID' })
     @ApiParam({ name: 'maCauHoiCha', description: 'Parent question ID' })
@@ -114,6 +134,8 @@ export class CauHoiController {
     }
 
     @Post()
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
     @ApiOperation({ summary: 'Create a new question' })
     @ApiResponse({ status: 201, description: 'The question has been successfully created' })
     @ApiBody({ type: CreateCauHoiDto })
@@ -122,6 +144,8 @@ export class CauHoiController {
     }
 
     @Post('with-answers')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
     @ApiOperation({ summary: 'Create a new question with answers' })
     @ApiResponse({ status: 201, description: 'The question with answers has been successfully created' })
     @ApiBody({ type: CreateQuestionWithAnswersDto })
@@ -130,7 +154,8 @@ export class CauHoiController {
     }
 
     @Post('group')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
     @ApiOperation({ summary: 'Create a group question with child questions and answers' })
     async createGroupQuestion(@Body() dto: CreateGroupQuestionDto) {
         try {
@@ -150,6 +175,8 @@ export class CauHoiController {
     }
 
     @Put(':id')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
     @ApiOperation({ summary: 'Update a question' })
     @ApiResponse({ status: 200, description: 'The question has been successfully updated' })
     @ApiResponse({ status: 404, description: 'Question not found' })
@@ -163,6 +190,8 @@ export class CauHoiController {
     }
 
     @Put(':id/with-answers')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
     @ApiOperation({ summary: 'Update a question with answers' })
     @ApiResponse({ status: 200, description: 'The question with answers has been successfully updated' })
     @ApiResponse({ status: 404, description: 'Question not found' })
@@ -176,6 +205,8 @@ export class CauHoiController {
     }
 
     @Delete(':id')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin')
     @ApiOperation({ summary: 'Delete a question' })
     @ApiResponse({ status: 200, description: 'The question has been successfully deleted' })
     @ApiResponse({ status: 404, description: 'Question not found' })
@@ -185,6 +216,8 @@ export class CauHoiController {
     }
 
     @Patch(':id/soft-delete')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
     @ApiOperation({ summary: 'Soft delete a question' })
     @ApiResponse({ status: 200, description: 'The question has been successfully soft deleted' })
     @ApiResponse({ status: 404, description: 'Question not found' })
@@ -194,6 +227,8 @@ export class CauHoiController {
     }
 
     @Patch(':id/restore')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin')
     @ApiOperation({ summary: 'Restore a soft deleted question' })
     @ApiResponse({ status: 200, description: 'The question has been successfully restored' })
     @ApiResponse({ status: 404, description: 'Question not found' })

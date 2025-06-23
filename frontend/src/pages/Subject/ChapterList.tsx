@@ -8,8 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Search, Plus, ArrowLeft, Trash2, RefreshCw, BookOpen } from 'lucide-react'
 import PageContainer from '@/components/ui/PageContainer'
-import axios from 'axios'
-import { API_BASE_URL } from '@/config'
+import { monHocApi, phanApi } from '@/services/api'
 
 interface Chapter {
   MaPhan: string
@@ -40,7 +39,7 @@ interface Subject {
 
 const ChapterList = () => {
   const navigate = useNavigate()
-  const { maMonHoc } = useParams()
+  const { subjectId } = useParams()
   const [chapters, setChapters] = useState<Chapter[]>([])
   const [subject, setSubject] = useState<Subject | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -52,7 +51,7 @@ const ChapterList = () => {
 
   const fetchSubject = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/mon-hoc/${maMonHoc}`)
+      const response = await monHocApi.getMonHocById(subjectId as string);
       setSubject(response.data)
     } catch (error) {
       toast.error('Không thể tải thông tin môn học')
@@ -63,7 +62,7 @@ const ChapterList = () => {
   const fetchChapters = async () => {
     try {
       setIsLoading(true)
-      const response = await axios.get(`${API_BASE_URL}/phan/mon-hoc/${maMonHoc}`)
+      const response = await phanApi.getPhanByMonHoc(subjectId as string);
       setChapters(Array.isArray(response.data) ? response.data : [])
     } catch (error) {
       toast.error('Không thể tải danh sách chương')
@@ -75,11 +74,11 @@ const ChapterList = () => {
   }
 
   useEffect(() => {
-    if (maMonHoc) {
+    if (subjectId) {
       fetchSubject()
       fetchChapters()
     }
-  }, [maMonHoc])
+  }, [subjectId])
 
   const handleCreateChapter = async () => {
     if (!newChapterName.trim() || !newChapterOrder.trim() || !newChapterQuestionCount.trim()) {
@@ -88,13 +87,13 @@ const ChapterList = () => {
     }
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/phan`, {
+      await phanApi.createPhan({
         TenPhan: newChapterName.trim(),
         ThuTu: parseInt(newChapterOrder),
         SoLuongCauHoi: parseInt(newChapterQuestionCount),
-        MaMonHoc: maMonHoc,
+        MaMonHoc: subjectId,
         LaCauHoiNhom: false
-      })
+      });
 
       toast.success('Tạo chương mới thành công')
       setIsCreateDialogOpen(false)
@@ -112,7 +111,7 @@ const ChapterList = () => {
     if (!confirm('Bạn có chắc chắn muốn xóa chương này?')) return
 
     try {
-      await axios.patch(`${API_BASE_URL}/phan/${maPhan}/soft-delete`)
+      await phanApi.softDeletePhan(maPhan);
       toast.success('Xóa chương thành công')
       fetchChapters()
     } catch (error: any) {
@@ -123,7 +122,7 @@ const ChapterList = () => {
 
   const handleRestoreChapter = async (maPhan: string) => {
     try {
-      await axios.patch(`${API_BASE_URL}/phan/${maPhan}/restore`)
+      await phanApi.restorePhan(maPhan);
       toast.success('Khôi phục chương thành công')
       fetchChapters()
     } catch (error: any) {
@@ -133,7 +132,7 @@ const ChapterList = () => {
   }
 
   const viewQuestions = (maPhan: string) => {
-    navigate(`/questions/${maPhan}`)
+    navigate(`/questions/chapter/${maPhan}`)
   }
 
   // Format date to show both date and time in a user-friendly format
@@ -164,7 +163,7 @@ const ChapterList = () => {
     <PageContainer className="p-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div className="flex gap-4">
-          <Button variant="outline" onClick={() => navigate(`/subjects/${subject?.MaKhoa || ''}`)}>
+          <Button variant="outline" onClick={() => navigate(-1)}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Quay lại
           </Button>

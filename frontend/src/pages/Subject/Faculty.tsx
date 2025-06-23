@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Search, Plus, ArrowLeft, Trash2, RefreshCw, BookOpen } from 'lucide-react'
 import PageContainer from '@/components/ui/PageContainer'
-import axios from 'axios'
 import {
     Box,
     IconButton,
@@ -31,6 +30,8 @@ import {
     Restore as RestoreIcon,
     MenuBook as MenuBookIcon
 } from '@mui/icons-material'
+import { khoaApi } from '@/services/api'
+import axios from 'axios'
 import { API_BASE_URL } from '@/config'
 
 interface Faculty {
@@ -59,7 +60,7 @@ const Faculty = () => {
     const fetchFaculties = async () => {
         try {
             setIsLoading(true)
-            const response = await axios.get(`${API_BASE_URL}/khoa`)
+            const response = await khoaApi.getAll()
             setFaculties(Array.isArray(response.data) ? response.data : [])
         } catch (error) {
             toast.error('Failed to fetch faculties')
@@ -81,7 +82,7 @@ const Faculty = () => {
         }
 
         try {
-            const response = await axios.post(`${API_BASE_URL}/khoa`, {
+            const response = await khoaApi.createKhoa({
                 TenKhoa: newFacultyName.trim(),
                 MoTa: facultyDescription.trim()
             })
@@ -113,7 +114,7 @@ const Faculty = () => {
         }
 
         try {
-            await axios.patch(`${API_BASE_URL}/khoa/${editingFaculty.MaKhoa}`, {
+            await khoaApi.updateKhoa(editingFaculty.MaKhoa, {
                 TenKhoa: editFacultyName.trim(),
                 MoTa: editFacultyDescription.trim()
             })
@@ -136,7 +137,7 @@ const Faculty = () => {
 
     const handleDeleteFaculty = async (faculty: Faculty) => {
         try {
-            await axios.patch(`${API_BASE_URL}/khoa/${faculty.MaKhoa}/soft-delete`)
+            await khoaApi.softDeleteKhoa(faculty.MaKhoa)
             toast.success('Faculty deleted successfully')
             fetchFaculties()
         } catch (error: any) {
@@ -151,7 +152,7 @@ const Faculty = () => {
 
     const handleRestoreFaculty = async (faculty: Faculty) => {
         try {
-            await axios.patch(`${API_BASE_URL}/khoa/${faculty.MaKhoa}/restore`)
+            await khoaApi.restoreKhoa(faculty.MaKhoa)
             toast.success('Faculty restored successfully')
             fetchFaculties()
         } catch (error: any) {
@@ -187,7 +188,7 @@ const Faculty = () => {
         <PageContainer className="p-6">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
                 <div className="flex gap-4">
-                    <Button variant="outline" onClick={() => navigate('/')}>
+                    <Button variant="outline" onClick={() => navigate(-1)}>
                         <ArrowLeft className="w-4 h-4 mr-2" />
                         Quay lại
                     </Button>

@@ -43,11 +43,19 @@ export class AuthService {
             LastActivityDate: new Date()
         });
 
+        // Xác định role dựa trên IsBuildInUser
+        let userRole = 'teacher'; // Default role cho non-admin
+        if (user.IsBuildInUser) {
+            userRole = 'admin';
+        }
+
         const payload = {
             sub: user.UserId,
             loginName: user.LoginName,
             email: user.Email,
-            name: user.Name
+            name: user.Name,
+            role: userRole,
+            IsBuildInUser: user.IsBuildInUser
         };
 
         return {
@@ -57,7 +65,8 @@ export class AuthService {
                 loginName: user.LoginName,
                 email: user.Email,
                 name: user.Name,
-                role: user.IsBuildInUser ? 'admin' : 'user'
+                role: userRole,
+                IsBuildInUser: user.IsBuildInUser
             }
         };
     }

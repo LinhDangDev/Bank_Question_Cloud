@@ -34,6 +34,11 @@ export class MonHocService {
     }
 
     async findByMaKhoa(maKhoa: string): Promise<MonHoc[]> {
+        // Check if maKhoa is undefined, null, or not a valid UUID
+        if (!maKhoa || maKhoa === 'undefined' || maKhoa === 'null') {
+            console.log(`Invalid maKhoa value: ${maKhoa}, returning empty array`);
+            return [];
+        }
 
         try {
             return await this.monHocRepository.find({
@@ -45,8 +50,10 @@ export class MonHocService {
                 relations: ['Khoa']
             });
         } catch (error) {
+            console.error(`Error in findByMaKhoa: ${error.message}`);
             if (error.code === 'EPARAM' && error.message.includes('Invalid GUID')) {
-                throw new BadRequestException(`Invalid Khoa ID format: ${maKhoa}`);
+                console.log(`Invalid GUID format for maKhoa: ${maKhoa}, returning empty array`);
+                return [];
             }
             throw error;
         }

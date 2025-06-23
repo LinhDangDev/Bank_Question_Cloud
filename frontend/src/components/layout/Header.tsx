@@ -8,6 +8,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useTheme } from '../../context/ThemeContext'
+import { useAuth } from '../../context/AuthContext'
+import { useNavigate } from 'react-router-dom'
 
 interface HeaderProps {
   isExpanded: boolean
@@ -16,6 +18,8 @@ interface HeaderProps {
 const Header = ({ isExpanded }: HeaderProps) => {
   const { theme, toggleTheme } = useTheme()
   const [hasNotifications, setHasNotifications] = useState(true)
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   // Mock notification data
   const notifications = [
@@ -26,6 +30,11 @@ const Header = ({ isExpanded }: HeaderProps) => {
 
   const clearNotifications = () => {
     setHasNotifications(false)
+  }
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
   }
 
   return (
@@ -99,12 +108,17 @@ const Header = ({ isExpanded }: HeaderProps) => {
               <AvatarImage src="/logo_icon.png" alt="Admin avatar" />
               <AvatarFallback>AD</AvatarFallback>
             </Avatar>
-            <span className="text-sm font-medium text-black dark:text-white">Admin</span>
+            <span className="text-sm font-medium text-black dark:text-white">
+              {user?.name || 'Admin'}
+            </span>
+            <span className="text-xs px-2 py-0.5 rounded bg-gray-200 dark:bg-gray-700 ml-2">
+              {user?.role === 'admin' ? 'Admin' : user?.role === 'teacher' ? 'Teacher' : ''}
+            </span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem>Profile</DropdownMenuItem>
             <DropdownMenuItem>Settings</DropdownMenuItem>
-            <DropdownMenuItem className="text-red-600 dark:text-red-400">Log out</DropdownMenuItem>
+            <DropdownMenuItem className="text-red-600 dark:text-red-400" onClick={handleLogout}>Log out</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

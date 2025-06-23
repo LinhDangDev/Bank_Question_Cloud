@@ -3,33 +3,33 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { FileText, Clock, BookOpen } from 'lucide-react';
-import { MathRenderer } from './MathRenderer'; // Assuming MathRenderer is in the same directory
+import { MathRenderer } from './MathRenderer';
 
-// Updated interfaces to match the new data structure from the backend
-interface ExamQuestion {
-  id: string;
-  number: number;
-  content: string;
-  answers: {
-    id: string;
-    label: string;
-    content: string;
-    isCorrect: boolean;
-  }[];
+interface QuestionType {
+  id: number;
+  question: string;
+  options: string[];
+  correct: number;
+  topic: string;
 }
 
 interface ExamPackage {
-  examId: string;
+  id: number;
   title: string;
   subject: string;
-  questions: ExamQuestion[];
+  grade: string;
+  questionCount: number;
+  difficulty: string;
+  category: string;
+  description: string;
+  topics: string[];
 }
 
 interface PDFPreviewProps {
   examTitle: string;
   examInstructions: string;
   selectedPackage: ExamPackage | null;
-  questions: ExamQuestion[];
+  questions: QuestionType[];
 }
 
 const PDFPreview: React.FC<PDFPreviewProps> = ({
@@ -44,6 +44,7 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({
         <div className="text-center text-gray-500">
           <FileText className="h-12 w-12 mx-auto mb-4" />
           <p>Không có dữ liệu đề thi để xem trước</p>
+          <p className="text-sm mt-2">Vui lòng chọn một gói đề thi từ danh sách</p>
         </div>
       </Card>
     );
@@ -91,21 +92,26 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({
                 <div key={question.id} className="border-l-4 border-blue-200 pl-4">
                   <div className="flex items-start justify-between mb-3">
                     <div className="font-medium text-gray-800 flex-1">
-                      <MathRenderer content={`**Câu ${question.number}:** ${question.content}`} />
+                      {question.question}
                     </div>
+                    {question.topic && (
+                      <Badge variant="outline" className="ml-2">
+                        {question.topic}
+                      </Badge>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-1 gap-2 ml-4">
-                    {question.answers.map((answer) => (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 ml-4">
+                    {question.options.map((option, idx) => (
                       <div
-                        key={answer.id}
+                        key={idx}
                         className={`text-sm p-2 rounded ${
-                          answer.isCorrect
+                          idx === question.correct
                             ? 'bg-green-50 text-green-700 font-medium'
                             : 'text-gray-600'
                         }`}
                       >
-                        <MathRenderer content={`**${answer.label}.** ${answer.content}`} />
+                        {option}
                       </div>
                     ))}
                   </div>
@@ -120,7 +126,7 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({
             {/* Footer */}
             <div className="mt-8 pt-4 border-t text-center text-xs text-gray-500">
               <p>Đề thi được tạo bởi Hệ thống rút trích đề thi PDF</p>
-              <p>Tổng số câu hỏi: {questions.length}</p>
+              <p>Tổng số câu hỏi: {questions.length} | Độ khó: {selectedPackage.difficulty}</p>
             </div>
           </div>
         </CardContent>

@@ -48,5 +48,6 @@ export class TokenResponseDto {
         email: string;
         name: string;
         role: string;
+        IsBuildInUser: boolean;
     };
 }

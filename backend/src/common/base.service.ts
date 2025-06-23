@@ -8,7 +8,13 @@ export class BaseService<T extends ObjectLiteral> {
     constructor(
         private readonly repository: Repository<T>,
         private readonly primaryKeyField: string = 'id'
-    ) { }
+    ) {
+        // Automatically detect primary key field from entity metadata if available
+        if (repository && repository.metadata && repository.metadata.primaryColumns.length > 0) {
+            this.primaryKeyField = repository.metadata.primaryColumns[0].propertyName;
+            console.log(`Using primary key field: ${this.primaryKeyField} for ${repository.metadata.name}`);
+        }
+    }
 
     async findOne(id: string): Promise<T> {
         const where = { [this.primaryKeyField]: id } as FindOptionsWhere<T>;

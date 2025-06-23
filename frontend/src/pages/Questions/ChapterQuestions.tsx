@@ -7,10 +7,9 @@ import { Input } from '@/components/ui/input'
 // import { Badge } from '@/components/ui/badge'
 import { Search, Plus, ArrowLeft, RefreshCw, Eye, Edit, Trash2 } from 'lucide-react'
 import PageContainer from '@/components/ui/PageContainer'
-import axios from 'axios'
 import 'katex/dist/katex.min.css'
 import katex from 'katex'
-import { API_BASE_URL } from '@/config'
+import { phanApi, questionApi } from '@/services/api'
 
 interface Answer {
   MaCauTraLoi: string;
@@ -84,7 +83,7 @@ const typeColors: Record<string, string> = {
 
 const ChapterQuestions = () => {
   const navigate = useNavigate()
-  const { maPhan } = useParams()
+  const { chapterId } = useParams()
   const [questions, setQuestions] = useState<Question[]>([])
   const [chapter, setChapter] = useState<Chapter | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -92,7 +91,7 @@ const ChapterQuestions = () => {
 
   const fetchChapter = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/phan/${maPhan}`)
+      const response = await phanApi.getPhanById(chapterId as string);
       setChapter(response.data)
     } catch (error) {
       toast.error('Không thể tải thông tin chương')
@@ -103,7 +102,7 @@ const ChapterQuestions = () => {
   const fetchQuestions = async () => {
     try {
       setIsLoading(true)
-      const response = await axios.get(`${API_BASE_URL}/cau-hoi/phan/${maPhan}/with-answers`)
+      const response = await questionApi.getByChapterWithAnswers(chapterId as string);
       console.log('API Response:', response.data)
       setQuestions(Array.isArray(response.data.items) ? response.data.items : [])
     } catch (error) {
@@ -116,11 +115,11 @@ const ChapterQuestions = () => {
   }
 
   useEffect(() => {
-    if (maPhan) {
+    if (chapterId) {
       fetchChapter()
       fetchQuestions()
     }
-  }, [maPhan])
+  }, [chapterId])
 
   // Enhanced LaTeX rendering function with improved support for matrices, superscripts, and chemical formulas
   const renderLatex = (content: string) => {
@@ -323,7 +322,7 @@ const ChapterQuestions = () => {
     if (!confirm('Bạn có chắc chắn muốn xóa câu hỏi này?')) return;
 
     try {
-      await axios.patch(`${API_BASE_URL}/cau-hoi/${maCauHoi}/soft-delete`);
+      await questionApi.softDelete(maCauHoi);
       toast.success('Xóa câu hỏi thành công');
       fetchQuestions();
     } catch (error) {
@@ -356,7 +355,7 @@ const ChapterQuestions = () => {
     <PageContainer className="p-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div className="flex gap-4">
-          <Button variant="outline" onClick={() => navigate(`/chapters/${chapter?.MaMonHoc || ''}`)}>
+          <Button variant="outline" onClick={() => navigate(-1)}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Quay lại
           </Button>
@@ -369,7 +368,7 @@ const ChapterQuestions = () => {
             )}
           </h1>
         </div>
-        <Button onClick={() => navigate(`/questions/create?maPhan=${maPhan}`)}>
+        <Button onClick={() => navigate(`/questions/create?maPhan=${chapterId}`)}>
           <Plus className="w-4 h-4 mr-2" />
           Thêm câu hỏi
         </Button>
