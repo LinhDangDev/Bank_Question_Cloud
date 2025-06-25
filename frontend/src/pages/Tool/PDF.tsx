@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -6,12 +6,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { FileText, Download, Eye, Upload, BookOpen, GraduationCap, Calculator, Globe } from 'lucide-react';
 import { toast } from 'react-toastify';
 import ExamPackageCard from '@/components/ExamPackageCard';
 import PDFPreview from '@/components/PDFPreview';
 import TemplateUpload from '@/components/TemplateUpload';
+import { examApi } from '@/services/api';
 
+// Sample exam packages for UI demo
 const examPackages = [
   {
     id: 1,
@@ -22,7 +26,8 @@ const examPackages = [
     difficulty: "Khó",
     category: "math",
     description: "Bộ đề toán học lớp 12 với các dạng bài từ cơ bản đến nâng cao",
-    topics: ["Đạo hàm", "Tích phân", "Hình học không gian", "Xác suất"]
+    topics: ["Đạo hàm", "Tích phân", "Hình học không gian", "Xác suất"],
+    createdAt: new Date().toISOString(),
   },
   {
     id: 2,
@@ -33,7 +38,8 @@ const examPackages = [
     difficulty: "Trung bình",
     category: "literature",
     description: "Tuyển tập câu hỏi ngữ văn 12 theo chương trình mới",
-    topics: ["Văn học hiện đại", "Tác phẩm trong chương trình", "Nghị luận", "Làm văn"]
+    topics: ["Văn học hiện đại", "Tác phẩm trong chương trình", "Nghị luận", "Làm văn"],
+    createdAt: new Date().toISOString(),
   },
   {
     id: 3,
@@ -44,7 +50,8 @@ const examPackages = [
     difficulty: "Trung bình",
     category: "english",
     description: "Đề thi tiếng Anh với các kỹ năng nghe, nói, đọc, viết",
-    topics: ["Grammar", "Vocabulary", "Reading", "Listening"]
+    topics: ["Grammar", "Vocabulary", "Reading", "Listening"],
+    createdAt: new Date().toISOString(),
   },
   {
     id: 4,
@@ -55,7 +62,8 @@ const examPackages = [
     difficulty: "Khó",
     category: "physics",
     description: "Bộ câu hỏi vật lý 12 bao gồm các chương quan trọng",
-    topics: ["Dao động", "Sóng", "Điện học", "Quang học"]
+    topics: ["Dao động", "Sóng", "Điện học", "Quang học"],
+    createdAt: new Date().toISOString(),
   }
 ];
 
@@ -65,9 +73,37 @@ const PDF = () => {
   const [customTemplate, setCustomTemplate] = useState<any>(null);
   const [examTitle, setExamTitle] = useState("Đề thi rút trích");
   const [examInstructions, setExamInstructions] = useState("Thời gian làm bài: 90 phút. Không được sử dụng tài liệu.");
+  const [realExams, setRealExams] = useState<any[]>([]);
+  const [selectedExamId, setSelectedExamId] = useState<string>("");
+  const [isUsingRealExam, setIsUsingRealExam] = useState<boolean>(false);
+  const [showAnswers, setShowAnswers] = useState<boolean>(true);
+  const [loaiBoChuongPhan, setLoaiBoChuongPhan] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  // Fetch real exams from the backend
+  useEffect(() => {
+    const fetchExams = async () => {
+      try {
+        setIsLoading(true);
+        const response = await examApi.getApprovedExams();
+        if (response.data && response.data.items) {
+          setRealExams(response.data.items);
+        }
+      } catch (error) {
+        console.error('Failed to fetch exams:', error);
+        toast.error('Không thể tải danh sách đề thi');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchExams();
+  }, []);
 
   const handlePackageSelect = (pkg: any) => {
     setSelectedPackage(pkg);
+    setIsUsingRealExam(false);
+    setSelectedExamId("");
     // Generate sample questions for the selected package
     const sampleQuestions = Array.from({ length: Math.min(pkg.questionCount, 10) }, (_, i) => ({
       id: i + 1,
@@ -80,174 +116,307 @@ const PDF = () => {
     toast.success(`Đã chọn gói đề: ${pkg.title}`);
   };
 
-  const handleExportPDF = () => {
-    if (!selectedPackage) {
-      toast.error("Vui lòng chọn một gói đề trước khi xuất PDF");
+  const handleExamSelect = (examId: string) => {
+    if (!examId) return;
+
+    setSelectedExamId(examId);
+    setIsUsingRealExam(true);
+    setSelectedPackage(null);
+
+    // Find the selected exam
+    const selectedExam = realExams.find(exam => exam.MaDeThi === examId);
+    if (selectedExam) {
+      setExamTitle(selectedExam.TenDeThi || "Đề thi rút trích");
+      toast.success(`Đã chọn đề thi: ${selectedExam.TenDeThi}`);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    if (!isUsingRealExam && !selectedPackage) {
+      toast.error("Vui lòng chọn một gói đề thi hoặc đề thi thực tế trước khi xuất PDF");
       return;
     }
 
-    // Simulate PDF export
-    toast.info("Đang xuất PDF...", {
-      autoClose: 2000,
-    });
+    try {
+      setIsLoading(true);
+      toast.info("Đang tạo file PDF...", { autoClose: false });
 
-    setTimeout(() => {
-      toast.success(`Đã tạo file ${examTitle}.pdf`, {
-        autoClose: 5000,
+      // Generate a payload for the PDF generation request
+      const payload = {
+        title: examTitle,
+        instructions: examInstructions,
+        hasAnswers: showAnswers,
+        loaiBoChuongPhan: loaiBoChuongPhan,
+        // Include examId if using a real exam
+        ...(isUsingRealExam ? { examId: selectedExamId } : {
+          questions: selectedQuestions.map(q => ({
+            id: q.id,
+            content: q.question,
+            options: q.options,
+            correctAnswerIndex: q.correct,
+            topic: q.topic
+          }))
+        })
+      };
+
+      // Call the backend API to generate the PDF
+      const response = await examApi.generateCustomPdf(payload);
+
+      // Get the PDF file from the response
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+
+      // Create a URL for the blob
+      const url = window.URL.createObjectURL(blob);
+
+      // Create a link element to download the file
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${examTitle.replace(/\s+/g, '_')}.pdf`;
+      document.body.appendChild(link);
+
+      // Click the link to download the file
+      link.click();
+
+      // Clean up
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+
+      toast.dismiss();
+      toast.success(`Đã tạo và tải xuống file ${examTitle}.pdf thành công!`);
+    } catch (error) {
+      console.error('PDF generation failed:', error);
+      toast.dismiss();
+      toast.error("Không thể tạo file PDF. Vui lòng thử lại sau.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleExportDOCX = async () => {
+    if (!isUsingRealExam && !selectedPackage) {
+      toast.error("Vui lòng chọn một gói đề thi hoặc đề thi thực tế trước khi xuất DOCX");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      toast.info("Đang tạo file DOCX...", { autoClose: false });
+
+      // Generate a payload for the DOCX generation request
+      const payload = {
+        title: examTitle,
+        instructions: examInstructions,
+        hasAnswers: showAnswers,
+        loaiBoChuongPhan: loaiBoChuongPhan,
+        // Include examId if using a real exam
+        ...(isUsingRealExam ? { examId: selectedExamId } : {
+          questions: selectedQuestions.map(q => ({
+            id: q.id,
+            content: q.question,
+            options: q.options,
+            correctAnswerIndex: q.correct,
+            topic: q.topic
+          }))
+        })
+      };
+
+      // Call the backend API to generate the DOCX
+      const response = await examApi.generateCustomDocx(payload);
+
+      // Get the DOCX file from the response
+      const blob = new Blob([response.data], {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       });
-    }, 2000);
+
+      // Create a URL for the blob
+      const url = window.URL.createObjectURL(blob);
+
+      // Create a link element to download the file
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${examTitle.replace(/\s+/g, '_')}.docx`;
+      document.body.appendChild(link);
+
+      // Click the link to download the file
+      link.click();
+
+      // Clean up
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+
+      toast.dismiss();
+      toast.success(`Đã tạo và tải xuống file ${examTitle}.docx thành công!`);
+    } catch (error) {
+      console.error('DOCX generation failed:', error);
+      toast.dismiss();
+      toast.error("Không thể tạo file DOCX. Vui lòng thử lại sau.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
-      case 'math': return <Calculator className="h-5 w-5" />;
-      case 'literature': return <BookOpen className="h-5 w-5" />;
-      case 'english': return <Globe className="h-5 w-5" />;
-      case 'physics': return <GraduationCap className="h-5 w-5" />;
-      default: return <FileText className="h-5 w-5" />;
+      case 'math':
+        return <Calculator className="mr-2" />;
+      case 'literature':
+        return <BookOpen className="mr-2" />;
+      case 'english':
+        return <Globe className="mr-2" />;
+      default:
+        return <GraduationCap className="mr-2" />;
     }
   };
 
-  const filteredPackages = examPackages;
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
-            Hệ thống rút trích đề thi PDF
-          </h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Chọn gói đề thi, tùy chỉnh nội dung và xuất file PDF chất lượng cao một cách dễ dàng
-          </p>
+    <div className="container p-6 mx-auto">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold">Tạo đề thi & Xuất PDF</h1>
+        <p className="text-gray-500">Tạo và xuất đề thi theo định dạng PDF hoặc DOCX</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="md:col-span-1">
+          <Card>
+            <CardHeader>
+              <CardTitle>Cấu hình đề thi</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="exam-title">Tiêu đề đề thi</Label>
+                <Input
+                  id="exam-title"
+                  value={examTitle}
+                  onChange={(e) => setExamTitle(e.target.value)}
+                  placeholder="Nhập tiêu đề đề thi"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="exam-instructions">Hướng dẫn làm bài</Label>
+                <Textarea
+                  id="exam-instructions"
+                  value={examInstructions}
+                  onChange={(e) => setExamInstructions(e.target.value)}
+                  placeholder="Nhập hướng dẫn làm bài"
+                  rows={3}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="show-answers" className="mb-2 block">Hiển thị đáp án</Label>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="show-answers"
+                    checked={showAnswers}
+                    onCheckedChange={setShowAnswers}
+                  />
+                  <Label htmlFor="show-answers">
+                    {showAnswers ? 'Có' : 'Không'}
+                  </Label>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="remove-chapters" className="mb-2 block">Cấu trúc đề thi</Label>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="remove-chapters"
+                    checked={loaiBoChuongPhan}
+                    onCheckedChange={setLoaiBoChuongPhan}
+                  />
+                  <Label htmlFor="remove-chapters">
+                    {loaiBoChuongPhan ? 'Không phân cấp' : 'Phân cấp chương/phần'}
+                  </Label>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {loaiBoChuongPhan
+                    ? 'Đề thi không hiển thị cấu trúc chương/phần, chỉ hiển thị danh sách câu hỏi.'
+                    : 'Đề thi sẽ được hiển thị theo cấu trúc chương/phần.'}
+                </p>
+              </div>
+
+              <div className="pt-4">
+                <Label htmlFor="real-exam" className="mb-2 block font-bold">Đề thi thực tế</Label>
+                <Select
+                  value={selectedExamId}
+                  onValueChange={handleExamSelect}
+                  disabled={isLoading}
+                >
+                  <SelectTrigger id="real-exam" className="w-full">
+                    <SelectValue placeholder="Chọn đề thi thực tế" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">-- Chọn đề thi --</SelectItem>
+                    {realExams.map(exam => (
+                      <SelectItem key={exam.MaDeThi} value={exam.MaDeThi}>
+                        {exam.TenDeThi}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {isUsingRealExam && (
+                  <p className="text-sm text-green-600 mt-2">
+                    Sử dụng câu hỏi từ đề thi thực tế
+                  </p>
+                )}
+              </div>
+
+              <div className="flex flex-col space-y-3 pt-6">
+                <Button
+                  onClick={handleExportPDF}
+                  disabled={isLoading || (!isUsingRealExam && !selectedPackage)}
+                  className="w-full"
+                >
+                  <FileText className="mr-2" size={16} />
+                  Xuất PDF
+                </Button>
+                <Button
+                  onClick={handleExportDOCX}
+                  disabled={isLoading || (!isUsingRealExam && !selectedPackage)}
+                  variant="secondary"
+                  className="w-full"
+                >
+                  <FileText className="mr-2" size={16} />
+                  Xuất DOCX
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        <Tabs defaultValue="packages" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-8">
-            <TabsTrigger value="packages" className="flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Chọn đề thi
-            </TabsTrigger>
-            <TabsTrigger value="customize" className="flex items-center gap-2">
-              <BookOpen className="h-4 w-4" />
-              Tùy chỉnh
-            </TabsTrigger>
-            <TabsTrigger value="preview" className="flex items-center gap-2">
-              <Eye className="h-4 w-4" />
-              Xem trước
-            </TabsTrigger>
-            <TabsTrigger value="template" className="flex items-center gap-2">
-              <Upload className="h-4 w-4" />
-              Template
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Package Selection Tab */}
-          <TabsContent value="packages" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filteredPackages.map((pkg) => (
-                <ExamPackageCard
-                  key={pkg.id}
-                  package={pkg as any}
-                  isSelected={selectedPackage?.id === pkg.id}
-                  onSelect={() => handlePackageSelect(pkg)}
-                  icon={getCategoryIcon(pkg.category)}
-                />
-              ))}
-            </div>
-          </TabsContent>
-
-          {/* Customize Tab */}
-          <TabsContent value="customize" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Tùy chỉnh thông tin đề thi</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+        <div className="md:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>{isUsingRealExam ? "Đề thi đã chọn" : "Gói đề thi mẫu"}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isUsingRealExam ? (
+                <div className="bg-green-50 p-4 rounded-lg border border-green-100">
+                  <h3 className="text-lg font-semibold mb-2">{examTitle}</h3>
+                  <p className="text-sm text-gray-600 mb-4">ID: {selectedExamId}</p>
+                  <div className="flex items-center">
+                    <Badge variant="default" className="mr-2">Đề thi thực tế</Badge>
+                    <span className="text-sm text-gray-500">
+                      Đề thi này sẽ lấy dữ liệu câu hỏi từ hệ thống
+                    </span>
+                  </div>
+                </div>
+              ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="exam-title">Tiêu đề đề thi</Label>
-                    <Input
-                      id="exam-title"
-                      value={examTitle}
-                      onChange={(e) => setExamTitle(e.target.value)}
-                      placeholder="Nhập tiêu đề đề thi"
+                  {examPackages.map(pkg => (
+                    <ExamPackageCard
+                      key={pkg.id}
+                      package={pkg}
+                      isSelected={selectedPackage?.id === pkg.id}
+                      onSelect={() => handlePackageSelect(pkg)}
+                      icon={getCategoryIcon(pkg.category)}
                     />
-                  </div>
-                  <div>
-                    <Label htmlFor="exam-time">Thời gian làm bài</Label>
-                    <Input
-                      id="exam-time"
-                      placeholder="VD: 90 phút"
-                    />
-                  </div>
+                  ))}
                 </div>
-                <div>
-                  <Label htmlFor="exam-instructions">Hướng dẫn làm bài</Label>
-                  <Textarea
-                    id="exam-instructions"
-                    value={examInstructions}
-                    onChange={(e) => setExamInstructions(e.target.value)}
-                    placeholder="Nhập hướng dẫn làm bài"
-                    rows={3}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {selectedPackage && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Danh sách câu hỏi - {selectedPackage.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4 max-h-96 overflow-y-auto">
-                    {selectedQuestions.map((question) => (
-                      <div key={question.id} className="p-4 border rounded-lg">
-                        <div className="flex items-start justify-between mb-2">
-                          <h4 className="font-medium">{question.question}</h4>
-                          <Badge variant="outline">{question.topic}</Badge>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
-                          {question.options.map((option: string, idx: number) => (
-                            <div key={idx}>{option}</div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          {/* Preview Tab */}
-          <TabsContent value="preview">
-            <PDFPreview
-              examTitle={examTitle}
-              examInstructions={examInstructions}
-              selectedPackage={selectedPackage}
-              questions={selectedQuestions}
-            />
-          </TabsContent>
-
-          {/* Template Tab */}
-          <TabsContent value="template">
-            <TemplateUpload onTemplateUpload={setCustomTemplate} />
-          </TabsContent>
-        </Tabs>
-
-        {/* Export Button */}
-        <div className="fixed bottom-6 right-6">
-          <Button
-            onClick={handleExportPDF}
-            size="lg"
-            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg"
-          >
-            <Download className="h-5 w-5 mr-2" />
-            Xuất PDF
-          </Button>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

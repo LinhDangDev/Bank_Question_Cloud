@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Res, StreamableFile, HttpCode, BadRequestException, InternalServerErrorException, Logger, HttpException, HttpStatus, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Res, StreamableFile, HttpCode, BadRequestException, InternalServerErrorException, Logger, HttpException, HttpStatus, UseGuards, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { DeThiService } from './de-thi.service';
 import { CreateDeThiDto, UpdateDeThiDto } from '../../dto';
 import { DeThi } from '../../entities/de-thi.entity';
@@ -11,6 +12,8 @@ import { NotFoundException } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { diskStorage } from 'multer';
+import * as fs from 'fs';
 
 interface ExamPackage {
     examId: string;
@@ -242,5 +245,152 @@ export class DeThiController {
             }
             throw new InternalServerErrorException('Đã có lỗi xảy ra trong quá trình tạo gói đề thi.');
         }
+    }
+
+    /**
+     * Generate exam document with custom template
+     */
+    @Post(':id/generate-with-template')
+    @UseInterceptors(
+        FileInterceptor('template', {
+            storage: diskStorage({
+                destination: (req, file, cb) => {
+                    const uploadPath = path.join(process.cwd(), '..', 'template', 'temp');
+                    if (!fs.existsSync(uploadPath)) {
+                        fs.mkdirSync(uploadPath, { recursive: true });
+                    }
+                    cb(null, uploadPath);
+                },
+                filename: (req, file, cb) => {
+                    const uniqueName = `${Date.now()}-${file.originalname}`;
+                    cb(null, uniqueName);
+                },
+            }),
+            fileFilter: (req, file, cb) => {
+                if (file.mimetype !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.template') {
+                    return cb(new BadRequestException('Only DOTX files are allowed'), false);
+                }
+                cb(null, true);
+            },
+        }),
+    )
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
+    async generateWithTemplate(
+        @Param('id') id: string,
+        @UploadedFile() file: Express.Multer.File,
+        @Body('showAnswers') showAnswers: boolean = false,
+        @Res() res: Response,
+    ) {
+        try {
+            if (!file) {
+                throw new BadRequestException('Template file is required');
+            }
+
+            const result = await this.deThiService.generateExamWithCustomTemplate(
+                id,
+                file.path,
+                showAnswers,
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: 'Exam document generated successfully',
+                data: {
+                    docxPath: result.docxPath,
+                    pdfPath: result.pdfPath,
+                },
+            });
+        } catch (error) {
+            this.logger.error(`Failed to generate exam with template: ${error.message}`, error.stack);
+            if (error instanceof NotFoundException || error instanceof BadRequestException) {
+                throw error;
+            }
+            throw new InternalServerErrorException('Failed to generate exam document with custom template');
+        }
+    }
+
+    /**
+     * Generate custom PDF from data
+     */
+    @Post('generate-pdf')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
+    async generateCustomPdf(@Body() data: any, @Res() res: Response) {
+        try {
+            this.logger.log(`Received custom PDF generation request`);
+
+            if (!data.title || !data.questions || !Array.isArray(data.questions)) {
+                throw new BadRequestException('Missing required fields: title and questions array');
+            }
+
+            // Process the data and generate PDF using the exam service
+            const result = await this.examService.generateCustomPdf(data);
+
+            // Set the response headers for PDF download
+            res.set({
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': `attachment; filename="${data.title.replace(/\s+/g, '_')}.pdf"`,
+            });
+
+            // Create readable stream from the PDF file path
+            const fileStream = createReadStream(result.filePath);
+
+            // Return the file stream
+            return new StreamableFile(fileStream);
+        } catch (error) {
+            this.logger.error(`Failed to generate custom PDF: ${error.message}`, error.stack);
+            if (error instanceof NotFoundException || error instanceof BadRequestException) {
+                throw error;
+            }
+            throw new InternalServerErrorException('Failed to generate custom PDF document');
+        }
+    }
+
+    /**
+     * Generate custom DOCX from data
+     */
+    @Post('generate-docx')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
+    async generateCustomDocx(@Body() data: any, @Res() res: Response) {
+        try {
+            this.logger.log(`Received custom DOCX generation request`);
+
+            if (!data.title) {
+                throw new BadRequestException('Missing required field: title');
+            }
+
+            // Process the data and generate DOCX using the exam service
+            const result = await this.examService.generateCustomDocx(data);
+
+            // Set the response headers for DOCX download
+            res.set({
+                'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'Content-Disposition': `attachment; filename="${data.title.replace(/\s+/g, '_')}.docx"`,
+            });
+
+            // Create readable stream from the DOCX file path
+            const fileStream = createReadStream(result.filePath);
+
+            // Return the file stream
+            return new StreamableFile(fileStream);
+        } catch (error) {
+            this.logger.error(`Failed to generate custom DOCX: ${error.message}`, error.stack);
+            if (error instanceof NotFoundException || error instanceof BadRequestException) {
+                throw error;
+            }
+            throw new InternalServerErrorException('Failed to generate custom DOCX document');
+        }
+    }
+
+    /**
+     * Get hierarchical questions for an exam
+     */
+    @Get(':id/hierarchical-questions')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
+    async getHierarchicalQuestions(@Param('id') id: string) {
+        return await this.deThiService.getHierarchicalQuestions(id);
     }
 }

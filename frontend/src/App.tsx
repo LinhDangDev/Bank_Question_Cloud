@@ -32,11 +32,17 @@ import FirstTimePassword from '@/pages/Auth/FirstTimePassword'
 
 // RequireAuth component
 function RequireAuth() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const location = useLocation();
 
-  // Log authentication status
-//   console.log('RequireAuth - Authentication status:', { isAuthenticated: !!user, user });
+  // Hiển thị loader khi đang kiểm tra trạng thái đăng nhập
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
@@ -51,7 +57,16 @@ function RequireAuth() {
 }
 
 function AuthenticatedRoute({ element, requireAdmin = false }: { element: React.ReactNode, requireAdmin?: boolean }) {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
+
+  // Hiển thị loader khi đang kiểm tra trạng thái đăng nhập
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
 
   if (!user) {
     return <Navigate to="/signin" replace />
@@ -70,6 +85,54 @@ function AuthenticatedRoute({ element, requireAdmin = false }: { element: React.
   return element
 }
 
+// AppRoutes component để tách biệt logic routing
+function AppRoutes() {
+  const { loading } = useAuth();
+
+  // Hiển thị loader khi đang kiểm tra trạng thái đăng nhập
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  return (
+    <Routes>
+      <Route path="/login" element={<SignIn />} />
+      <Route path="/change-password" element={<FirstTimePassword />} />
+      <Route element={<RequireAuth />}>
+        <Route path="/" element={<Layout />}>
+          <Route index element={<Home />} />
+          <Route path="faculty" element={<Faculty />} />
+          <Route path="subjects/:facultyId" element={<SubjectList />} />
+          <Route path="chapters/:subjectId" element={<ChapterList />} />
+          <Route path="questions" element={<Questions />} />
+          <Route path="questions/create" element={<CreateQuestion />} />
+          <Route path="questions/edit/:id" element={<EditQuestion />} />
+          <Route path="questions/upload" element={<UploadQuestions />} />
+          <Route path="questions/chapter/:chapterId" element={<ChapterQuestions />} />
+          <Route path="extract" element={<Extract />} />
+          <Route path="pdf" element={<PDF />} />
+          <Route path="pdf/:id" element={<PDF />} />
+          <Route path="exams" element={<Exams />} />
+          <Route path="exams/:id" element={<ExamDetail />} />
+          <Route path="exams/edit/:id" element={<ExamDetail />} />
+          <Route path="users" element={<Users />} />
+          <Route path="users/add" element={<AddUser />} />
+          <Route path="users/edit/:id" element={<EditUser />} />
+          <Route path="settings" element={<Settings />} />
+          <Route path="help" element={<Help />} />
+          <Route path="feedback" element={<Feedback />} />
+          <Route path="search" element={<Search />} />
+          <Route path="*" element={<NotFound />} />
+        </Route>
+      </Route>
+    </Routes>
+  );
+}
+
 function App() {
   return (
     <ThemeProvider>
@@ -86,37 +149,7 @@ function App() {
           pauseOnHover
           theme="colored"
         />
-        <Routes>
-          <Route path="/login" element={<SignIn />} />
-          <Route path="/change-password" element={<FirstTimePassword />} />
-          <Route element={<RequireAuth />}>
-            <Route path="/" element={<Layout />}>
-              <Route index element={<Home />} />
-              <Route path="faculty" element={<Faculty />} />
-              <Route path="subjects/:facultyId" element={<SubjectList />} />
-              <Route path="chapters/:subjectId" element={<ChapterList />} />
-              <Route path="questions" element={<Questions />} />
-              <Route path="questions/create" element={<CreateQuestion />} />
-              <Route path="questions/edit/:id" element={<EditQuestion />} />
-              <Route path="questions/upload" element={<UploadQuestions />} />
-              <Route path="questions/chapter/:chapterId" element={<ChapterQuestions />} />
-              <Route path="extract" element={<Extract />} />
-              <Route path="pdf" element={<PDF />} />
-              <Route path="pdf/:id" element={<PDF />} />
-              <Route path="exams" element={<Exams />} />
-              <Route path="exams/:id" element={<ExamDetail />} />
-              <Route path="exams/edit/:id" element={<ExamDetail />} />
-              <Route path="users" element={<Users />} />
-              <Route path="users/add" element={<AddUser />} />
-              <Route path="users/edit/:id" element={<EditUser />} />
-              <Route path="settings" element={<Settings />} />
-              <Route path="help" element={<Help />} />
-              <Route path="feedback" element={<Feedback />} />
-              <Route path="search" element={<Search />} />
-              <Route path="*" element={<NotFound />} />
-            </Route>
-          </Route>
-        </Routes>
+        <AppRoutes />
       </AuthProvider>
     </ThemeProvider>
   )

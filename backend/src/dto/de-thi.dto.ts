@@ -10,6 +10,10 @@ export class CreateDeThiDto {
     @IsBoolean()
     @IsOptional()
     DaDuyet?: boolean;
+
+    @IsBoolean()
+    @IsOptional()
+    LoaiBoChuongPhan?: boolean;
 }
 
 export class UpdateDeThiDto extends CreateDeThiDto { }
@@ -30,4 +34,8 @@ export class DeThiResponseDto {
     @IsBoolean()
     @IsOptional()
     DaDuyet?: boolean;
+
+    @IsBoolean()
+    @IsOptional()
+    LoaiBoChuongPhan?: boolean;
 }

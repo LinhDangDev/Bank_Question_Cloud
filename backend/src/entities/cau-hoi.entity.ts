@@ -52,6 +52,9 @@ export class CauHoi {
     @Column({ type: 'uuid', nullable: true })
     MaCLO: string;
 
+    @Column({ type: 'float', nullable: true })
+    DoKhoThucTe: number;
+
     @ManyToOne(() => Phan)
     @JoinColumn({ name: 'MaPhan' })
     Phan: Phan;

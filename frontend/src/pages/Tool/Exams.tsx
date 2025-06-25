@@ -116,6 +116,7 @@ const Exams = () => {
               <th className="py-3 px-6 text-left">Môn học</th>
               <th className="py-3 px-6 text-center">Số câu hỏi</th>
               <th className="py-3 px-6 text-center">Trạng thái</th>
+              <th className="py-3 px-6 text-center">Cấu trúc</th>
               <th className="py-3 px-6 text-center">Ngày tạo</th>
               <th className="py-3 px-6 text-center">Thao tác</th>
             </tr>
@@ -123,7 +124,7 @@ const Exams = () => {
           <tbody className="text-gray-600 text-sm">
             {loading ? (
               <tr>
-                <td colSpan={6} className="py-4 px-6 text-center">
+                <td colSpan={7} className="py-4 px-6 text-center">
                   Đang tải...
                 </td>
               </tr>
@@ -146,6 +147,17 @@ const Exams = () => {
                     ) : (
                       <span className="flex items-center justify-center text-yellow-500">
                         <XCircle size={16} className="mr-1" /> Chưa duyệt
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3 px-6 text-center">
+                    {exam.LoaiBoChuongPhan ? (
+                      <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
+                        Không phân cấp
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                        Phân cấp
                       </span>
                     )}
                   </td>
@@ -214,7 +226,7 @@ const Exams = () => {
               ))
             ) : (
               <tr>
-                <td colSpan={6} className="py-4 px-6 text-center">
+                <td colSpan={7} className="py-4 px-6 text-center">
                   Không tìm thấy đề thi nào
                 </td>
               </tr>

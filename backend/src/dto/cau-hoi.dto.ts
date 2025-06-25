@@ -58,6 +58,11 @@ export class CreateCauHoiDto {
     @IsUUID()
     @IsOptional()
     MaCLO?: string;
+
+    @ApiPropertyOptional({ description: 'Real difficulty level based on statistics' })
+    @IsNumber()
+    @IsOptional()
+    DoKhoThucTe?: number;
 }
 
 export class UpdateCauHoiDto extends CreateCauHoiDto { }
@@ -170,4 +175,9 @@ export class CauHoiResponseDto {
     @IsUUID()
     @IsOptional()
     MaCLO?: string;
+
+    @ApiPropertyOptional({ description: 'Real difficulty level based on statistics' })
+    @IsNumber()
+    @IsOptional()
+    DoKhoThucTe?: number;
 }

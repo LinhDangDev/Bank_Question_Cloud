@@ -19,6 +19,9 @@ export class DeThi {
     @Column({ type: 'bit', default: false })
     DaDuyet: boolean;
 
+    @Column({ type: 'bit', default: false })
+    LoaiBoChuongPhan: boolean;
+
     @Column({ type: 'int', nullable: true })
     SoCauHoi: number;
 

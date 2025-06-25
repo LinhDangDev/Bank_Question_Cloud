@@ -51,6 +51,8 @@ interface Question {
   NgaySua?: string;
   MaCLO: string;
   answers?: Answer[];
+  LaCauHoiNhom?: boolean;
+  LoaiBoChuongPhan?: boolean;
 }
 
 interface QuestionDetails {

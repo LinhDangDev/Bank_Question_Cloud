@@ -71,6 +71,7 @@ const Extract = () => {
   const [matrix, setMatrix] = useState<MatrixRow[]>([]);
   const [isPreviewMode, setIsPreviewMode] = useState(true);
   const [importedData, setImportedData] = useState<MatrixRow[] | null>(null);
+  const [loaiBoChuongPhan, setLoaiBoChuongPhan] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Add state for API data
@@ -350,6 +351,7 @@ const Extract = () => {
     const examData = {
       tenDeThi: examTitle,
       maMonHoc: selectedSubject,
+      loaiBoChuongPhan: loaiBoChuongPhan,
       matrix: matrix.map(row => ({
         maPhan: row.chapterId,
         clo1: row.clo1,
@@ -523,6 +525,22 @@ const Extract = () => {
                   onChange={(e) => setExamTitle(e.target.value)}
                   placeholder="Nhập tên đề thi"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="loaiBoChuongPhan"
+                    checked={loaiBoChuongPhan}
+                    onCheckedChange={(checked) => setLoaiBoChuongPhan(checked === true)}
+                  />
+                  <Label htmlFor="loaiBoChuongPhan" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    Bỏ cấu trúc chương/phần (chỉ hiển thị câu hỏi)
+                  </Label>
+                </div>
+                <div className="text-xs text-gray-500 ml-6">
+                  Khi được chọn, đề thi sẽ không hiển thị cấu trúc chương/phần, chỉ hiển thị các câu hỏi.
+                </div>
               </div>
 
               <div className="bg-blue-50 p-4 rounded-lg">

@@ -4,6 +4,8 @@ import { Files } from '../../entities/files.entity';
 import { FilesService } from './files.service';
 import { FilesController } from './files.controller';
 import { MulterModule } from '@nestjs/platform-express';
+import { DocxTemplateService } from '../../services/docx-template.service';
+import { PdfService } from '../../services/pdf.service';
 
 @Module({
     imports: [
@@ -13,7 +15,7 @@ import { MulterModule } from '@nestjs/platform-express';
         }),
     ],
     controllers: [FilesController],
-    providers: [FilesService],
+    providers: [FilesService, DocxTemplateService, PdfService],
     exports: [FilesService],
 })
 export class FilesModule { }

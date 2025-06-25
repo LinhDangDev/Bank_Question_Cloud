@@ -11,6 +11,7 @@ import { Files } from '../entities/files.entity';
 import { DocxTemplateService } from './docx-template.service';
 import { PdfService } from './pdf.service';
 import { v4 as uuidv4 } from 'uuid';
+import * as fs from 'fs';
 
 interface ExamMatrixItem {
     maPhan: string;
@@ -296,7 +297,12 @@ export class ExamService {
                 XoaTamCauHoi: false,
                 MaCauHoiCha: IsNull() // Only parent questions
             },
-            relations: ['CLO', 'Phan', 'CauTraLoi']
+            relations: ['CLO', 'Phan', 'CauTraLoi'],
+            select: [
+                'MaCauHoi', 'MaPhan', 'MaSoCauHoi', 'NoiDung', 'HoanVi', 'CapDo', 'SoCauHoiCon',
+                'DoPhanCachCauHoi', 'MaCauHoiCha', 'XoaTamCauHoi', 'SoLanDuocThi', 'SoLanDung',
+                'NgayTao', 'NgaySua', 'MaCLO', 'DoKhoThucTe'
+            ]
         });
 
         this.logger.log(`Found ${allQuestions.length} total available questions across all chapters`);
@@ -487,7 +493,14 @@ export class ExamService {
 
         // Factor 2: Success rate - prefer questions with moderate success rates
         // Questions that are too easy (high success) or too hard (low success) get lower weights
-        if (question.SoLanDuocThi && question.SoLanDuocThi > 0) {
+        if (question.DoKhoThucTe !== null && question.DoKhoThucTe !== undefined) {
+            // Use real difficulty metrics when available (preferred method)
+            const realDifficulty = question.DoKhoThucTe;
+            // Prefer questions with real difficulty around 0.5-0.7 (bell curve)
+            const distanceFromOptimal = Math.abs(0.6 - realDifficulty);
+            const difficultyWeight = Math.max(0.3, 1 - distanceFromOptimal * 1.2);
+            weight *= difficultyWeight;
+        } else if (question.SoLanDuocThi && question.SoLanDuocThi > 0) {
             const successRate = (question.SoLanDung || 0) / question.SoLanDuocThi;
             // Prefer questions with success rates around 0.6-0.8 (bell curve)
             const distanceFromOptimal = Math.abs(0.7 - successRate);
@@ -499,19 +512,22 @@ export class ExamService {
         }
 
         // Factor 3: Difficulty level - adjust based on question difficulty
-        const difficulty = question.CapDo || 3; // Default to medium difficulty
-        let difficultyWeight = 1.0;
-        if (difficulty >= 1 && difficulty <= 5) {
-            // Prefer medium difficulty questions (level 3-4)
-            if (difficulty === 3 || difficulty === 4) {
-                difficultyWeight = 1.2;
-            } else if (difficulty === 2 || difficulty === 5) {
-                difficultyWeight = 1.0;
-            } else {
-                difficultyWeight = 0.8; // Very easy or very hard questions
+        // Only use declared difficulty if we don't have real difficulty data
+        if (question.DoKhoThucTe === null || question.DoKhoThucTe === undefined) {
+            const difficulty = question.CapDo || 3; // Default to medium difficulty
+            let difficultyWeight = 1.0;
+            if (difficulty >= 1 && difficulty <= 5) {
+                // Prefer medium difficulty questions (level 3-4)
+                if (difficulty === 3 || difficulty === 4) {
+                    difficultyWeight = 1.2;
+                } else if (difficulty === 2 || difficulty === 5) {
+                    difficultyWeight = 1.0;
+                } else {
+                    difficultyWeight = 0.8; // Very easy or very hard questions
+                }
             }
+            weight *= difficultyWeight;
         }
-        weight *= difficultyWeight;
 
         // Factor 4: CLO match - strongly prefer questions that match the target CLO
         const questionCLO = question.CLO?.ThuTu || 0;
@@ -750,7 +766,7 @@ export class ExamService {
             const examData = await this.prepareExamData(deThi.MaDeThi, shuffleAnswers);
 
             // 2. Generate DOCX
-            const docxPath = await this.docxTemplateService.generateDocx('DefaultExamTemplate.dotx', examData);
+            const docxPath = await this.docxTemplateService.generateDocx('TemplateHutech.dotx', examData);
             this.logger.log(`Generated DOCX for exam ${deThi.MaDeThi} at ${docxPath}`);
 
             // 3. Convert to PDF
@@ -773,7 +789,10 @@ export class ExamService {
     }
 
     private async prepareExamData(deThiId: string, shuffleAnswers: boolean): Promise<any> {
-        const deThi = await this.deThiRepository.findOne({ where: { MaDeThi: deThiId }, relations: ['MonHoc'] });
+        const deThi = await this.deThiRepository.findOne({
+            where: { MaDeThi: deThiId },
+            relations: ['MonHoc']
+        });
 
         if (!deThi) {
             throw new Error(`Exam with ID ${deThiId} not found`);
@@ -788,9 +807,10 @@ export class ExamService {
         // Get question IDs
         const questionIds = chiTietDeThi.map(item => item.MaCauHoi);
 
-        // Get questions with content
+        // Get questions with content and CLO information
         const questions = await this.cauHoiRepository.find({
             where: { MaCauHoi: In(questionIds) },
+            relations: ['CLO'], // Include CLO relationship
         });
 
         // Create a map for quick lookup
@@ -826,6 +846,11 @@ export class ExamService {
                 questionAnswers = [...questionAnswers].sort(() => 0.5 - Math.random());
             }
 
+            // Get correct answer information
+            const correctAnswers = questionAnswers
+                .filter(answer => answer.LaDapAn)
+                .map((answer, idx) => String.fromCharCode(65 + questionAnswers.findIndex(a => a.MaCauTraLoi === answer.MaCauTraLoi)));
+
             // Format answers for template
             const formattedAnswers = questionAnswers.map((answer, ansIndex) => ({
                 label: String.fromCharCode(65 + ansIndex), // A, B, C, D...
@@ -837,6 +862,9 @@ export class ExamService {
                 number: index + 1,
                 text: question?.NoiDung || 'Không có nội dung',
                 answers: formattedAnswers,
+                correctAnswer: correctAnswers.join(', '), // Include correct answer information
+                clo: question?.CLO?.TenCLO || '', // Use CLO name instead of CLO code
+                difficulty: question?.CapDo || 1,
             };
         });
 
@@ -846,6 +874,7 @@ export class ExamService {
             subject: deThi.MonHoc?.TenMonHoc || 'Không có tên môn học',
             date: new Date().toLocaleDateString('vi-VN'),
             questions: questionsList,
+            hasAnswers: true, // Flag to indicate answers are included
         };
     }
 
@@ -853,5 +882,325 @@ export class ExamService {
         const shuffledQuestions = [...questions];
         shuffledQuestions.sort(() => Math.random() - 0.5);
         return shuffledQuestions;
+    }
+
+    /**
+     * Generate a custom PDF from provided data
+     * @param data Object containing title, instructions, and questions data
+     * @returns Object with the generated PDF file path
+     */
+    async generateCustomPdf(data: any): Promise<{ filePath: string }> {
+        this.logger.log(`Generating custom PDF for: ${data.title}`);
+
+        try {
+            // Check if examId is provided for extracting real questions
+            if (data.examId) {
+                this.logger.log(`Using real questions from exam ID: ${data.examId}`);
+                return await this.generateExamPdfFromId(data.examId, data.title, data.instructions);
+            }
+
+            // Create a unique filename for the PDF
+            const fileName = `custom_${Date.now()}_${uuidv4()}`;
+            const outputDir = path.join(process.cwd(), '..', 'output');
+            const pdfPath = path.join(outputDir, `${fileName}.pdf`);
+
+            if (!Array.isArray(data.questions) || data.questions.length === 0) {
+                throw new Error('No questions provided for PDF generation');
+            }
+
+            // Ensure output directory exists
+            if (!fs.existsSync(outputDir)) {
+                fs.mkdirSync(outputDir, { recursive: true });
+            }
+
+            // Generate the PDF using PDF service
+            await this.pdfService.generateCustomPdf(pdfPath, data);
+
+            this.logger.log(`Custom PDF generated successfully at ${pdfPath}`);
+
+            return { filePath: pdfPath };
+        } catch (error) {
+            this.logger.error(`Error generating custom PDF: ${error.message}`, error.stack);
+            throw error;
+        }
+    }
+
+    /**
+     * Generate a PDF from an actual exam ID
+     * @param examId The ID of the exam to use for questions
+     * @param title Custom title (optional)
+     * @param instructions Custom instructions (optional)
+     * @returns Object with the generated PDF file path
+     */
+    private async generateExamPdfFromId(
+        examId: string,
+        title?: string,
+        instructions?: string
+    ): Promise<{ filePath: string }> {
+        this.logger.log(`Generating PDF from exam ID: ${examId}`);
+
+        // Get the exam details
+        const deThi = await this.deThiRepository.findOne({
+            where: { MaDeThi: examId },
+            relations: ['MonHoc'],
+        });
+
+        if (!deThi) {
+            throw new Error(`Exam with ID ${examId} not found`);
+        }
+
+        // Get questions for the exam
+        const chiTietDeThi = await this.chiTietDeThiRepository.find({
+            where: { MaDeThi: examId },
+            relations: ['Phan', 'CauHoi'],
+            order: { ThuTu: 'ASC' },
+        });
+
+        if (chiTietDeThi.length === 0) {
+            throw new Error(`No questions found for exam ID ${examId}`);
+        }
+
+        // Get question IDs
+        const questionIds = chiTietDeThi.map(item => item.MaCauHoi);
+
+        // Get all questions with their content
+        const questions = await this.cauHoiRepository.find({
+            where: { MaCauHoi: In(questionIds) },
+            relations: ['CLO'],
+        });
+
+        // Create a map for quick lookup
+        const questionMap = new Map(questions.map(q => [q.MaCauHoi, q]));
+
+        // Get all answers for these questions
+        const answers = await this.cauTraLoiRepository.find({
+            where: { MaCauHoi: In(questionIds) },
+            order: { ThuTu: 'ASC' },
+        });
+
+        // Group answers by question
+        const answersMap = answers.reduce((map, answer) => {
+            if (!map.has(answer.MaCauHoi)) {
+                map.set(answer.MaCauHoi, []);
+            }
+            const answerArray = map.get(answer.MaCauHoi);
+            if (answerArray) {
+                answerArray.push(answer);
+            }
+            return map;
+        }, new Map<string, CauTraLoi[]>());
+
+        // Format questions with their answers for the PDF
+        const formattedQuestions = chiTietDeThi.map((item, index) => {
+            const question = questionMap.get(item.MaCauHoi);
+            const questionAnswers = answersMap.get(item.MaCauHoi) || [];
+
+            return {
+                number: index + 1,
+                content: question?.NoiDung || 'Nội dung câu hỏi không có sẵn',
+                options: questionAnswers.map((answer, idx) => ({
+                    label: String.fromCharCode(65 + idx), // A, B, C, D...
+                    content: answer.NoiDung,
+                    isCorrect: answer.LaDapAn
+                })),
+                topic: item.Phan?.TenPhan || '',
+                difficulty: question?.CapDo || 1,
+                clo: question?.CLO?.TenCLO || ''
+            };
+        });
+
+        // Create unique filename
+        const fileName = `exam_${examId}_${Date.now()}`;
+        const outputDir = path.join(process.cwd(), '..', 'output');
+        const pdfPath = path.join(outputDir, `${fileName}.pdf`);
+
+        // Create the PDF data object
+        const pdfData = {
+            title: title || deThi.TenDeThi,
+            subject: deThi.MonHoc?.TenMonHoc || '',
+            date: new Date().toLocaleDateString('vi-VN'),
+            instructions: instructions || 'Thời gian làm bài: 90 phút. Không được sử dụng tài liệu.',
+            questions: formattedQuestions,
+        };
+
+        // Generate the PDF
+        await this.pdfService.generateCustomPdf(pdfPath, pdfData);
+
+        this.logger.log(`Exam PDF generated successfully at ${pdfPath}`);
+
+        return { filePath: pdfPath };
+    }
+
+    /**
+     * Generate a custom DOCX from provided data
+     * @param data Object containing title, instructions, and questions data
+     * @returns Object with the generated DOCX file path
+     */
+    async generateCustomDocx(data: any): Promise<{ filePath: string }> {
+        this.logger.log(`Generating custom DOCX for: ${data.title}`);
+
+        try {
+            // Check if examId is provided for extracting real questions
+            if (data.examId) {
+                this.logger.log(`Using real questions from exam ID: ${data.examId}`);
+                return await this.generateExamDocxFromId(data.examId, data.title, data.instructions);
+            }
+
+            // If no examId, use the provided questions (but we need to format them properly)
+            // Create a unique filename for the DOCX
+            const fileName = `custom_${Date.now()}_${uuidv4()}`;
+            const outputDir = path.join(process.cwd(), '..', 'output');
+            const docxPath = path.join(outputDir, `${fileName}.docx`);
+
+            // Transform the data to the format needed for docx template generation
+            const docxData = {
+                title: data.title,
+                subject: data.subject || 'Môn học tổng hợp',
+                date: data.date || new Date().toLocaleDateString('vi-VN'),
+                instructions: data.instructions || 'Không có hướng dẫn',
+                hasAnswers: true, // Always include answers in custom exports
+                questions: data.questions.map((q: any, index: number) => ({
+                    number: index + 1,
+                    text: q.content,
+                    answers: q.options?.map((opt: any, idx: number) => {
+                        // Handle both object options and string options
+                        if (typeof opt === 'object') {
+                            return {
+                                label: opt.label || String.fromCharCode(65 + idx),
+                                text: opt.content || '',
+                                isCorrect: !!opt.isCorrect
+                            };
+                        } else {
+                            return {
+                                label: String.fromCharCode(65 + idx),
+                                text: opt || '',
+                                isCorrect: q.correctAnswerIndex === idx
+                            };
+                        }
+                    }) || [],
+                    correctAnswer: q.correctAnswer || String.fromCharCode(65 + (q.correctAnswerIndex || 0)),
+                    clo: q.clo || '',
+                    difficulty: q.difficulty || 1,
+                })),
+            };
+
+            // Generate the DOCX file using the template service
+            const templatePath = 'TemplateHutech.dotx'; // Use the standard template
+            const outputPath = await this.docxTemplateService.generateDocx(templatePath, docxData);
+
+            this.logger.log(`Custom DOCX generated successfully at ${outputPath}`);
+
+            return { filePath: outputPath };
+        } catch (error) {
+            this.logger.error(`Error generating custom DOCX: ${error.message}`, error.stack);
+            throw error;
+        }
+    }
+
+    /**
+     * Generate a DOCX from an actual exam ID
+     * @param examId The ID of the exam to use for questions
+     * @param title Custom title (optional)
+     * @param instructions Custom instructions (optional)
+     * @returns Object with the generated DOCX file path
+     */
+    private async generateExamDocxFromId(
+        examId: string,
+        title?: string,
+        instructions?: string
+    ): Promise<{ filePath: string }> {
+        // This is very similar to prepareExamDataForTemplate in DeThiService
+        // Get the exam details
+        const deThi = await this.deThiRepository.findOne({
+            where: { MaDeThi: examId },
+            relations: ['MonHoc'],
+        });
+
+        if (!deThi) {
+            throw new Error(`Exam with ID ${examId} not found`);
+        }
+
+        // Get questions for the exam
+        const chiTietDeThi = await this.chiTietDeThiRepository.find({
+            where: { MaDeThi: examId },
+            relations: ['Phan'],
+            order: { ThuTu: 'ASC' },
+        });
+
+        if (chiTietDeThi.length === 0) {
+            throw new Error(`No questions found for exam ID ${examId}`);
+        }
+
+        // Get question IDs
+        const questionIds = chiTietDeThi.map(item => item.MaCauHoi);
+
+        // Get all questions with their content
+        const questions = await this.cauHoiRepository.find({
+            where: { MaCauHoi: In(questionIds) },
+            relations: ['CLO'],
+        });
+
+        // Create a map for quick lookup
+        const questionMap = new Map(questions.map(q => [q.MaCauHoi, q]));
+
+        // Get all answers for these questions
+        const answers = await this.cauTraLoiRepository.find({
+            where: { MaCauHoi: In(questionIds) },
+            order: { ThuTu: 'ASC' },
+        });
+
+        // Group answers by question
+        const answersMap = answers.reduce((map, answer) => {
+            if (!map.has(answer.MaCauHoi)) {
+                map.set(answer.MaCauHoi, []);
+            }
+            const answerArray = map.get(answer.MaCauHoi);
+            if (answerArray) {
+                answerArray.push(answer);
+            }
+            return map;
+        }, new Map<string, CauTraLoi[]>());
+
+        // Format questions with their answers for the template
+        const formattedQuestions = chiTietDeThi.map((item, index) => {
+            const question = questionMap.get(item.MaCauHoi);
+            const questionAnswers = answersMap.get(item.MaCauHoi) || [];
+
+            // Get correct answers
+            const correctAnswers = questionAnswers
+                .filter(answer => answer.LaDapAn)
+                .map((answer, idx) => String.fromCharCode(65 + questionAnswers.findIndex(a => a.MaCauTraLoi === answer.MaCauTraLoi)));
+
+            return {
+                number: index + 1,
+                text: question?.NoiDung || 'Nội dung câu hỏi không có sẵn',
+                answers: questionAnswers.map((answer, idx) => ({
+                    label: String.fromCharCode(65 + idx), // A, B, C, D...
+                    text: answer.NoiDung,
+                    isCorrect: answer.LaDapAn
+                })),
+                correctAnswer: correctAnswers.join(', '),
+                clo: question?.CLO?.TenCLO || '',
+                difficulty: question?.CapDo || 1,
+            };
+        });
+
+        // Create the template data
+        const docxData = {
+            title: title || deThi.TenDeThi,
+            subject: deThi.MonHoc?.TenMonHoc || 'Không có tên môn học',
+            date: new Date().toLocaleDateString('vi-VN'),
+            instructions: instructions || 'Thời gian làm bài: 90 phút. Không được sử dụng tài liệu.',
+            hasAnswers: true, // Always include answers in custom exports
+            questions: formattedQuestions,
+        };
+
+        // Generate the DOCX file
+        const templatePath = 'TemplateHutech.dotx'; // Use the standard template
+        const outputPath = await this.docxTemplateService.generateDocx(templatePath, docxData);
+
+        this.logger.log(`Exam DOCX generated successfully at ${outputPath}`);
+
+        return { filePath: outputPath };
     }
 }

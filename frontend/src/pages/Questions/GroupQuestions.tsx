@@ -46,6 +46,7 @@ interface GroupQuestion {
   MaCLO: string;
   TenCLO?: string;
   LaCauHoiNhom: boolean;
+  DoPhanCachCauHoi?: number | null;
   CauHoiCon?: ChildQuestion[];
 }
 

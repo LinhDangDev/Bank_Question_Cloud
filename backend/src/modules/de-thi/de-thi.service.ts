@@ -11,6 +11,9 @@ import { ExamService } from '../../services/exam.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { DocxTemplateService } from '../../services/docx-template.service';
+import { PdfService } from '../../services/pdf.service';
+import { CauHoi } from '../../entities/cau-hoi.entity';
 
 // Define the interface here to avoid importing from external module
 interface ExamPackage {
@@ -34,7 +37,11 @@ export class DeThiService extends BaseService<DeThi> {
         private readonly deThiRepository: Repository<DeThi>,
         @InjectRepository(ChiTietDeThi)
         private readonly chiTietDeThiRepository: Repository<ChiTietDeThi>,
+        @InjectRepository(CauHoi)
+        private readonly cauHoiRepository: Repository<CauHoi>,
         private readonly examService: ExamService,
+        private readonly docxTemplateService: DocxTemplateService,
+        private readonly pdfService: PdfService,
     ) {
         super(deThiRepository, 'MaDeThi');
     }
@@ -144,12 +151,16 @@ export class DeThiService extends BaseService<DeThi> {
             throw new NotFoundException(`Exam with ID ${examId} not found`);
         }
 
-        // Look for PDF file in the uploads directory
-        const uploadsDir = path.join(process.cwd(), 'uploads');
-        const pdfPattern = new RegExp(`${examId}.*\\.pdf$`, 'i');
+        // Look for PDF file in the output directory
+        const outputDir = path.join(process.cwd(), '..', 'output');
+        const pdfPattern = new RegExp(`.*\\.pdf$`, 'i');
 
         // Search for matching files
         const findPdfFile = (dir: string): string | null => {
+            if (!fs.existsSync(dir)) {
+                return null;
+            }
+
             const files = fs.readdirSync(dir);
 
             for (const file of files) {
@@ -167,7 +178,7 @@ export class DeThiService extends BaseService<DeThi> {
             return null;
         };
 
-        const pdfPath = findPdfFile(uploadsDir);
+        const pdfPath = findPdfFile(outputDir);
 
         if (!pdfPath) {
             throw new NotFoundException(`PDF file for exam ${examId} not found`);
@@ -189,12 +200,16 @@ export class DeThiService extends BaseService<DeThi> {
             throw new NotFoundException(`Exam with ID ${examId} not found`);
         }
 
-        // Look for DOCX file in the uploads directory
-        const uploadsDir = path.join(process.cwd(), 'uploads');
-        const docxPattern = new RegExp(`${examId}.*\\.docx$`, 'i');
+        // Look for DOCX file in the output directory
+        const outputDir = path.join(process.cwd(), '..', 'output');
+        const docxPattern = new RegExp(`.*\\.docx$`, 'i');
 
         // Search for matching files
         const findDocxFile = (dir: string): string | null => {
+            if (!fs.existsSync(dir)) {
+                return null;
+            }
+
             const files = fs.readdirSync(dir);
 
             for (const file of files) {
@@ -212,7 +227,7 @@ export class DeThiService extends BaseService<DeThi> {
             return null;
         };
 
-        const docxPath = findDocxFile(uploadsDir);
+        const docxPath = findDocxFile(outputDir);
 
         if (!docxPath) {
             throw new NotFoundException(`DOCX file for exam ${examId} not found`);
@@ -282,5 +297,121 @@ export class DeThiService extends BaseService<DeThi> {
 
         // Finally, delete the DeThi entry
         await this.deThiRepository.delete(maDeThi);
+    }
+
+    /**
+     * Generate exam document with a custom template
+     */
+    async generateExamWithCustomTemplate(
+        examId: string,
+        templatePath: string,
+        showAnswers: boolean = false,
+    ): Promise<{ docxPath: string; pdfPath: string }> {
+        try {
+            // Check if exam exists
+            const exam = await this.deThiRepository.findOne({
+                where: { MaDeThi: examId },
+                relations: ['MonHoc'],
+            });
+
+            if (!exam) {
+                throw new NotFoundException(`Exam with ID ${examId} not found`);
+            }
+
+            // Get the prepared data for the exam
+            const examData = await this.prepareExamDataForTemplate(examId, showAnswers);
+
+            // Get the template filename only
+            const templateFilename = path.basename(templatePath);
+
+            // Generate DOCX using the template
+            const docxPath = await this.docxTemplateService.generateDocx(templateFilename, examData, templatePath);
+
+            // Convert to PDF
+            const pdfPath = await this.pdfService.convertDocxToPdf(docxPath);
+
+            return { docxPath, pdfPath };
+        } catch (error) {
+            this.logger.error(`Error generating exam document with custom template: ${error.message}`, error.stack);
+            throw error;
+        }
+    }
+
+    /**
+     * Prepare exam data for template generation
+     */
+    private async prepareExamDataForTemplate(examId: string, includeAnswers: boolean): Promise<any> {
+        // Get exam details
+        const exam = await this.deThiRepository.findOne({
+            where: { MaDeThi: examId },
+            relations: ['MonHoc'],
+        });
+
+        if (!exam) {
+            throw new NotFoundException(`Exam with ID ${examId} not found`);
+        }
+
+        // Get exam questions with details
+        const examPackage = await this.examService.getExamPackage(examId);
+
+        // Format questions for template
+        const questions = examPackage.questions.map(question => ({
+            number: question.number,
+            text: question.content,
+            answers: question.answers.map(answer => ({
+                label: answer.label,
+                text: answer.content,
+                isCorrect: answer.isCorrect,
+            })),
+            correctAnswer: question.answers
+                .filter(answer => answer.isCorrect)
+                .map(answer => answer.label)
+                .join(', '),
+            clo: question.clo,
+            difficulty: question.difficulty,
+        }));
+
+        // Prepare template data
+        return {
+            title: exam.TenDeThi,
+            subject: exam.MonHoc?.TenMonHoc || 'Không có tên môn học',
+            date: new Date().toLocaleDateString('vi-VN'),
+            questions: questions,
+            hasAnswers: includeAnswers,
+        };
+    }
+
+    /**
+     * Get hierarchical questions for an exam
+     * If LoaiBoChuongPhan is true, questions will be grouped without chapter structure
+     */
+    async getHierarchicalQuestions(examId: string) {
+        const exam = await this.deThiRepository.findOne({
+            where: { MaDeThi: examId }
+        });
+
+        if (!exam) {
+            throw new NotFoundException(`Exam with ID ${examId} not found`);
+        }
+
+        const examDetails = await this.chiTietDeThiRepository.find({
+            where: { MaDeThi: examId },
+            relations: ['Phan', 'CauHoi', 'CauHoi.CauTraLoi'],
+            order: { ThuTu: 'ASC' }
+        });
+
+        if (exam.LoaiBoChuongPhan) {
+            // For exams without chapter structure, return a flattened list
+            return {
+                ignoreChapters: true,
+                questions: examDetails,
+            };
+        } else {
+            // For exams with chapter structure, group by chapter
+            return {
+                ignoreChapters: false,
+                questions: examDetails,
+            };
+        }
     }
 }

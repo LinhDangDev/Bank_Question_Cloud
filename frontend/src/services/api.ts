@@ -80,6 +80,12 @@ export const userApi = {
     changePassword: (id: string, password: string) => {
         return api.patch(`/users/${id}/password`, { password });
     },
+    firstTimePasswordChange: (id: string, password: string, currentPassword: string) => {
+        return api.patch(`/users/first-time-password/${id}`, {
+            password,
+            currentPassword
+        });
+    },
 };
 
 // Faculty (Khoa) API
@@ -163,6 +169,43 @@ export const phanApi = {
     },
 };
 
+// DeThi API - Separate from examApi for better organization
+export const deThiApi = {
+    getAll: () => {
+        return api.get('/de-thi');
+    },
+    getById: (id: string) => {
+        return api.get(`/de-thi/${id}`);
+    },
+    getHierarchicalQuestions: (id: string) => {
+        return api.get(`/de-thi/${id}/hierarchical-questions`);
+    },
+    getExamDetails: (id: string) => {
+        return api.get(`/chi-tiet-de-thi/de-thi/${id}`);
+    },
+    getApprovedExams: () => {
+        return api.get('/de-thi/approved');
+    },
+    getPendingExams: () => {
+        return api.get('/de-thi/pending');
+    },
+    createDeThi: (data: any) => {
+        return api.post('/de-thi', data);
+    },
+    updateDeThi: (id: string, data: any) => {
+        return api.put(`/de-thi/${id}`, data);
+    },
+    deleteDeThi: (id: string) => {
+        return api.delete(`/de-thi/${id}`);
+    },
+    approveDeThi: (id: string) => {
+        return api.post(`/de-thi/${id}/duyet`);
+    },
+    disapproveDeThi: (id: string) => {
+        return api.post(`/de-thi/${id}/huy-duyet`);
+    }
+};
+
 // Question API
 export const questionApi = {
     getAll: () => {
@@ -233,7 +276,7 @@ export const examApi = {
         return api.delete(`/de-thi/${id}`);
     },
     approveExam: (id: string) => {
-        return api.patch(`/de-thi/${id}/duyet`);
+        return api.post(`/de-thi/${id}/duyet`);
     },
     generateExam: (examData: any) => {
         return api.post('/de-thi/generate-clo', examData);
@@ -242,7 +285,28 @@ export const examApi = {
         return api.post('/de-thi/check-availability', examData);
     },
     downloadExam: (id: string, format: 'pdf' | 'docx') => {
-        return api.get(`/de-thi/${id}/${format}`, { responseType: 'blob' });
+        return api.get(`/de-thi/${id}/${format}`, {
+            responseType: 'blob',
+            headers: {
+                'Accept': format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            }
+        });
+    },
+    generateCustomPdf: (pdfData: any) => {
+        return api.post('/de-thi/generate-pdf', pdfData, {
+            responseType: 'blob',
+            headers: {
+                'Accept': 'application/pdf'
+            }
+        });
+    },
+    generateCustomDocx: (docxData: any) => {
+        return api.post('/de-thi/generate-docx', docxData, {
+            responseType: 'blob',
+            headers: {
+                'Accept': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            }
+        });
     },
 };
 

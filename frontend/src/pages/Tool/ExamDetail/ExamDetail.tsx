@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { examApi } from '@/services/api';
-import { ArrowLeft, Download, Edit, Printer, Clock, Book, AlertTriangle, Eye, EyeOff, Pencil, FileText } from 'lucide-react';
+import { deThiApi, examApi } from '@/services/api';
+import { ArrowLeft, Download, Edit, Printer, Clock, Book, AlertTriangle, Eye, EyeOff, Pencil, FileText, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,7 @@ interface Exam {
   TenDeThi: string;
   NgayTao: string;
   DaDuyet: boolean;
+  LoaiBoChuongPhan: boolean;
   MonHoc?: {
     TenMonHoc: string;
   };
@@ -80,21 +81,25 @@ const ExamDetail = () => {
 
       try {
         setLoading(true);
-        const [examResponse, detailsResponse] = await Promise.all([
+        // Use the hierarchical questions endpoint instead
+        const [examResponse, hierarchicalResponse] = await Promise.all([
           examApi.getExamById(id),
-          examApi.getExamDetails(id)
+          deThiApi.getHierarchicalQuestions(id)
         ]);
 
         setExam(examResponse.data);
 
-        // Kiểm tra nếu dữ liệu trả về là object có thuộc tính items, hoặc là array
-        if (detailsResponse.data && typeof detailsResponse.data === 'object') {
-          if (Array.isArray(detailsResponse.data)) {
-            setExamDetails(detailsResponse.data);
-          } else if (detailsResponse.data.items && Array.isArray(detailsResponse.data.items)) {
-            setExamDetails(detailsResponse.data.items);
+        // Process the hierarchical questions response
+        if (hierarchicalResponse.data && typeof hierarchicalResponse.data === 'object') {
+          // Extract questions from the hierarchical structure
+          const questions = hierarchicalResponse.data.questions;
+
+          if (Array.isArray(questions)) {
+            setExamDetails(questions);
+          } else if (questions && questions.items && Array.isArray(questions.items)) {
+            setExamDetails(questions.items);
           } else {
-            console.error("Unexpected response format:", detailsResponse.data);
+            console.error("Unexpected questions format:", hierarchicalResponse.data);
             setExamDetails([]);
             setError("Định dạng dữ liệu không hợp lệ");
           }
@@ -119,6 +124,20 @@ const ExamDetail = () => {
       navigate(`/exams/edit/${id}`);
     } else {
       toast.warning("Không thể chỉnh sửa đề thi đã được duyệt");
+    }
+  };
+
+  const handleApproveExam = async () => {
+    if (!id || !isAdmin) return;
+
+    try {
+      await examApi.approveExam(id);
+      toast.success("Đã duyệt đề thi thành công");
+      // Update the exam status locally
+      setExam(prev => prev ? { ...prev, DaDuyet: true } : null);
+    } catch (error) {
+      console.error("Error approving exam:", error);
+      toast.error("Không thể duyệt đề thi");
     }
   };
 
@@ -253,15 +272,47 @@ const ExamDetail = () => {
     `;
   };
 
-  const handleDownloadExam = () => {
-    if (id) {
-      window.open(`/api/de-thi/${id}/download`, '_blank');
+  const handleDownloadExam = async () => {
+    if (!id) return;
+
+    try {
+      const response = await examApi.downloadExam(id, 'docx');
+      const blob = new Blob([response.data], {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      });
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `exam-${id}.docx`;
+      document.body.appendChild(link);
+      link.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("Error downloading DOCX:", error);
+      toast.error("Không thể tải xuống tệp DOCX");
     }
   };
 
-  const handleDownloadPDF = () => {
-    if (id) {
-      window.open(`/api/de-thi/${id}/pdf`, '_blank');
+  const handleDownloadPDF = async () => {
+    if (!id) return;
+
+    try {
+      const response = await examApi.downloadExam(id, 'pdf');
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `exam-${id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("Error downloading PDF:", error);
+      toast.error("Không thể tải xuống tệp PDF");
     }
   };
 
@@ -317,18 +368,38 @@ const ExamDetail = () => {
   // Đảm bảo examDetails là mảng trước khi dùng reduce
   const detailsArray = Array.isArray(examDetails) ? examDetails : [];
 
-  // Group questions by chapter (phan)
+  // Group questions by chapter (phan) or combine all if LoaiBoChuongPhan is true
   const groupedQuestions: GroupedQuestions = detailsArray.reduce((acc: GroupedQuestions, detail) => {
-    const phanId = detail.MaPhan;
+    // If LoaiBoChuongPhan is true, use a single group for all questions
+    const phanId = exam.LoaiBoChuongPhan ? 'all-questions' : detail.MaPhan;
+
     if (!acc[phanId]) {
       acc[phanId] = {
-        phan: detail.Phan,
+        phan: exam.LoaiBoChuongPhan
+          ? { MaPhan: 'all-questions', TenPhan: 'Tất cả câu hỏi' }
+          : detail.Phan,
         questions: []
       };
     }
+
     acc[phanId].questions.push(detail);
     return acc;
   }, {});
+
+  // Interface for QuestionItem component's expected format
+  interface CauHoi {
+    id: string;
+    content: string;
+    clo: string | null;
+    type: 'single-choice' | 'multi-choice' | 'fill-blank' | 'group';
+    answers: {
+      id: string;
+      content: string;
+      isCorrect: boolean;
+      order: number;
+    }[];
+    capDo?: number;
+  }
 
   // Transform CauHoi to the format expected by QuestionItem
   const transformQuestion = (cauHoi: BackendCauHoi, showAnswers: boolean): CauHoi => {
@@ -363,13 +434,19 @@ const ExamDetail = () => {
         </Button>
         <h1 className="text-2xl font-bold flex-grow">{exam.TenDeThi}</h1>
         <div className="flex space-x-2">
+          {isAdmin && !exam.DaDuyet && (
+            <Button className="bg-green-600 hover:bg-green-700" onClick={handleApproveExam}>
+              <CheckCircle className="mr-2" size={16} />
+              Duyệt đề thi
+            </Button>
+          )}
           {isAdmin && (
             <>
-              <Button variant="outline" onClick={handleEditExam}>
+              <Button variant="outline" onClick={handleEditExam} disabled={exam.DaDuyet}>
                 <Edit className="mr-2" size={16} />
                 Chỉnh sửa
               </Button>
-              <Button variant="outline" onClick={handleEditAllQuestions}>
+              <Button variant="outline" onClick={handleEditAllQuestions} disabled={exam.DaDuyet}>
                 <Pencil className="mr-2" size={16} />
                 Chỉnh sửa câu hỏi
               </Button>
@@ -421,6 +498,13 @@ const ExamDetail = () => {
                 <p className="text-sm text-gray-500">Trạng thái</p>
                 <Badge className={exam.DaDuyet ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}>
                   {exam.DaDuyet ? 'Đã duyệt' : 'Chưa duyệt'}
+                </Badge>
+              </div>
+
+              <div>
+                <p className="text-sm text-gray-500">Cấu trúc</p>
+                <Badge className={exam.LoaiBoChuongPhan ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800"}>
+                  {exam.LoaiBoChuongPhan ? 'Không phân cấp' : 'Phân cấp chương/phần'}
                 </Badge>
               </div>
 

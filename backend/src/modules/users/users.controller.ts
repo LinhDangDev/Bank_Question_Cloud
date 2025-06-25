@@ -61,6 +61,28 @@ export class UsersController {
         return this.usersService.changePassword(id, password);
     }
 
+    /**
+     * Public endpoint for first-time password change
+     * This can be used by any user to change their own password when NeedChangePassword is true
+     */
+    @Patch('first-time-password/:id')
+    @UseGuards(JwtAuthGuard)
+    async firstTimePasswordChange(
+        @Param('id') id: string,
+        @Body('password') password: string,
+        @Body('currentPassword') currentPassword: string
+    ) {
+        if (!password || password.length < 6) {
+            throw new BadRequestException('Password must be at least 6 characters');
+        }
+
+        if (!currentPassword) {
+            throw new BadRequestException('Current password is required');
+        }
+
+        return this.usersService.firstTimePasswordChange(id, password, currentPassword);
+    }
+
     @Post('/import')
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles('admin')

@@ -173,6 +173,47 @@ export class UsersService {
         return this.findOne(id);
     }
 
+    /**
+     * Handle first-time password change with current password validation
+     */
+    async firstTimePasswordChange(id: string, newPassword: string, currentPassword: string): Promise<User> {
+        // Get the user with password
+        const user = await this.userRepository.findOne({
+            where: { UserId: id },
+            select: ['UserId', 'Password', 'NeedChangePassword']
+        });
+
+        if (!user) {
+            throw new NotFoundException(`User with ID ${id} not found`);
+        }
+
+        // Verify that the user needs to change password
+        if (!user.NeedChangePassword) {
+            throw new BadRequestException('Password change not required for this user');
+        }
+
+        // Verify current password
+        const isPasswordValid = await bcrypt.compare(currentPassword, user.Password);
+        if (!isPasswordValid) {
+            throw new BadRequestException('Current password is incorrect');
+        }
+
+        // Hash the new password
+        const salt = await bcrypt.genSalt();
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        // Update user password
+        await this.userRepository.update(id, {
+            Password: hashedPassword,
+            PasswordSalt: salt,
+            LastPasswordChangedDate: new Date(),
+            NeedChangePassword: false
+        });
+
+        // Return updated user without password
+        return this.findOne(id);
+    }
+
     async importUsers(users: CreateUserDto[]): Promise<{ success: number; failed: number; errors: string[] }> {
         const result = {
             success: 0,

@@ -51,6 +51,7 @@ interface BackendQuestion {
   };
   answers: Answer[];
   LaCauHoiNhom?: boolean;
+  LoaiBoChuongPhan?: boolean;
   CauHoiCon?: ChildQuestion[];
 }
 

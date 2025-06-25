@@ -10,6 +10,8 @@ import { userApi } from '@/services/api';
 const FirstTimePassword = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -61,6 +63,11 @@ const FirstTimePassword = () => {
     setError('');
 
     // Validate
+    if (!currentPassword) {
+      setError('Vui lòng nhập mật khẩu hiện tại');
+      return;
+    }
+
     if (password.length < 6) {
       setError('Mật khẩu phải có ít nhất 6 ký tự');
       return;
@@ -83,7 +90,8 @@ const FirstTimePassword = () => {
         throw new Error('Không tìm thấy thông tin người dùng');
       }
 
-      await userApi.changePassword(user.userId, password);
+      // Use the new firstTimePasswordChange endpoint
+      await userApi.firstTimePasswordChange(user.userId, password, currentPassword);
 
       toast.success('Đổi mật khẩu thành công! Vui lòng đăng nhập lại.');
 
@@ -116,6 +124,31 @@ const FirstTimePassword = () => {
 
         <form className="space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
+            <div>
+              <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 mb-1">
+                Mật khẩu hiện tại
+              </label>
+              <div className="relative">
+                <Input
+                  id="currentPassword"
+                  type={showCurrentPassword ? "text" : "password"}
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="w-full pl-10 pr-10 border border-gray-300"
+                  placeholder="Nhập mật khẩu hiện tại"
+                  required
+                />
+                <Key className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                  className="absolute right-3 top-2.5 text-gray-500 focus:outline-none"
+                >
+                  {showCurrentPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              </div>
+            </div>
+
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                 Mật khẩu mới

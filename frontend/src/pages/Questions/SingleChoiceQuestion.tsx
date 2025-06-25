@@ -126,6 +126,7 @@ interface SubQuestion {
   NgayTao?: string;
   NgaySua?: string;
   MaCLO?: string;
+  LaCauHoiNhom?: boolean;
   answers: Answer[];
 }
 
