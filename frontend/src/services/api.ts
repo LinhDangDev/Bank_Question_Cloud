@@ -214,17 +214,32 @@ export const questionApi = {
     getById: (id: string) => {
         return api.get(`/cau-hoi/${id}`);
     },
+    getFullDetails: (id: string) => {
+        return api.get(`/cau-hoi/${id}/full-details`);
+    },
+    getAnswers: (questionId: string) => {
+        return api.get(`/cau-tra-loi/cau-hoi/${questionId}`);
+    },
     getByChapter: (chapterId: string) => {
         return api.get(`/cau-hoi/phan/${chapterId}`);
     },
     getByChapterWithAnswers: (chapterId: string) => {
         return api.get(`/cau-hoi/phan/${chapterId}/with-answers`);
     },
+    getWithAnswers: (id: string) => {
+        return api.get(`/cau-hoi/${id}/with-answers`);
+    },
+    getChildQuestions: (parentId: string) => {
+        return api.get(`/cau-hoi/con/${parentId}`);
+    },
     create: (questionData: any) => {
         return api.post('/cau-hoi', questionData);
     },
     createWithAnswers: (questionData: any) => {
         return api.post('/cau-hoi/with-answers', questionData);
+    },
+    createGroupQuestion: (questionData: any) => {
+        return api.post('/cau-hoi/group', questionData);
     },
     update: (id: string, questionData: any) => {
         return api.put(`/cau-hoi/${id}`, questionData);
@@ -312,10 +327,13 @@ export const examApi = {
 
 // File upload API
 export const fileApi = {
-    uploadQuestionFile: (file: File) => {
+    uploadQuestionFile: (file: File, questionId?: string) => {
         const formData = new FormData();
         formData.append('file', file);
-        return api.post('/files/upload-questions', formData, {
+        if (questionId) {
+            formData.append('maCauHoi', questionId);
+        }
+        return api.post('/files/upload', formData, {
             headers: {
                 'Content-Type': 'multipart/form-data',
             },
@@ -339,6 +357,111 @@ export const extractionApi = {
     },
     getExtractionStatus: (jobId: string) => {
         return api.get(`/questions-import/status/${jobId}`);
+    },
+};
+
+// Questions Import API
+export const questionsImportApi = {
+    uploadFile: (file: File) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return api.post('/questions-import/upload', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+    },
+    parseFile: (fileId: string) => {
+        return api.post('/questions-import/parse', { fileId });
+    },
+    getPreview: (fileId: string, page: number = 1, limit: number = 10) => {
+        return api.get(`/questions-import/preview/${fileId}?page=${page}&limit=${limit}`);
+    },
+    saveQuestions: (payload: {
+        fileId: string;
+        questionIds: string[];
+        maPhan?: string;
+        questionMetadata?: any[];
+    }) => {
+        return api.post('/questions-import/save', payload);
+    },
+    cleanup: (fileId: string) => {
+        return api.delete(`/questions-import/cleanup/${fileId}`);
+    },
+};
+
+// Pending Question API (câu hỏi chờ duyệt)
+export const pendingQuestionApi = {
+    // Get all pending questions (teachers will only see their own)
+    getAll: (page = 1, limit = 10, trangThai?: number) => {
+        let url = `/cau-hoi-cho-duyet?page=${page}&limit=${limit}`;
+        if (trangThai !== undefined) {
+            url += `&trangThai=${trangThai}`;
+        }
+        return api.get(url);
+    },
+
+    // Get statistics about pending questions
+    getStatistics: () => {
+        return api.get('/cau-hoi-cho-duyet/statistics');
+    },
+
+    // Get a single pending question by ID
+    getById: (id: string) => {
+        return api.get(`/cau-hoi-cho-duyet/${id}`);
+    },
+
+    // Admin only - approve a question
+    approve: (id: string, phanId?: string) => {
+        return api.post('/cau-hoi-cho-duyet/duyet', {
+            MaCauHoiChoDuyet: id,
+            TrangThai: 1, // 1 = Approve
+            MaPhan: phanId
+        });
+    },
+
+    // Admin only - reject a question
+    reject: (id: string, reason: string) => {
+        return api.post('/cau-hoi-cho-duyet/duyet', {
+            MaCauHoiChoDuyet: id,
+            TrangThai: 2, // 2 = Reject
+            GhiChu: reason
+        });
+    },
+
+    // Admin only - bulk approve/reject questions
+    bulkProcess: (ids: string[], status: number, note?: string, phanId?: string) => {
+        return api.post('/cau-hoi-cho-duyet/duyet-nhieu', {
+            cauHoiIds: ids,
+            trangThai: status,
+            ghiChu: note,
+            maPhan: phanId
+        });
+    }
+};
+
+// CLO API
+export const cloApi = {
+    getAll: () => {
+        return api.get('/clo');
+    },
+    getById: (id: string) => {
+        return api.get(`/clo/${id}`);
+    },
+    create: (cloData: any) => {
+        return api.post('/clo', cloData);
+    },
+    update: (id: string, cloData: any) => {
+        return api.put(`/clo/${id}`, cloData);
+    },
+    delete: (id: string) => {
+        return api.delete(`/clo/${id}`);
+    },
+    softDelete: (id: string) => {
+        return api.patch(`/clo/${id}/soft-delete`);
+    },
+    restore: (id: string) => {
+        return api.patch(`/clo/${id}/restore`);
     },
 };
 

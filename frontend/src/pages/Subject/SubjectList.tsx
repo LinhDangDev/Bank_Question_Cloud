@@ -11,6 +11,7 @@ import PageContainer from '@/components/ui/PageContainer'
 import axios from 'axios'
 import { API_BASE_URL } from '@/config'
 import { monHocApi, khoaApi } from '@/services/api'
+import { usePermissions } from '@/hooks/usePermissions'
 
 interface Subject {
   MaMonHoc: string
@@ -33,6 +34,7 @@ interface Faculty {
 const SubjectList = () => {
   const navigate = useNavigate()
   const { facultyId } = useParams()
+  const { isAdmin } = usePermissions()
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [faculty, setFaculty] = useState<Faculty | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -177,10 +179,12 @@ const SubjectList = () => {
             Môn học - {faculty?.TenKhoa || 'Đang tải...'}
           </h1>
         </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Thêm Môn Học
-        </Button>
+        {isAdmin() && (
+          <Button onClick={() => setIsCreateDialogOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Thêm Môn Học
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -244,18 +248,20 @@ const SubjectList = () => {
                 <div className="text-sm text-muted-foreground">
                   <p>Mã môn học: {subject.MaSoMonHoc}</p>
                   <p>Khoa: {subject.Khoa?.TenKhoa || faculty?.TenKhoa}</p>
-                  <p>Ngày tạo: {formatDate(subject.NgayTao)}</p>
-                  <p>Ngày sửa: {formatDate(subject.NgaySua)}</p>
+                  {/* <p>Ngày tạo: {formatDate(subject.NgayTao)}</p>
+                  <p>Ngày sửa: {formatDate(subject.NgaySua)}</p> */}
                 </div>
                 <div className="flex justify-end gap-2 mt-4">
                   {subject.XoaTamMonHoc ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleRestoreSubject(subject.MaMonHoc)}
-                    >
-                      Khôi phục
-                    </Button>
+                    isAdmin() && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRestoreSubject(subject.MaMonHoc)}
+                      >
+                        Khôi phục
+                      </Button>
+                    )
                   ) : (
                     <>
                       <Button
@@ -267,15 +273,17 @@ const SubjectList = () => {
                         <BookOpen className="w-4 h-4 mr-2" />
                         Chương/Phần
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex items-center text-red-500 hover:bg-red-50"
-                        onClick={() => handleDeleteSubject(subject.MaMonHoc)}
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Xóa
-                      </Button>
+                      {isAdmin() && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center text-red-500 hover:bg-red-50"
+                          onClick={() => handleDeleteSubject(subject.MaMonHoc)}
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Xóa
+                        </Button>
+                      )}
                     </>
                   )}
                 </div>

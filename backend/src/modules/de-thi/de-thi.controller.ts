@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Res, StreamableFile, HttpCode, BadRequestException, InternalServerErrorException, Logger, HttpException, HttpStatus, UseGuards, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Res, StreamableFile, HttpCode, BadRequestException, InternalServerErrorException, Logger, HttpException, HttpStatus, UseGuards, UploadedFile, UseInterceptors, Request } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { DeThiService } from './de-thi.service';
 import { CreateDeThiDto, UpdateDeThiDto } from '../../dto';
@@ -53,8 +53,9 @@ export class DeThiController {
 
     @Get()
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles('admin', 'teacher')
+    @Roles('admin')
     async findAll(@Query() paginationDto: PaginationDto) {
+        // Chỉ admin mới được xem danh sách đề thi
         return await this.deThiService.findAll(paginationDto);
     }
 
@@ -142,9 +143,11 @@ export class DeThiController {
     }
 
     /**
-     * Download exam as PDF
+     * Download exam as PDF (admin only)
      */
     @Get(':id/pdf')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin')
     async downloadPdf(@Param('id') id: string, @Res({ passthrough: true }) res: Response) {
         const pdfPath = await this.deThiService.getExamPdfPath(id);
         const file = createReadStream(pdfPath);
@@ -311,11 +314,11 @@ export class DeThiController {
     }
 
     /**
-     * Generate custom PDF from data
+     * Generate custom PDF from data (admin only)
      */
     @Post('generate-pdf')
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles('admin', 'teacher')
+    @Roles('admin')
     async generateCustomPdf(@Body() data: any, @Res() res: Response) {
         try {
             this.logger.log(`Received custom PDF generation request`);

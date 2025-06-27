@@ -33,6 +33,7 @@ import {
 import { khoaApi } from '@/services/api'
 import axios from 'axios'
 import { API_BASE_URL } from '@/config'
+import { usePermissions } from '@/hooks/usePermissions'
 
 interface Faculty {
     MaKhoa: string
@@ -46,6 +47,7 @@ interface Faculty {
 const Faculty = () => {
     const navigate = useNavigate()
     const theme = useTheme()
+    const { isAdmin } = usePermissions()
     const [faculties, setFaculties] = useState<Faculty[]>([])
     const [searchQuery, setSearchQuery] = useState('')
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -194,10 +196,12 @@ const Faculty = () => {
                     </Button>
                     <h1 className="text-2xl font-bold">Quản lý Khoa</h1>
                 </div>
-                <Button onClick={() => setIsCreateDialogOpen(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Thêm Khoa
-                </Button>
+                {isAdmin() && (
+                    <Button onClick={() => setIsCreateDialogOpen(true)}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Thêm Khoa
+                    </Button>
+                )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -259,8 +263,8 @@ const Faculty = () => {
                         <CardContent>
                             <div className="text-sm text-muted-foreground mb-4">
                                 {faculty.MoTa && <p className="mb-2">{faculty.MoTa}</p>}
-                                <p>Ngày tạo: {new Date(faculty.NgayTao).toLocaleDateString('vi-VN')}</p>
-                                <p>Ngày sửa: {new Date(faculty.NgaySua).toLocaleDateString('vi-VN')}</p>
+                                {/* <p>Ngày tạo: {new Date(faculty.NgayTao).toLocaleDateString('vi-VN')}</p>
+                                <p>Ngày sửa: {new Date(faculty.NgaySua).toLocaleDateString('vi-VN')}</p> */}
                             </div>
                             <div className="flex justify-end gap-2 mt-4">
                                 {!faculty.XoaTamKhoa && (
@@ -274,26 +278,32 @@ const Faculty = () => {
                                             <MenuBookIcon className="w-4 h-4 mr-2" />
                                             Xem môn học
                                         </Button>
-                                        <Tooltip title="Chỉnh sửa">
-                                            <IconButton
-                                                onClick={() => openEditDialog(faculty)}
-                                                size="small"
-                                            >
-                                                <EditIcon />
-                                            </IconButton>
-                                        </Tooltip>
-                                        <Tooltip title="Xóa">
-                                            <IconButton
-                                                onClick={() => handleDeleteFaculty(faculty)}
-                                                size="small"
-                                                color="error"
-                                            >
-                                                <DeleteIcon />
-                                            </IconButton>
-                                        </Tooltip>
+
+                                        {isAdmin() && (
+                                            <Tooltip title="Chỉnh sửa">
+                                                <IconButton
+                                                    onClick={() => openEditDialog(faculty)}
+                                                    size="small"
+                                                >
+                                                    <EditIcon />
+                                                </IconButton>
+                                            </Tooltip>
+                                        )}
+
+                                        {isAdmin() && (
+                                            <Tooltip title="Xóa">
+                                                <IconButton
+                                                    onClick={() => handleDeleteFaculty(faculty)}
+                                                    size="small"
+                                                    color="error"
+                                                >
+                                                    <DeleteIcon />
+                                                </IconButton>
+                                            </Tooltip>
+                                        )}
                                     </>
                                 )}
-                                {faculty.XoaTamKhoa && (
+                                {faculty.XoaTamKhoa && isAdmin() && (
                                     <Tooltip title="Khôi phục">
                                         <IconButton
                                             onClick={() => handleRestoreFaculty(faculty)}

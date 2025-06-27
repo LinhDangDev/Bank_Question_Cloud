@@ -10,6 +10,8 @@ import PageContainer from '@/components/ui/PageContainer'
 import 'katex/dist/katex.min.css'
 import katex from 'katex'
 import { phanApi, questionApi } from '@/services/api'
+import { useAuth } from '@/context/AuthContext'
+import { usePermissions } from '@/hooks/usePermissions'
 
 interface Answer {
   MaCauTraLoi: string;
@@ -37,6 +39,8 @@ interface Question {
     NgayTao: string;
     NgaySua: string;
     MaCLO: string;
+    NguoiTao?: string;
+    MaNguoiTao?: string;
     cloInfo?: {
       MaCLO: string;
       TenCLO: string;
@@ -88,6 +92,8 @@ const ChapterQuestions = () => {
   const [chapter, setChapter] = useState<Chapter | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const { user } = useAuth()
+  const { isAdmin } = usePermissions()
 
   const fetchChapter = async () => {
     try {
@@ -104,7 +110,18 @@ const ChapterQuestions = () => {
       setIsLoading(true)
       const response = await questionApi.getByChapterWithAnswers(chapterId as string);
       console.log('API Response:', response.data)
-      setQuestions(Array.isArray(response.data.items) ? response.data.items : [])
+
+      // Filter questions based on user role if we're not an admin
+      let filteredQuestions = Array.isArray(response.data.items) ? response.data.items : [];
+
+      // If user is not admin, only show questions created by this user
+      if (!isAdmin() && user) {
+        filteredQuestions = filteredQuestions.filter((item: Question) =>
+          item.question.NguoiTao === user.userId || item.question.MaNguoiTao === user.userId
+        );
+      }
+
+      setQuestions(filteredQuestions)
     } catch (error) {
       toast.error('Không thể tải danh sách câu hỏi')
       setQuestions([])
@@ -118,6 +135,11 @@ const ChapterQuestions = () => {
     if (chapterId) {
       fetchChapter()
       fetchQuestions()
+    }
+
+    // Cleanup function to avoid memory leaks and handle component unmounting
+    return () => {
+      // Nothing to cleanup yet
     }
   }, [chapterId])
 
@@ -396,7 +418,15 @@ const ChapterQuestions = () => {
         </div>
       ) : filteredQuestions.length === 0 ? (
         <div className="text-center py-8">
-          <p className="text-gray-500">Không có câu hỏi nào trong chương này</p>
+          <p className="text-gray-500 mb-4">
+            {isAdmin()
+              ? 'Không có câu hỏi nào trong chương này'
+              : 'Không có câu hỏi nào của bạn trong chương này'}
+          </p>
+          <Button variant="outline" onClick={() => navigate(-1)}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Quay lại danh sách chương
+          </Button>
         </div>
       ) : (
         <div className="space-y-0 border rounded-lg">

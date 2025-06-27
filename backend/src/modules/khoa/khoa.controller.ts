@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, HttpCode, HttpStatus, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { KhoaService } from './khoa.service';
 import { CreateKhoaDto, UpdateKhoaDto, KhoaResponseDto } from '../../dto/khoa.dto';
@@ -12,9 +12,20 @@ export class KhoaController {
     constructor(private readonly khoaService: KhoaService) { }
 
     @Get()
-    @ApiOperation({ summary: 'Get all faculties' })
-    @ApiResponse({ status: 200, description: 'Return all faculties', type: [KhoaResponseDto] })
-    findAll() {
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
+    @ApiOperation({ summary: 'Get all faculties (admin) or own faculty (teacher)' })
+    @ApiResponse({ status: 200, description: 'Return faculties', type: [KhoaResponseDto] })
+    findAll(@Request() req: any) {
+        const user = req.user;
+
+        // Nếu là teacher, chỉ trả về khoa của mình
+        if (user.role === 'teacher') {
+            // Giả sử user có thông tin khoaId, nếu không thì cần lấy từ database
+            return this.khoaService.findByTeacher(user.sub);
+        }
+
+        // Admin xem tất cả khoa
         return this.khoaService.findAll();
     }
 
@@ -28,7 +39,9 @@ export class KhoaController {
     }
 
     @Post()
-    @ApiOperation({ summary: 'Create new faculty' })
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin')
+    @ApiOperation({ summary: 'Create new faculty (admin only)' })
     @ApiResponse({ status: 201, description: 'Faculty created successfully', type: KhoaResponseDto })
     @ApiResponse({ status: 409, description: 'Faculty name already exists' })
     create(@Body() createKhoaDto: CreateKhoaDto) {
@@ -36,7 +49,9 @@ export class KhoaController {
     }
 
     @Patch(':id')
-    @ApiOperation({ summary: 'Update faculty' })
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin')
+    @ApiOperation({ summary: 'Update faculty (admin only)' })
     @ApiParam({ name: 'id', description: 'Faculty ID' })
     @ApiResponse({ status: 200, description: 'Faculty updated successfully', type: KhoaResponseDto })
     @ApiResponse({ status: 404, description: 'Faculty not found' })
@@ -59,8 +74,8 @@ export class KhoaController {
 
     @Patch(':id/soft-delete')
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles('admin', 'teacher')
-    @ApiOperation({ summary: 'Soft delete faculty' })
+    @Roles('admin')
+    @ApiOperation({ summary: 'Soft delete faculty (admin only)' })
     @ApiParam({ name: 'id', description: 'Faculty ID' })
     @ApiResponse({ status: 200, description: 'Faculty soft deleted successfully', type: KhoaResponseDto })
     @ApiResponse({ status: 404, description: 'Faculty not found' })
@@ -70,7 +85,9 @@ export class KhoaController {
     }
 
     @Patch(':id/restore')
-    @ApiOperation({ summary: 'Restore soft deleted faculty' })
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin')
+    @ApiOperation({ summary: 'Restore soft deleted faculty (admin only)' })
     @ApiParam({ name: 'id', description: 'Faculty ID' })
     @ApiResponse({ status: 200, description: 'Faculty restored successfully', type: KhoaResponseDto })
     @ApiResponse({ status: 404, description: 'Faculty not found' })

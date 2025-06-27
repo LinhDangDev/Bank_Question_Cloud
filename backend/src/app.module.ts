@@ -1,66 +1,71 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bull';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { typeOrmConfig } from './config/typeorm.config';
-import { KhoaModule } from './modules/khoa/khoa.module';
+import { MonHocModule } from './modules/mon-hoc/mon-hoc.module';
 import { CauHoiModule } from './modules/cau-hoi/cau-hoi.module';
+import { PhanModule } from './modules/phan/phan.module';
 import { CauTraLoiModule } from './modules/cau-tra-loi/cau-tra-loi.module';
+import { KhoaModule } from './modules/khoa/khoa.module';
+import { CLOModule } from './modules/clo/clo.module';
 import { DeThiModule } from './modules/de-thi/de-thi.module';
 import { ChiTietDeThiModule } from './modules/chi-tiet-de-thi/chi-tiet-de-thi.module';
-import { AuthModule } from './modules/auth/auth.module';
-import { SkipAuthMiddleware } from './middleware/skip-auth.middleware';
-import { MonHocModule } from './modules/mon-hoc/mon-hoc.module';
-import { PhanModule } from './modules/phan/phan.module';
-import { CLOModule } from './modules/clo/clo.module';
+import { FilesModule } from './modules/files/files.module';
 import { YeuCauRutTrichModule } from './modules/yeu-cau-rut-trich/yeu-cau-rut-trich.module';
 import { QueueModule } from './modules/queue/queue.module';
-import { CacheModule } from '@nestjs/cache-manager';
-import { FilesModule } from './modules/files/files.module';
+import { AuthModule } from './modules/auth/auth.module';
 import { QuestionsImportModule } from './modules/questions-import/questions-import.module';
+import { CauHoiChoDuyetModule } from './modules/cau-hoi-cho-duyet/cau-hoi-cho-duyet.module';
 import { UsersModule } from './modules/users/users.module';
-
+import databaseConfig from './config/database.config';
+import { DbConfigController } from './utils/db-env-switcher';
+import { TypeOrmModuleOptions } from '@nestjs/typeorm';
+import * as path from 'path';
 
 @Module({
     imports: [
         ConfigModule.forRoot({
             isGlobal: true,
+            envFilePath: path.resolve(__dirname, '..', '.env'),
+            load: [databaseConfig],
         }),
-        TypeOrmModule.forRoot(typeOrmConfig),
+        TypeOrmModule.forRootAsync({
+            imports: [ConfigModule],
+            useFactory: (configService: ConfigService): TypeOrmModuleOptions => {
+                const dbConfig = configService.get('database');
+                if (!dbConfig) {
+                    throw new Error('Database configuration is missing');
+                }
+                return dbConfig as TypeOrmModuleOptions;
+            },
+            inject: [ConfigService],
+        }),
         BullModule.forRoot({
             redis: {
-                host: 'localhost',
-                port: 6379,
+                host: process.env.REDIS_HOST || 'localhost',
+                port: Number(process.env.REDIS_PORT) || 6379,
+                password: process.env.REDIS_PASSWORD,
             },
         }),
-        CacheModule.register({
-            isGlobal: true,
-            ttl: 60 * 5, // 5 minutes
-        }),
-        KhoaModule,
         MonHocModule,
-        PhanModule,
-        CLOModule,
         CauHoiModule,
+        PhanModule,
         CauTraLoiModule,
+        KhoaModule,
+        CLOModule,
         DeThiModule,
         ChiTietDeThiModule,
-        AuthModule,
+        FilesModule,
         YeuCauRutTrichModule,
         QueueModule,
-        FilesModule,
+        AuthModule,
         QuestionsImportModule,
+        CauHoiChoDuyetModule,
         UsersModule,
     ],
-    controllers: [AppController],
+    controllers: [AppController, DbConfigController],
     providers: [AppService],
 })
-export class AppModule implements NestModule {
-    configure(consumer: MiddlewareConsumer) {
-        consumer
-            .apply(SkipAuthMiddleware)
-            .forRoutes('*');
-    }
-}
+export class AppModule { }

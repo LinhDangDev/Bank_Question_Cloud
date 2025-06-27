@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, Inject } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, In, IsNull } from 'typeorm';
+import { Repository, DataSource, In, IsNull, Like } from 'typeorm';
 import { Cache } from 'cache-manager';
 import { BaseService } from '../../common/base.service';
 import { CauHoi } from '../../entities/cau-hoi.entity';
@@ -30,10 +30,19 @@ export class CauHoiService extends BaseService<CauHoi> {
         includeAnswers: boolean = false,
         answersPagination?: PaginationDto
     ): Promise<{ items: any[]; meta: any }> {
-        const { page = PAGINATION_CONSTANTS.DEFAULT_PAGE, limit = PAGINATION_CONSTANTS.DEFAULT_LIMIT } = paginationDto;
+        const {
+            page = PAGINATION_CONSTANTS.DEFAULT_PAGE,
+            limit = PAGINATION_CONSTANTS.DEFAULT_LIMIT,
+            search = '',
+            isDeleted = 'false',
+            maCLO = '',
+            capDo = '',
+            startDate = '',
+            endDate = ''
+        } = paginationDto as any;
 
         // Generate cache key
-        const cacheKey = `questions:${page}:${limit}:${includeAnswers}:${answersPagination ? JSON.stringify(answersPagination) : 'all'}`;
+        const cacheKey = `questions:${page}:${limit}:${includeAnswers}:${search}:${isDeleted}:${maCLO}:${capDo}:${startDate}:${endDate}:${answersPagination ? JSON.stringify(answersPagination) : 'all'}`;
 
         // Try to get from cache first
         const cachedData = await this.cacheManager.get(cacheKey);
@@ -41,9 +50,36 @@ export class CauHoiService extends BaseService<CauHoi> {
             return cachedData as any;
         }
 
+        // Build where conditions
+        const whereConditions: any = {
+            MaCauHoiCha: IsNull() // Only return parent questions
+        };
+
+        // Handle search
+        if (search && search.trim() !== '') {
+            whereConditions.NoiDung = Like(`%${search.trim()}%`);
+        }
+
+        // Handle isDeleted filter
+        if (isDeleted === 'true') {
+            whereConditions.XoaTamCauHoi = true;
+        } else if (isDeleted === 'false') {
+            whereConditions.XoaTamCauHoi = false;
+        }
+
+        // Handle CLO filter
+        if (maCLO && maCLO !== '') {
+            whereConditions.MaCLO = maCLO;
+        }
+
+        // Handle difficulty filter
+        if (capDo && capDo !== '') {
+            whereConditions.CapDo = parseInt(capDo);
+        }
+
         // Get questions with pagination - only include questions that are NOT child questions (MaCauHoiCha IS NULL)
         const [questions, total] = await this.cauHoiRepository.findAndCount({
-            where: { MaCauHoiCha: IsNull() }, // Only return parent questions
+            where: whereConditions,
             skip: (page - 1) * limit,
             take: limit,
             order: {
@@ -134,6 +170,140 @@ export class CauHoiService extends BaseService<CauHoi> {
                 limit,
                 totalPages: Math.ceil(total / limit),
                 availableLimits: PAGINATION_CONSTANTS.AVAILABLE_LIMITS
+            }
+        };
+
+        // Cache the result
+        await this.cacheManager.set(cacheKey, result, 300); // Cache for 5 minutes
+
+        return result;
+    }
+
+    async findByCreator(
+        creatorId: string,
+        paginationDto: PaginationDto,
+        includeAnswers: boolean = false,
+        answersPagination?: PaginationDto
+    ): Promise<{ items: any[]; meta: any }> {
+        const { page = PAGINATION_CONSTANTS.DEFAULT_PAGE, limit = PAGINATION_CONSTANTS.DEFAULT_LIMIT } = paginationDto;
+
+        // Generate cache key
+        const cacheKey = `questions:creator:${creatorId}:${page}:${limit}:${includeAnswers}:${answersPagination ? JSON.stringify(answersPagination) : 'all'}`;
+
+        // Try to get from cache first
+        const cachedData = await this.cacheManager.get(cacheKey);
+        if (cachedData) {
+            return cachedData as any;
+        }
+
+        // Get questions by creator with pagination - only include questions that are NOT child questions
+        const [questions, total] = await this.cauHoiRepository.findAndCount({
+            where: {
+                MaCauHoiCha: IsNull(), // Only return parent questions
+                NguoiTao: creatorId // Filter by creator
+            },
+            relations: ['CLO'], // Include CLO relationship
+            skip: (page - 1) * limit,
+            take: limit,
+            order: {
+                NgayTao: 'DESC'
+            }
+        });
+
+        const questionIds = questions.map(q => q.MaCauHoi);
+        let items: any[] = [];
+        let answersMap: any = {};
+
+        if (includeAnswers && questionIds.length > 0) {
+            const answersRepo = this.dataSource.getRepository(CauTraLoi);
+
+            if (!answersPagination) {
+                // Get all answers for each question
+                const answers = await answersRepo.find({
+                    where: { MaCauHoi: In(questionIds) },
+                    order: { ThuTu: 'ASC' }
+                });
+
+                // Group answers by question ID
+                answersMap = answers.reduce((map, answer) => {
+                    if (!map[answer.MaCauHoi]) {
+                        map[answer.MaCauHoi] = [];
+                    }
+                    map[answer.MaCauHoi].push(answer);
+                    return map;
+                }, {});
+
+                items = questions.map(question => {
+                    const cloInfo = question.CLO ? {
+                        MaCLO: question.CLO.MaCLO,
+                        TenCLO: question.CLO.TenCLO
+                    } : null;
+
+                    return {
+                        ...question,
+                        cloInfo,
+                        answers: answersMap[question.MaCauHoi] || []
+                    };
+                });
+            } else {
+                // Get paginated answers for each question
+                const answersPromises = questionIds.map(async (questionId) => {
+                    const { page: ansPage = 1, limit: ansLimit = 10 } = answersPagination;
+                    const [answers, totalAnswers] = await answersRepo.findAndCount({
+                        where: { MaCauHoi: questionId },
+                        order: { ThuTu: 'ASC' },
+                        skip: (ansPage - 1) * ansLimit,
+                        take: ansLimit
+                    });
+                    return { questionId, answers, totalAnswers };
+                });
+                const answersResults = await Promise.all(answersPromises);
+                answersMap = answersResults.reduce((map, result) => {
+                    map[result.questionId] = {
+                        items: result.answers,
+                        meta: {
+                            total: result.totalAnswers,
+                            page: answersPagination?.page || 1,
+                            limit: answersPagination?.limit || 10,
+                            totalPages: Math.ceil(result.totalAnswers / (answersPagination?.limit || 10))
+                        }
+                    };
+                    return map;
+                }, {});
+                items = questions.map(question => {
+                    const cloInfo = question.CLO ? {
+                        MaCLO: question.CLO.MaCLO,
+                        TenCLO: question.CLO.TenCLO
+                    } : null;
+
+                    return {
+                        ...question,
+                        cloInfo,
+                        answers: answersMap[question.MaCauHoi]
+                    };
+                });
+            }
+        } else {
+            items = questions.map(question => {
+                const cloInfo = question.CLO ? {
+                    MaCLO: question.CLO.MaCLO,
+                    TenCLO: question.CLO.TenCLO
+                } : null;
+
+                return {
+                    ...question,
+                    cloInfo
+                };
+            });
+        }
+
+        const result = {
+            items,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
             }
         };
 
@@ -539,14 +709,47 @@ export class CauHoiService extends BaseService<CauHoi> {
 
     // Function to find group questions with their child questions and answers
     async findGroupQuestions(paginationDto: PaginationDto): Promise<{ items: any[]; meta: any }> {
-        const { page = PAGINATION_CONSTANTS.DEFAULT_PAGE, limit = PAGINATION_CONSTANTS.DEFAULT_LIMIT } = paginationDto;
+        const {
+            page = PAGINATION_CONSTANTS.DEFAULT_PAGE,
+            limit = PAGINATION_CONSTANTS.DEFAULT_LIMIT,
+            search = '',
+            isDeleted = 'false',
+            maCLO = '',
+            capDo = '',
+            startDate = '',
+            endDate = ''
+        } = paginationDto as any;
+
+        // Build where conditions
+        const whereConditions: any = {
+            MaCauHoiCha: IsNull() // Only return parent questions
+        };
+
+        // Handle search
+        if (search && search.trim() !== '') {
+            whereConditions.NoiDung = Like(`%${search.trim()}%`);
+        }
+
+        // Handle isDeleted filter
+        if (isDeleted === 'true') {
+            whereConditions.XoaTamCauHoi = true;
+        } else if (isDeleted === 'false') {
+            whereConditions.XoaTamCauHoi = false;
+        }
+
+        // Handle CLO filter
+        if (maCLO && maCLO !== '') {
+            whereConditions.MaCLO = maCLO;
+        }
+
+        // Handle difficulty filter
+        if (capDo && capDo !== '') {
+            whereConditions.CapDo = parseInt(capDo);
+        }
 
         // Query parent questions that have SoCauHoiCon > 0 (group questions)
         const [groupQuestions, total] = await this.cauHoiRepository.findAndCount({
-            where: {
-                MaCauHoiCha: IsNull(), // Use IsNull() instead of null
-                // We'll filter for SoCauHoiCon > 0 after fetching
-            },
+            where: whereConditions,
             skip: (page - 1) * limit,
             take: limit,
             order: {
@@ -844,5 +1047,207 @@ export class CauHoiService extends BaseService<CauHoi> {
             // Giải phóng queryRunner
             await queryRunner.release();
         }
+    }
+
+    // Get group questions created by a specific teacher
+    async findGroupQuestionsByCreator(creatorId: string, paginationDto: PaginationDto): Promise<{ items: any[]; meta: any }> {
+        const { page = PAGINATION_CONSTANTS.DEFAULT_PAGE, limit = PAGINATION_CONSTANTS.DEFAULT_LIMIT } = paginationDto;
+
+        // Find all group questions by the creator (questions with SoCauHoiCon > 0)
+        const [groupQuestions, total] = await this.cauHoiRepository.findAndCount({
+            where: {
+                SoCauHoiCon: In([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]), // Questions with child questions
+                NguoiTao: creatorId, // Filter by creator
+                MaCauHoiCha: IsNull() // Only parent questions
+            },
+            skip: (page - 1) * limit,
+            take: limit,
+            order: { NgayTao: 'DESC' }
+        });
+
+        // If there are no group questions, return empty result
+        if (groupQuestions.length === 0) {
+            return {
+                items: [],
+                meta: {
+                    total: 0,
+                    page,
+                    limit,
+                    totalPages: 0
+                }
+            };
+        }
+
+        // Get child questions for each group question
+        const groupQuestionIds = groupQuestions.map(q => q.MaCauHoi);
+
+        // Find all child questions for these group questions
+        const childQuestions = await this.cauHoiRepository.find({
+            where: { MaCauHoiCha: In(groupQuestionIds) },
+            order: { NgayTao: 'ASC' }
+        });
+
+        // Group child questions by parent ID
+        const childrenByParent = childQuestions.reduce((acc, child) => {
+            if (!acc[child.MaCauHoiCha]) {
+                acc[child.MaCauHoiCha] = [];
+            }
+            acc[child.MaCauHoiCha].push(child);
+            return acc;
+        }, {});
+
+        // Get answers for all questions (group and child)
+        const allQuestionIds = [...groupQuestionIds, ...childQuestions.map(q => q.MaCauHoi)];
+        const answers = await this.dataSource.getRepository(CauTraLoi).find({
+            where: { MaCauHoi: In(allQuestionIds) }
+        });
+
+        // Group answers by question ID
+        const answersByQuestion = answers.reduce((acc, answer) => {
+            if (!acc[answer.MaCauHoi]) {
+                acc[answer.MaCauHoi] = [];
+            }
+            acc[answer.MaCauHoi].push(answer);
+            return acc;
+        }, {});
+
+        // Combine data into final result
+        const items = groupQuestions.map(group => ({
+            ...group,
+            children: (childrenByParent[group.MaCauHoi] || []).map(child => ({
+                ...child,
+                answers: answersByQuestion[child.MaCauHoi] || []
+            })),
+            answers: answersByQuestion[group.MaCauHoi] || []
+        }));
+
+        return {
+            items,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
+        };
+    }
+
+    // Find questions by section ID and creator
+    async findByMaPhanAndCreator(maPhan: string, creatorId: string, paginationDto: PaginationDto) {
+        const { page = 1, limit = 10 } = paginationDto;
+        const [items, total] = await this.cauHoiRepository.findAndCount({
+            where: {
+                MaPhan: maPhan,
+                MaCauHoiCha: IsNull(), // Only return parent questions
+                NguoiTao: creatorId // Only return questions created by this user
+            },
+            skip: (page - 1) * limit,
+            take: limit,
+            order: {
+                NgayTao: 'DESC'
+            }
+        });
+
+        return {
+            items,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
+        };
+    }
+
+    // Find questions with answers by section ID and creator
+    async findByMaPhanWithAnswersAndCreator(maPhan: string, creatorId: string, paginationDto: PaginationDto) {
+        const { page = 1, limit = 10 } = paginationDto;
+
+        // Find questions by section and creator
+        const [questions, total] = await this.cauHoiRepository.findAndCount({
+            where: {
+                MaPhan: maPhan,
+                MaCauHoiCha: IsNull(), // Only return parent questions
+                NguoiTao: creatorId // Only return questions created by this user
+            },
+            skip: (page - 1) * limit,
+            take: limit,
+            order: {
+                NgayTao: 'DESC'
+            }
+        });
+
+        if (questions.length === 0) {
+            return {
+                items: [],
+                meta: {
+                    total: 0,
+                    page,
+                    limit,
+                    totalPages: 0
+                }
+            };
+        }
+
+        // Get all question IDs
+        const questionIds = questions.map(q => q.MaCauHoi);
+
+        // Find all answers for these questions
+        const answers = await this.dataSource.getRepository(CauTraLoi).find({
+            where: { MaCauHoi: In(questionIds) },
+            order: { ThuTu: 'ASC' }
+        });
+
+        // Group answers by question ID
+        const answersMap = answers.reduce((map, answer) => {
+            if (!map[answer.MaCauHoi]) {
+                map[answer.MaCauHoi] = [];
+            }
+            map[answer.MaCauHoi].push(answer);
+            return map;
+        }, {});
+
+        // Combine questions with their answers
+        const items = questions.map(question => ({
+            ...question,
+            answers: answersMap[question.MaCauHoi] || []
+        }));
+
+        return {
+            items,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
+        };
+    }
+
+    // Find questions by CLO ID and creator
+    async findByMaCLOAndCreator(maCLO: string, creatorId: string, paginationDto: PaginationDto) {
+        const { page = 1, limit = 10 } = paginationDto;
+        const [items, total] = await this.cauHoiRepository.findAndCount({
+            where: {
+                MaCLO: maCLO,
+                MaCauHoiCha: IsNull(), // Only return parent questions
+                NguoiTao: creatorId // Only return questions created by this user
+            },
+            skip: (page - 1) * limit,
+            take: limit,
+            order: {
+                NgayTao: 'DESC'
+            }
+        });
+
+        return {
+            items,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
+        };
     }
 }

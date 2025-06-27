@@ -23,6 +23,10 @@ import { v4 as uuidv4 } from 'uuid';
 import mammoth from 'mammoth';
 import { MathRenderer } from '../../components/MathRenderer';
 import QuestionItem from '../../components/QuestionItem';
+import { questionsImportApi } from '../../services/api';
+import { usePermissions } from '../../hooks/usePermissions';
+import { useAuth } from '../../context/AuthContext';
+import { toast } from 'react-hot-toast';
 
 // Interface for parsed question
 interface ParsedQuestion {
@@ -439,6 +443,8 @@ const parseDocxWithMammoth = async (file: File): Promise<ParsedQuestion[]> => {
 };
 
 const UploadQuestions = () => {
+  const { user } = useAuth();
+  const { isTeacher, canImportQuestions } = usePermissions();
   const [selectedQuestions, setSelectedQuestions] = useState<ParsedQuestion[]>([]);
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [guideType, setGuideType] = useState<'word' | 'excel' | 'backup' | 'package'>('word');
@@ -745,29 +751,21 @@ const UploadQuestions = () => {
           clo: q.clo || null
         }));
 
-      // Call save API
-      const response = await fetch(`${API_BASE_URL}/questions-import/save`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({
-          fileId,
-          questionIds: selectedQuestionIds,
-          maPhan: chapterId,
-          questionMetadata
-        })
+      // Call save API using the new service
+      const result = await questionsImportApi.saveQuestions({
+        fileId,
+        questionIds: selectedQuestionIds,
+        maPhan: chapterId,
+        questionMetadata
       });
 
-      if (!response.ok) {
-        throw new Error(`Server responded with ${response.status}: ${await response.text()}`);
+      // Success message based on user role
+      if (isTeacher()) {
+        toast.success(`Đã gửi ${result.data.savedCount} câu hỏi chờ duyệt. Admin sẽ xem xét và duyệt câu hỏi của bạn.`);
+      } else {
+        toast.success(`Đã lưu ${result.data.savedCount} câu hỏi thành công vào ngân hàng câu hỏi.`);
       }
 
-      const result = await response.json();
-
-      // Success message and reset
-      alert(`Đã lưu ${result.savedCount} câu hỏi thành công`);
       setSelectedQuestions([]);
       setSelectedQuestionIds([]);
 
@@ -1259,6 +1257,30 @@ const UploadQuestions = () => {
         style={{ display: 'none' }}
         onChange={handleFileSelected}
       />
+
+      {/* Teacher approval notice */}
+      {isTeacher() && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-blue-800">
+                Quy trình duyệt câu hỏi
+              </h3>
+              <div className="mt-2 text-sm text-blue-700">
+                <p>
+                  Câu hỏi bạn import sẽ được gửi đến admin để duyệt trước khi thêm vào ngân hàng câu hỏi.
+                  Bạn có thể theo dõi trạng thái duyệt tại trang "Câu hỏi chờ duyệt".
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header with statistics */}
       <div className="border bg-white rounded-lg p-4 mb-4">

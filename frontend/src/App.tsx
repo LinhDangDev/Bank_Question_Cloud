@@ -6,6 +6,7 @@ import Questions from '@/pages/Questions/Questions'
 import ChapterQuestions from '@/pages/Questions/ChapterQuestions'
 import CreateQuestion from '@/pages/Questions/CreateQuestion'
 import UploadQuestions from '@/pages/Questions/UploadQuestions'
+import QuestionsApproval from '@/pages/Questions/QuestionsApproval'
 import Faculty from '@/pages/Subject/Faculty'
 import SubjectList from '@/pages/Subject/SubjectList'
 import ChapterList from '@/pages/Subject/ChapterList'
@@ -112,6 +113,7 @@ function AppRoutes() {
           <Route path="questions/create" element={<CreateQuestion />} />
           <Route path="questions/edit/:id" element={<EditQuestion />} />
           <Route path="questions/upload" element={<UploadQuestions />} />
+          <Route path="questions/approval" element={<QuestionsApproval />} />
           <Route path="questions/chapter/:chapterId" element={<ChapterQuestions />} />
           <Route path="extract" element={<Extract />} />
           <Route path="pdf" element={<PDF />} />

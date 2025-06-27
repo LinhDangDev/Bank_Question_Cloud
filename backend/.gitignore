@@ -55,5 +55,17 @@ pids
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
+# Uploaded files
 *.docx
 *.doc
+
+# Database test files
+fix_database_connection.py
+test-db-connection.py
+setup-remote-db.js
+setup-remote-db.ts
+start-remote.js
+start-remote.ts
+start-remote.bat
+start-remote.ps1
+sql_debug.txt

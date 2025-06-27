@@ -1,4 +1,4 @@
-import { IsDate, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsDate, IsOptional, IsString, IsUUID, IsNumber } from 'class-validator';
 
 export class CreateCLODto {
     @IsString()
@@ -6,7 +6,15 @@ export class CreateCLODto {
 
     @IsString()
     @IsOptional()
-    NoiDung?: string;
+    MoTa?: string;
+
+    @IsNumber()
+    @IsOptional()
+    ThuTu?: number;
+
+    @IsUUID()
+    @IsOptional()
+    MaMonHoc?: string;
 
     @IsString()
     @IsOptional()
@@ -28,10 +36,21 @@ export class CLOResponseDto {
 
     @IsString()
     @IsOptional()
-    NoiDung?: string;
+    MoTa?: string;
+
+    @IsNumber()
+    ThuTu: number;
+
+    @IsUUID()
+    @IsOptional()
+    MaMonHoc?: string;
+
+    @IsOptional()
+    XoaTamCLO?: boolean;
 
     @IsDate()
-    NgayTao: Date;
+    @IsOptional()
+    NgayTao?: Date;
 
     @IsDate()
     @IsOptional()

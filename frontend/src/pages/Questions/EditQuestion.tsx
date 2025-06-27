@@ -13,6 +13,7 @@ import GroupQuestion from './GroupQuestion';
 import { ChevronLeft, AlertTriangle, Sigma } from 'lucide-react';
 import { API_BASE_URL } from '@/config';
 import { MathRenderer } from '@/components/MathRenderer';
+import { questionApi, monHocApi, phanApi, khoaApi, cloApi } from '@/services/api';
 
 // Add interface definitions for the props of each question component
 interface LatexProps {
@@ -138,6 +139,7 @@ const EditQuestion = () => {
   const [maPhan, setMaPhan] = useState<string | null>(null);
   const [maCLO, setMaCLO] = useState<string | null>(null);
   const [selectedCLOName, setSelectedCLOName] = useState<string>('');
+  const [cloList, setCloList] = useState<any[]>([]);
 
   // Nếu là tạo mới, lấy type từ query param
   const type = searchParams.get('type');
@@ -147,12 +149,12 @@ const EditQuestion = () => {
     if (id && id !== 'new') {
       setLoading(true);
 
-      // Use a single endpoint to get full details to reduce chance of errors
-      fetch(`${API_BASE_URL}/cau-hoi/${id}/full-details`)
+      // Use questionApi instead of direct fetch
+      questionApi.getFullDetails(id)
         .then(async (response) => {
-          if (!response.ok) throw new Error('Không tìm thấy câu hỏi!');
+          if (!response.data) throw new Error('Không tìm thấy câu hỏi!');
 
-          const detailsData = await response.json();
+          const detailsData = response.data;
           console.log('Question details:', detailsData);
 
           // Make sure we have both question and answers data
@@ -178,24 +180,24 @@ const EditQuestion = () => {
             setMaKhoa(detailsData.khoa.MaKhoa);
 
             // If we have a khoa, load the monHoc list for that khoa
-            fetch(`${API_BASE_URL}/mon-hoc/khoa/${detailsData.khoa.MaKhoa}`)
-              .then(res => res.json())
-              .then(monHocData => {
-                setMonHocList(monHocData);
-              })
-              .catch(err => console.error("Error loading monHoc list:", err));
+            try {
+              const monHocResponse = await monHocApi.getMonHocByKhoa(detailsData.khoa.MaKhoa);
+              setMonHocList(Array.isArray(monHocResponse.data) ? monHocResponse.data : []);
+            } catch (err) {
+              console.error("Error loading monHoc list:", err);
+            }
           }
 
           if (detailsData.monHoc) {
             setMaMonHoc(detailsData.monHoc.MaMonHoc);
 
             // If we have a monHoc, load the phan list for that monHoc
-            fetch(`${API_BASE_URL}/phan/mon-hoc/${detailsData.monHoc.MaMonHoc}`)
-              .then(res => res.json())
-              .then(phanData => {
-                setPhanList(phanData);
-              })
-              .catch(err => console.error("Error loading phan list:", err));
+            try {
+              const phanResponse = await phanApi.getPhanByMonHoc(detailsData.monHoc.MaMonHoc);
+              setPhanList(Array.isArray(phanResponse.data) ? phanResponse.data : []);
+            } catch (err) {
+              console.error("Error loading phan list:", err);
+            }
           }
 
           if (detailsData.phan) {
@@ -219,7 +221,7 @@ const EditQuestion = () => {
         })
         .catch(err => {
           console.error('Error fetching question:', err);
-          setError('Không thể tải thông tin câu hỏi: ' + err.message);
+          setError('Không thể tải thông tin câu hỏi: ' + (err.message || 'Đã xảy ra lỗi'));
           setLoading(false);
         });
     }
@@ -229,11 +231,13 @@ const EditQuestion = () => {
   useEffect(() => {
     if (parentId) {
       setLoadingParent(true);
-      fetch(`${API_BASE_URL}/cau-hoi/${parentId}`)
-        .then(async (response) => {
-          if (!response.ok) throw new Error('Không tìm thấy câu hỏi cha!');
-          const parentData = await response.json();
-          setParentQuestion(parentData);
+      questionApi.getById(parentId)
+        .then(response => {
+          if (response.data) {
+            setParentQuestion(response.data);
+          } else {
+            throw new Error('Không tìm thấy câu hỏi cha!');
+          }
         })
         .catch(err => {
           console.error('Error fetching parent question:', err);
@@ -243,6 +247,17 @@ const EditQuestion = () => {
         });
     }
   }, [parentId]);
+
+  // Fetch CLO list from backend
+  useEffect(() => {
+    cloApi.getAll()
+      .then(response => {
+        if (response.data) {
+          setCloList(response.data);
+        }
+      })
+      .catch(err => console.error("Error fetching CLO list:", err));
+  }, []);
 
   const toggleLatexMode = () => {
     setLatexMode(!latexMode);

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface SidebarProps {
   isExpanded: boolean;
@@ -26,6 +27,25 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
   const isDark = theme === 'dark';
   const { user } = useAuth();
   const role = user?.role;
+  const {
+    canViewAllExams,
+    canGeneratePDF,
+    canManageUsers,
+    canApproveQuestions,
+    canManageDepartments,
+    isAdmin,
+    isTeacher
+  } = usePermissions();
+
+  // Xác định trang chủ phù hợp với vai trò
+  const getHomeRoute = () => {
+    if (isAdmin()) {
+      return '/dashboard';
+    } else if (isTeacher()) {
+      return '/questions'; // Teachers go to questions page
+    }
+    return '/';
+  };
 
   return (
     <nav
@@ -38,16 +58,18 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
     >
       {/* Header with logo */}
       <div className="flex items-center justify-center relative -mx-1">
-        <img
-          src="/logo_fullname.png"
-          alt="Logo"
-          className={`w-[90%] max-w-[180px] ${!isExpanded && 'hidden'}`}
-        />
-        <img
-          src="/logo_icon.png"
-          alt="Logo Icon"
-          className={`w-12 ${isExpanded && 'hidden'}`}
-        />
+        <Link to={getHomeRoute()} className="flex items-center justify-center">
+          <img
+            src="/logo_fullname.png"
+            alt="Logo"
+            className={`w-[90%] max-w-[180px] cursor-pointer hover:opacity-80 transition-opacity ${!isExpanded && 'hidden'}`}
+          />
+          <img
+            src="/logo_icon.png"
+            alt="Logo Icon"
+            className={`w-12 cursor-pointer hover:opacity-80 transition-opacity ${isExpanded && 'hidden'}`}
+          />
+        </Link>
       </div>
 
       {/* Menu sections */}
@@ -63,7 +85,7 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
           </h2>
           <div className="space-y-1">
             <Link
-              to="/dashboard"
+              to={getHomeRoute()}
               className={`flex items-center px-2 py-2 text-sm rounded-lg ${
                 !isExpanded ? 'justify-center' : ''
               } ${isDark
@@ -120,21 +142,23 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
                 Danh sách khoa
               </span>
             </Link>
-            <Link
-              to="/exams"
-              className={`flex items-center px-2 py-2 text-sm rounded-lg ${
-                !isExpanded ? 'justify-center' : ''
-              } ${isDark
-                ? 'hover:bg-gray-700'
-                : 'hover:bg-gray-100'
-              }`}
-              aria-label="Danh sách đề"
-            >
-              <List className="w-5 h-5" />
-              <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
-                Danh sách đề
-              </span>
-            </Link>
+            {canViewAllExams() && (
+              <Link
+                to="/exams"
+                className={`flex items-center px-2 py-2 text-sm rounded-lg ${
+                  !isExpanded ? 'justify-center' : ''
+                } ${isDark
+                  ? 'hover:bg-gray-700'
+                  : 'hover:bg-gray-100'
+                }`}
+                aria-label="Danh sách đề"
+              >
+                <List className="w-5 h-5" />
+                <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
+                  Danh sách đề
+                </span>
+              </Link>
+            )}
           </div>
         </div>
 
@@ -163,21 +187,23 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
                 Danh sách câu hỏi
               </span>
             </Link>
-            <Link
-              to="/questions/create"
-              className={`flex items-center px-2 py-2 text-sm rounded-lg ${
-                !isExpanded ? 'justify-center' : ''
-              } ${isDark
-                ? 'hover:bg-gray-700'
-                : 'hover:bg-gray-100'
-              }`}
-              aria-label="Tạo câu hỏi"
-            >
-              <PlusCircle className="w-5 h-5" />
-              <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
-                Tạo câu hỏi
-              </span>
-            </Link>
+            {isAdmin() && (
+              <Link
+                to="/questions/create"
+                className={`flex items-center px-2 py-2 text-sm rounded-lg ${
+                  !isExpanded ? 'justify-center' : ''
+                } ${isDark
+                  ? 'hover:bg-gray-700'
+                  : 'hover:bg-gray-100'
+                }`}
+                aria-label="Tạo câu hỏi"
+              >
+                <PlusCircle className="w-5 h-5" />
+                <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
+                  Tạo câu hỏi
+                </span>
+              </Link>
+            )}
             <Link
               to="/questions/upload"
               className={`flex items-center px-2 py-2 text-sm rounded-lg ${
@@ -191,6 +217,23 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
               <Upload className="w-5 h-5" />
               <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
                 Tải lên câu hỏi
+              </span>
+            </Link>
+
+            {/* Câu hỏi chờ duyệt - hiển thị cho cả admin và teacher */}
+            <Link
+              to="/questions/approval"
+              className={`flex items-center px-2 py-2 text-sm rounded-lg ${
+                !isExpanded ? 'justify-center' : ''
+              } ${isDark
+                ? 'hover:bg-gray-700'
+                : 'hover:bg-gray-100'
+              }`}
+              aria-label="Câu hỏi chờ duyệt"
+            >
+              <FileText className="w-5 h-5" />
+              <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
+                {isAdmin() ? 'Duyệt câu hỏi' : 'Câu hỏi chờ duyệt'}
               </span>
             </Link>
           </div>
@@ -226,48 +269,50 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
         </div>
         )}
 
-        {/* Công cụ section */}
-        <div>
-          <h2
-            className={`text-xs uppercase font-semibold mb-1 ${
-              !isExpanded && 'sr-only'
-            } ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
-          >
-            Công cụ
-          </h2>
-          <div className="space-y-1">
-            <Link
-              to="/pdf"
-              className={`flex items-center px-2 py-2 text-sm rounded-lg ${
-                !isExpanded ? 'justify-center' : ''
-              } ${isDark
-                ? 'hover:bg-gray-700'
-                : 'hover:bg-gray-100'
-              }`}
-              aria-label="Xuất file PDF"
+        {/* Công cụ section - chỉ hiển thị cho admin */}
+        {canGeneratePDF() && (
+          <div>
+            <h2
+              className={`text-xs uppercase font-semibold mb-1 ${
+                !isExpanded && 'sr-only'
+              } ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
             >
-              <FileText className="w-5 h-5" />
-              <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
-                Xuất file PDF
-              </span>
-            </Link>
-            <Link
-              to="/extract"
-              className={`flex items-center px-2 py-2 text-sm rounded-lg ${
-                !isExpanded ? 'justify-center' : ''
-              } ${isDark
-                ? 'hover:bg-gray-700'
-                : 'hover:bg-gray-100'
-              }`}
-              aria-label="Rút trích đề thi"
-            >
-              <Download className="w-5 h-5" />
-              <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
-                Rút trích đề thi
-              </span>
-            </Link>
+              Công cụ
+            </h2>
+            <div className="space-y-1">
+              <Link
+                to="/pdf"
+                className={`flex items-center px-2 py-2 text-sm rounded-lg ${
+                  !isExpanded ? 'justify-center' : ''
+                } ${isDark
+                  ? 'hover:bg-gray-700'
+                  : 'hover:bg-gray-100'
+                }`}
+                aria-label="Xuất file PDF"
+              >
+                <FileText className="w-5 h-5" />
+                <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
+                  Xuất file PDF
+                </span>
+              </Link>
+              <Link
+                to="/extract"
+                className={`flex items-center px-2 py-2 text-sm rounded-lg ${
+                  !isExpanded ? 'justify-center' : ''
+                } ${isDark
+                  ? 'hover:bg-gray-700'
+                  : 'hover:bg-gray-100'
+                }`}
+                aria-label="Rút trích đề thi"
+              >
+                <Download className="w-5 h-5" />
+                <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
+                  Rút trích đề thi
+                </span>
+              </Link>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Hỗ trợ section */}
         <div>

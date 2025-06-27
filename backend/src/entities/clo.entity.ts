@@ -1,5 +1,6 @@
-import { Column, Entity, PrimaryGeneratedColumn, OneToMany } from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
 import { CauHoi } from './cau-hoi.entity';
+import { MonHoc } from './mon-hoc.entity';
 
 @Entity('CLO')
 export class CLO {
@@ -17,6 +18,13 @@ export class CLO {
 
     @Column({ nullable: true })
     XoaTamCLO: boolean;
+
+    @Column({ type: 'uuid', nullable: true })
+    MaMonHoc: string;
+
+    @ManyToOne(() => MonHoc, monHoc => monHoc.CLOs)
+    @JoinColumn({ name: 'MaMonHoc' })
+    MonHoc: MonHoc;
 
     @OneToMany(() => CauHoi, cauHoi => cauHoi.CLO)
     CauHois: CauHoi[];

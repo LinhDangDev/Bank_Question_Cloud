@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { CauHoi } from '../../entities/cau-hoi.entity';
 import { CauTraLoi } from '../../entities/cau-tra-loi.entity';
+import { CauHoiChoDuyet } from '../../entities/cau-hoi-cho-duyet.entity';
 import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
@@ -19,7 +20,9 @@ export interface ImportedQuestion {
     id: string;
     content: string;
     clo?: string | null;
+    cloId?: string | null;
     type?: string;
+    questionNumber?: number | string;
     answers?: {
         id: string;
         content: string;
@@ -53,7 +56,10 @@ export class QuestionsImportService {
         private readonly cauHoiRepository: Repository<CauHoi>,
         @InjectRepository(CauTraLoi)
         private readonly cauTraLoiRepository: Repository<CauTraLoi>,
+        @InjectRepository(CauHoiChoDuyet)
+        private readonly cauHoiChoDuyetRepository: Repository<CauHoiChoDuyet>,
         private readonly docxParserService: DocxParserService,
+        private readonly dataSource: DataSource,
     ) {
         // Start a cleanup timer
         setInterval(() => this.cleanupExpiredSessions(), 5 * 60 * 1000); // Cleanup every 5 minutes
@@ -162,6 +168,112 @@ export class QuestionsImportService {
                 totalPages: Math.ceil(session.questions.length / limit)
             }
         };
+    }
+
+    async saveQuestionsToApprovalQueue(
+        fileId: string,
+        questionIds: string[],
+        maPhan?: string,
+        questionMetadata?: any[],
+        nguoiTao?: string
+    ): Promise<{ success: boolean; savedCount: number }> {
+        // Get the import session
+        const session = this.importSessions.get(fileId);
+        if (!session) {
+            throw new Error('Import session not found');
+        }
+
+        // Get the selected questions
+        const selectedQuestions = session.questions.filter(q => questionIds.includes(q.id));
+        if (selectedQuestions.length === 0) {
+            throw new Error('No questions selected');
+        }
+
+        if (!maPhan) {
+            maPhan = session.maPhan;
+        }
+
+        if (!maPhan) {
+            throw new Error('No section (maPhan) provided');
+        }
+
+        if (!nguoiTao) {
+            throw new Error('No creator (nguoiTao) provided');
+        }
+
+        let savedCount = 0;
+
+        for (const question of selectedQuestions) {
+            try {
+                // Chuẩn bị dữ liệu câu trả lời
+                let duLieuCauTraLoi: string | null = null;
+                if (question.answers && question.answers.length > 0) {
+                    duLieuCauTraLoi = JSON.stringify(question.answers.map(answer => ({
+                        NoiDung: answer.content,
+                        ThuTu: answer.order,
+                        LaDapAn: answer.isCorrect,
+                        HoanVi: true
+                    })));
+                }
+
+                // Chuẩn bị dữ liệu câu hỏi con
+                let duLieuCauHoiCon: string | null = null;
+                if (question.childQuestions && question.childQuestions.length > 0) {
+                    duLieuCauHoiCon = JSON.stringify(question.childQuestions.map(child => ({
+                        MaSoCauHoi: child.questionNumber || Math.floor(Math.random() * 9000) + 1000,
+                        NoiDung: child.content,
+                        HoanVi: true,
+                        CapDo: 2,
+                        MaCLO: child.cloId || child.clo,
+                        CauTraLoi: child.answers ? child.answers.map(answer => ({
+                            NoiDung: answer.content,
+                            ThuTu: answer.order,
+                            LaDapAn: answer.isCorrect,
+                            HoanVi: true
+                        })) : []
+                    })));
+                }
+
+                // Generate question number as string if needed
+                const questionNumber = question.questionNumber
+                    ? (typeof question.questionNumber === 'number'
+                        ? String(question.questionNumber)
+                        : question.questionNumber)
+                    : String(Math.floor(Math.random() * 9000) + 1000);
+
+                // Handle CLO value with fallback to empty string
+                const maCLO = (question.cloId || question.clo || '');
+
+                // Tạo câu hỏi chờ duyệt - create a new entity instance first
+                const cauHoiChoDuyet = new CauHoiChoDuyet();
+
+                // Then set properties with proper type handling
+                cauHoiChoDuyet.MaPhan = maPhan;
+                cauHoiChoDuyet.MaSoCauHoi = questionNumber;
+                cauHoiChoDuyet.NoiDung = question.content;
+                cauHoiChoDuyet.HoanVi = true;
+                cauHoiChoDuyet.CapDo = 2; // Medium difficulty by default
+                cauHoiChoDuyet.SoCauHoiCon = question.childQuestions ? question.childQuestions.length : 0;
+                cauHoiChoDuyet.XoaTamCauHoi = false;
+                cauHoiChoDuyet.SoLanDuocThi = 0;
+                cauHoiChoDuyet.SoLanDung = 0;
+                cauHoiChoDuyet.NgayTao = new Date();
+                cauHoiChoDuyet.MaCLO = maCLO;
+                cauHoiChoDuyet.NguoiTao = nguoiTao;
+                cauHoiChoDuyet.TrangThai = 0; // Chờ duyệt
+                cauHoiChoDuyet.DuLieuCauTraLoi = duLieuCauTraLoi || '';
+                cauHoiChoDuyet.DuLieuCauHoiCon = duLieuCauHoiCon || '';
+
+                // Save the entity
+                await this.cauHoiChoDuyetRepository.save(cauHoiChoDuyet);
+                savedCount++;
+            } catch (error) {
+                this.logger.error(`Error saving question ${question.id} to approval queue: ${error.message}`);
+                throw error;
+            }
+        }
+
+        return { success: true, savedCount };
     }
 
     async saveQuestionsToDatabase(

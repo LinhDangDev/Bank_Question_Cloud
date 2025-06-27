@@ -16,6 +16,7 @@ import { Dialog } from '@/components/ui/dialog';
 import MathModal from '../../components/Modal/MathModal';
 import { useModal } from '../../hooks/useModal';
 import { MathRenderer } from '../../components/MathRenderer';
+import { questionApi, monHocApi, phanApi, khoaApi, cloApi, fileApi } from '@/services/api';
 
 // @ts-ignore
 declare global {
@@ -417,29 +418,25 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
 
   const handleAudioUpload = async () => {
     if (!audioFile) return;
-
-    setUploadingAudio(true);
-    const formData = new FormData();
-    formData.append('file', audioFile);
-
-    if (question?.MaCauHoi) {
-      formData.append('maCauHoi', question.MaCauHoi);
+    if (!question || !question.MaCauHoi) {
+      setErrorMsg("Không thể tải lên file audio: Không có câu hỏi!");
+      return;
     }
 
+    setUploadingAudio(true);
+
     try {
-      const response = await fetch(`${API_BASE_URL}/files/upload`, {
-        method: 'POST',
-        body: formData,
-      });
+      const response = await fileApi.uploadQuestionFile(audioFile, question.MaCauHoi);
 
-      if (!response.ok) {
-        throw new Error('Failed to upload audio file');
+      if (response.data) {
+        setAudioUrl(response.data.url);
+        setMessage("Tải lên file audio thành công!");
+      } else {
+        throw new Error("Không nhận được phản hồi từ server");
       }
-
-      setMessage('Audio file uploaded successfully');
     } catch (error) {
-      console.error('Error uploading audio:', error);
-      setErrorMsg('Failed to upload audio file');
+      console.error("Error uploading audio:", error);
+      setErrorMsg("Tải lên file audio thất bại!");
     } finally {
       setUploadingAudio(false);
     }
@@ -535,269 +532,182 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
             SoCauHoiCon: subQuestions.length,
           };
 
-          // Update parent question
-          const parentRes = await fetch(`${API_BASE_URL}/cau-hoi/${question.MaCauHoi}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(parentQuestion)
-          });
-
-          if (!parentRes.ok) {
-            throw new Error('Lưu câu hỏi nhóm thất bại!');
-          }
-
-          // Update each sub-question
-          for (const subQ of subQuestions) {
-            const isNew = subQ.MaCauHoi.startsWith('temp-');
-            const endpoint = isNew
-              ? `${API_BASE_URL}/cau-hoi/with-answers`
-              : `${API_BASE_URL}/cau-hoi/${subQ.MaCauHoi}/with-answers`;
-            const method = isNew ? 'POST' : 'PUT';
-
-            const subQuestionData = {
-              question: {
-                ...(isNew ? {} : { MaCauHoi: subQ.MaCauHoi }),
-                NoiDung: subQ.NoiDung,
-                MaPhan: maPhan,
-                MaCLO: maCLO,
-                CapDo: parseInt(level) || 1,
-                HoanVi: subQ.HoanVi,
-                SoCauHoiCon: 0,
-                MaCauHoiCha: question.MaCauHoi,
-                XoaTamCauHoi: false,
-              },
-              answers: subQ.answers.map((a, idx) => ({
-                ...(isNew ? {} : { MaCauTraLoi: a.MaCauTraLoi }),
-                NoiDung: a.NoiDung,
-                ThuTu: idx + 1,
-                LaDapAn: a.LaDapAn,
-                HoanVi: a.HoanVi
-              }))
-            };
-
-            const subRes = await fetch(endpoint, {
-              method,
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(subQuestionData)
-            });
-
-            if (!subRes.ok) {
-              console.error("Failed to save sub-question", await subRes.json());
-              throw new Error(`Lưu câu hỏi con ${subQ.MaSoCauHoi} thất bại!`);
+          try {
+            // Update parent question
+            const parentRes = await questionApi.update(question.MaCauHoi, parentQuestion);
+            if (!parentRes.data) {
+              throw new Error('Lưu câu hỏi nhóm thất bại!');
             }
-          }
 
-          setMessage('Lưu câu hỏi nhóm thành công!');
-          setTimeout(() => navigate('/group-questions'), 1200);
+            // Update each sub-question
+            for (const subQ of subQuestions) {
+              const isNew = subQ.MaCauHoi.startsWith('temp-');
+
+              const subQuestionData = {
+                question: {
+                  ...(isNew ? {} : { MaCauHoi: subQ.MaCauHoi }),
+                  NoiDung: subQ.NoiDung,
+                  MaPhan: maPhan,
+                  MaCLO: maCLO,
+                  CapDo: parseInt(level) || 1,
+                  HoanVi: subQ.HoanVi,
+                  SoCauHoiCon: 0,
+                  MaCauHoiCha: question.MaCauHoi,
+                  XoaTamCauHoi: false,
+                },
+                answers: subQ.answers.map((a, idx) => ({
+                  ...(isNew ? {} : { MaCauTraLoi: a.MaCauTraLoi }),
+                  NoiDung: a.NoiDung,
+                  ThuTu: idx + 1,
+                  LaDapAn: a.LaDapAn,
+                  HoanVi: a.HoanVi
+                }))
+              };
+
+              if (isNew) {
+                const subRes = await questionApi.createWithAnswers(subQuestionData);
+                if (!subRes.data) {
+                  throw new Error(`Lưu câu hỏi con ${subQ.MaSoCauHoi} thất bại!`);
+                }
+              } else {
+                const subRes = await questionApi.updateWithAnswers(subQ.MaCauHoi, subQuestionData);
+                if (!subRes.data) {
+                  throw new Error(`Lưu câu hỏi con ${subQ.MaSoCauHoi} thất bại!`);
+                }
+              }
+            }
+
+            setMessage('Lưu câu hỏi nhóm thành công!');
+            setTimeout(() => navigate('/group-questions'), 1200);
+          } catch (error) {
+            console.error("Error updating group question:", error);
+            setErrorMsg(error instanceof Error ? error.message : 'Lưu câu hỏi nhóm thất bại!');
+            setSaving(false);
+          }
         } else {
           // Create new group question
-          // First, create the parent question
-          const parentQuestion = {
-            MaPhan: maPhan,
-            MaSoCauHoi: Math.floor(Math.random() * 9000) + 1000,
-            NoiDung: content,
-            HoanVi: !fixedOrder,
-            CapDo: parseInt(level) || 1,
-            SoCauHoiCon: subQuestions.length,
-            MaCLO: maCLO,
-            XoaTamCauHoi: false,
-            SoLanDuocThi: 0,
-            SoLanDung: 0
-          };
-
-          const parentRes = await fetch(`${API_BASE_URL}/cau-hoi`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(parentQuestion)
-          });
-
-          if (!parentRes.ok) {
-            throw new Error('Tạo câu hỏi nhóm thất bại!');
-          }
-
-          const parentData = await parentRes.json();
-          const parentId = parentData.MaCauHoi;
-
-          // Then create each sub-question
-          for (const subQ of subQuestions) {
-            const subQuestionData = {
-              question: {
-                NoiDung: subQ.NoiDung,
-                MaPhan: maPhan,
-                MaCLO: maCLO,
-                CapDo: parseInt(level) || 1,
-                HoanVi: subQ.HoanVi,
-                SoCauHoiCon: 0,
-                MaCauHoiCha: parentId,
-                XoaTamCauHoi: false,
-              },
-              answers: subQ.answers.map((a, idx) => ({
-                NoiDung: a.NoiDung,
-                ThuTu: idx + 1,
-                LaDapAn: a.LaDapAn,
-                HoanVi: a.HoanVi
-              }))
+          try {
+            // First, create the parent question
+            const parentQuestion = {
+              MaPhan: maPhan,
+              MaSoCauHoi: Math.floor(Math.random() * 9000) + 1000,
+              NoiDung: content,
+              HoanVi: !fixedOrder,
+              CapDo: parseInt(level) || 1,
+              SoCauHoiCon: subQuestions.length,
+              MaCLO: maCLO,
+              XoaTamCauHoi: false,
+              SoLanDuocThi: 0,
+              SoLanDung: 0
             };
 
-            const subRes = await fetch(`${API_BASE_URL}/cau-hoi/with-answers`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(subQuestionData)
-            });
-
-            if (!subRes.ok) {
-              console.error("Failed to save sub-question", await subRes.json());
-              throw new Error(`Tạo câu hỏi con ${subQ.MaSoCauHoi} thất bại!`);
+            const parentRes = await questionApi.create(parentQuestion);
+            if (!parentRes.data) {
+              throw new Error('Tạo câu hỏi nhóm thất bại!');
             }
-          }
 
-          setMessage('Tạo câu hỏi nhóm thành công!');
-          setTimeout(() => navigate('/group-questions'), 1200);
+            const parentData = parentRes.data;
+            const parentId = parentData.MaCauHoi;
+
+            // Then create each sub-question
+            for (const subQ of subQuestions) {
+              const subQuestionData = {
+                question: {
+                  NoiDung: subQ.NoiDung,
+                  MaPhan: maPhan,
+                  MaCLO: maCLO,
+                  CapDo: parseInt(level) || 1,
+                  HoanVi: subQ.HoanVi,
+                  SoCauHoiCon: 0,
+                  MaCauHoiCha: parentId,
+                  XoaTamCauHoi: false,
+                },
+                answers: subQ.answers.map((a, idx) => ({
+                  NoiDung: a.NoiDung,
+                  ThuTu: idx + 1,
+                  LaDapAn: a.LaDapAn,
+                  HoanVi: a.HoanVi
+                }))
+              };
+
+              const subRes = await questionApi.createWithAnswers(subQuestionData);
+              if (!subRes.data) {
+                throw new Error(`Tạo câu hỏi con ${subQ.MaSoCauHoi} thất bại!`);
+              }
+            }
+
+            setMessage('Tạo câu hỏi nhóm thành công!');
+            setTimeout(() => navigate('/group-questions'), 1200);
+          } catch (error) {
+            console.error("Error creating group question:", error);
+            setErrorMsg(error instanceof Error ? error.message : 'Tạo câu hỏi nhóm thất bại!');
+            setSaving(false);
+            return;
+          }
         }
       } else {
-        // Single choice question (existing code)
+        // Regular question handling (single choice, etc.)
+        // Validate answers
         if (!answers.some(a => a.correct)) {
-          setErrorMsg('Vui lòng chọn ít nhất một đáp án đúng!');
+          setErrorMsg('Phải có ít nhất 1 đáp án đúng!');
           setSaving(false);
           return;
         }
 
-        if (question) {
-          // Update existing question
-          const mappedAnswers = answers.map((a, idx) => ({
-            MaCauTraLoi: question.answers?.[idx]?.MaCauTraLoi || undefined,
-            MaCauHoi: question.MaCauHoi,
-            NoiDung: a.text,
-            ThuTu: idx + 1,
-            LaDapAn: a.correct,
-            HoanVi: shuffleSpecificAnswers[idx]
-          }));
-
-          // Create a copy of the question without the answers property
-          const { answers: _, ...questionWithoutAnswers } = question;
-
-          const payload = {
-            question: {
-              ...questionWithoutAnswers,
-              NoiDung: content,
-              MaPhan: maPhan,
-              MaCLO: maCLO,
-              HoanVi: !fixedOrder,
-              CapDo: parseInt(level) || 1
-            },
-            answers: mappedAnswers
-          };
-
-          const res = await fetch(`${API_BASE_URL}/cau-hoi/${question.MaCauHoi}/with-answers`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-
-          if (!res.ok) {
-            const errorData = await res.json().catch(() => ({}));
-            console.error("API error response:", errorData);
-            throw new Error('Lưu thất bại!');
-          }
-          setMessage('Lưu thành công!');
-
-          // If there's a new audio file, upload it
-          if (audioFile) {
-            await handleAudioUpload();
-          }
-
-          // Check if we came from a specific chapter page
-          const searchParams = new URLSearchParams(location.search);
-          const maPhanParam = searchParams.get('maPhan');
-
-          setTimeout(() => {
-            if (maPhanParam) {
-              navigate(`/chapter-questions/${maPhanParam}`);
-            } else {
-              navigate('/questions');
-            }
-          }, 1200);
-        } else {
-          // Create new question
-          // Create the question object first
-          const questionData = {
-            MaPhan: maPhan,
-            MaSoCauHoi: Math.floor(Math.random() * 9000) + 1000, // Generate a random question number
+        // Format the question data
+        const payload = {
+          question: {
+            ...(question && question.MaCauHoi ? { MaCauHoi: question.MaCauHoi } : {}),
             NoiDung: content,
-            HoanVi: !fixedOrder,
-            CapDo: parseInt(level) || 1,
-            SoCauHoiCon: 0,
+            MaPhan: maPhan,
             MaCLO: maCLO,
-            XoaTamCauHoi: false, // Explicitly set to false
-            SoLanDuocThi: 0,     // Explicitly set to 0
-            SoLanDung: 0         // Explicitly set to 0
-          };
-
-          // For the answers, we don't need to include MaCauHoi
-          // The backend will assign the correct MaCauHoi after creating the question
-          const mappedAnswers = answers.map((a, idx) => ({
-            NoiDung: a.text,
+            CapDo: parseInt(level) || 1,
+            HoanVi: !fixedOrder,
+            MaCauHoiCha: parentId || null
+          },
+          answers: answers.map((answer, idx) => ({
+            ...(question && question.answers && question.answers[idx] ?
+              { MaCauTraLoi: question.answers[idx].MaCauTraLoi } : {}),
+            NoiDung: answer.text,
             ThuTu: idx + 1,
-            LaDapAn: a.correct,
-            HoanVi: shuffleSpecificAnswers[idx]
-          }));
+            LaDapAn: answer.correct,
+            HoanVi: !shuffleSpecificAnswers[idx]
+          }))
+        };
 
-          const payload = {
-            question: questionData,
-            answers: mappedAnswers
-          };
+        try {
+          let response;
 
-          console.log("Sending payload:", JSON.stringify(payload, null, 2));
-
-          const res = await fetch(`${API_BASE_URL}/cau-hoi/with-answers`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-
-          if (!res.ok) {
-            const errorData = await res.json();
-            console.error("API error response:", errorData);
-            throw new Error('Tạo câu hỏi thất bại!');
+          if (question && question.MaCauHoi) {
+            // Update existing question
+            response = await questionApi.updateWithAnswers(question.MaCauHoi, payload);
+          } else {
+            // Create new question
+            response = await questionApi.createWithAnswers(payload);
           }
 
-          // Get the newly created question ID
-          const createdQuestion = await res.json();
-
-          // If there's an audio file, upload it with the new question ID
-          if (audioFile && createdQuestion.question.MaCauHoi) {
-            const formData = new FormData();
-            formData.append('file', audioFile);
-            formData.append('maCauHoi', createdQuestion.question.MaCauHoi);
-
-            const uploadRes = await fetch(`${API_BASE_URL}/files/upload`, {
-              method: 'POST',
-              body: formData,
-            });
-
-            if (!uploadRes.ok) {
-              console.error("Error uploading audio:", await uploadRes.json());
-            }
+          if (!response.data) {
+            throw new Error('Lưu câu hỏi thất bại!');
           }
 
-          setMessage('Tạo câu hỏi thành công!');
+          setMessage(`Câu hỏi đã được ${question && question.MaCauHoi ? 'cập nhật' : 'tạo'} thành công!`);
 
-          // Check if we came from a specific chapter page
-          const searchParams = new URLSearchParams(location.search);
-          const maPhanParam = searchParams.get('maPhan');
-
+          // Redirect after successful save
           setTimeout(() => {
-            if (maPhanParam) {
-              navigate(`/chapter-questions/${maPhanParam}`);
+            if (parentId) {
+              navigate(`/questions/edit/${parentId}`);
             } else {
               navigate('/questions');
             }
           }, 1200);
+        } catch (error) {
+          console.error("Error saving question:", error);
+          setErrorMsg(error instanceof Error ? error.message : 'Lưu câu hỏi thất bại!');
         }
       }
-    } catch (err) {
-      console.error("Error saving question:", err);
-      setErrorMsg(err instanceof Error ? err.message : 'Lưu thất bại!');
+    } catch (error) {
+      console.error("Error in handleSave:", error);
+      setErrorMsg(error instanceof Error ? error.message : 'Đã xảy ra lỗi!');
     } finally {
       setSaving(false);
     }

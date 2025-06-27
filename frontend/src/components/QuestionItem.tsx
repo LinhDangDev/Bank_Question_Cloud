@@ -38,7 +38,39 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({
 
   // Render content with LaTeX
   const renderContent = (content: string) => {
-    return <MathRenderer content={content} />;
+    // Preprocess the content to properly format LaTeX expressions
+    const preprocessedContent = preprocessLatex(content);
+    return <MathRenderer content={preprocessedContent} />;
+  };
+
+  // Function to preprocess content for better LaTeX rendering
+  const preprocessLatex = (content: string): string => {
+    if (!content) return '';
+
+    // Replace LaTeX expressions with proper markdown math format
+    let result = content;
+
+    // Convert $...$ to markdown math inline format
+    result = result.replace(/\$([^$]+)\$/g, '$$$1$$');
+
+    // Convert \(...\) to markdown math inline format
+    result = result.replace(/\\\(([^)]+)\\\)/g, '$$$1$$');
+
+    // Convert \[...\] or $$...$$ to markdown math block format
+    result = result.replace(/\\\[([^]]+)\\\]/g, '$$$$1$$$$');
+    result = result.replace(/\$\$([^$]+)\$\$/g, '$$$$1$$$$');
+
+    // Handle specific LaTeX commands that might need special handling
+    result = result.replace(/\\forall/g, '$\\forall$');
+    result = result.replace(/\\exists/g, '$\\exists$');
+    result = result.replace(/\\in/g, '$\\in$');
+    result = result.replace(/\\subset/g, '$\\subset$');
+    result = result.replace(/\\cup/g, '$\\cup$');
+    result = result.replace(/\\cap/g, '$\\cap$');
+    result = result.replace(/\\rightarrow/g, '$\\rightarrow$');
+    result = result.replace(/\\Rightarrow/g, '$\\Rightarrow$');
+
+    return result;
   };
 
   // Render a single answer
@@ -88,7 +120,7 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({
 
         <div className="mb-3">
           {renderContent(childQuestion.content)}
-          </div>
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {childQuestion.answers.map((answer, idx) => renderAnswer(answer, idx))}

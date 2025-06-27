@@ -44,7 +44,7 @@ const PaginationBar = ({
   const endItem = Math.min(page * limit, totalItems);
 
   return (
-    <div className="flex flex-wrap justify-between items-center gap-4">
+    <div className="flex flex-wrap justify-between items-center gap-4 w-full">
       {/* Left side - Page navigation */}
       <div className="flex items-center gap-3">
         <div className="flex rounded-md shadow-sm">

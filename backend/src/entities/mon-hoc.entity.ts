@@ -2,6 +2,7 @@ import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColum
 import { DeThi } from './de-thi.entity';
 import { Khoa } from './khoa.entity';
 import { Phan } from './phan.entity';
+import { CLO } from './clo.entity';
 
 @Entity('MonHoc')
 export class MonHoc {
@@ -35,4 +36,7 @@ export class MonHoc {
 
     @OneToMany(() => DeThi, deThi => deThi.MonHoc)
     DeThi: DeThi[];
+
+    @OneToMany(() => CLO, clo => clo.MonHoc)
+    CLOs: CLO[];
 }

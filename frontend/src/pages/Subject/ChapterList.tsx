@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Search, Plus, ArrowLeft, Trash2, RefreshCw, BookOpen } from 'lucide-react'
 import PageContainer from '@/components/ui/PageContainer'
 import { monHocApi, phanApi } from '@/services/api'
+import { usePermissions } from '@/hooks/usePermissions'
 
 interface Chapter {
   MaPhan: string
@@ -40,6 +41,7 @@ interface Subject {
 const ChapterList = () => {
   const navigate = useNavigate()
   const { subjectId } = useParams()
+  const { isAdmin } = usePermissions()
   const [chapters, setChapters] = useState<Chapter[]>([])
   const [subject, setSubject] = useState<Subject | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -172,10 +174,12 @@ const ChapterList = () => {
             {subject?.Khoa && <span className="text-lg font-normal text-gray-500 ml-2">({subject.Khoa.TenKhoa})</span>}
           </h1>
         </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Thêm Chương
-        </Button>
+        {isAdmin() && (
+          <Button onClick={() => setIsCreateDialogOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Thêm Chương
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -240,18 +244,20 @@ const ChapterList = () => {
                 <p>Số lượng câu hỏi: {chapter.SoLuongCauHoi}</p>
                 <p>Môn học: {chapter.MonHoc?.TenMonHoc || subject?.TenMonHoc}</p>
                 <p>Khoa: {chapter.MonHoc?.Khoa?.TenKhoa || subject?.Khoa?.TenKhoa}</p>
-                <p>Ngày tạo: {formatDate(chapter.NgayTao)}</p>
-                <p>Ngày sửa: {formatDate(chapter.NgaySua)}</p>
+                    {/* <p>Ngày tạo: {formatDate(chapter.NgayTao)}</p>
+                    <p>Ngày sửa: {formatDate(chapter.NgaySua)}</p> */}
               </div>
               <div className="flex justify-end gap-2 mt-4">
                 {chapter.XoaTamPhan ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleRestoreChapter(chapter.MaPhan)}
-                  >
-                    Khôi phục
-                  </Button>
+                  isAdmin() && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRestoreChapter(chapter.MaPhan)}
+                    >
+                      Khôi phục
+                    </Button>
+                  )
                 ) : (
                   <>
                     <Button
@@ -263,13 +269,15 @@ const ChapterList = () => {
                       <BookOpen className="w-4 h-4 mr-2" />
                       Xem câu hỏi
                     </Button>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      onClick={() => handleDeleteChapter(chapter.MaPhan)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    {isAdmin() && (
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => handleDeleteChapter(chapter.MaPhan)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
                   </>
                 )}
               </div>

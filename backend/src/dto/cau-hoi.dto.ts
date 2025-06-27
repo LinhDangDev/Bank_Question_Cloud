@@ -63,6 +63,11 @@ export class CreateCauHoiDto {
     @IsNumber()
     @IsOptional()
     DoKhoThucTe?: number;
+
+    @ApiPropertyOptional({ description: 'Creator user ID' })
+    @IsUUID()
+    @IsOptional()
+    NguoiTao?: string;
 }
 
 export class UpdateCauHoiDto extends CreateCauHoiDto { }

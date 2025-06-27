@@ -115,3 +115,6 @@ build/
 
 # Ignore files plan
 .Plan/
+
+# Ignore all files in the .cursor directory
+.cursorignore

@@ -7,6 +7,13 @@ import { API_BASE_URL } from '@/config';
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+import { z } from "zod"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar as CalendarIcon } from "@/components/ui/calendar"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface CLO {
   MaCLO: string;
@@ -19,11 +26,12 @@ interface FiltersProps {
 }
 
 export interface FilterOptions {
+  isDeleted?: boolean;
+  pendingApproval?: boolean;
   clo?: string;
+  difficulty?: number;
   startDate?: string;
   endDate?: string;
-  isDeleted?: boolean;
-  difficulty?: number;
 }
 
 const Filters = ({ onSearch, onFilter }: FiltersProps) => {

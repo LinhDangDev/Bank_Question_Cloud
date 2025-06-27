@@ -4,6 +4,7 @@ import { ChiTietDeThi } from './chi-tiet-de-thi.entity';
 import { Files } from './files.entity';
 import { Phan } from './phan.entity';
 import { CLO } from './clo.entity';
+import { User } from './user.entity';
 
 @Entity('CauHoi')
 export class CauHoi {
@@ -54,6 +55,13 @@ export class CauHoi {
 
     @Column({ type: 'float', nullable: true })
     DoKhoThucTe: number;
+
+    @Column({ type: 'uuid', nullable: true })
+    NguoiTao: string;
+
+    @ManyToOne(() => User)
+    @JoinColumn({ name: 'NguoiTao' })
+    Creator: User;
 
     @ManyToOne(() => Phan)
     @JoinColumn({ name: 'MaPhan' })

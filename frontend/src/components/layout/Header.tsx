@@ -1,5 +1,5 @@
 import { Bell, Moon, Sun } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,26 +15,82 @@ interface HeaderProps {
   isExpanded: boolean
 }
 
+interface Notification {
+  id: string;
+  text: string;
+  time: string;
+  isRead: boolean;
+  type: 'approval' | 'login' | 'upload' | 'system';
+}
+
 const Header = ({ isExpanded }: HeaderProps) => {
   const { theme, toggleTheme } = useTheme()
-  const [hasNotifications, setHasNotifications] = useState(true)
+  const [hasNotifications, setHasNotifications] = useState(false)
+  const [notifications, setNotifications] = useState<Notification[]>([])
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  // Mock notification data
-  const notifications = [
-    { id: 1, text: 'Câu hỏi mới đã được thêm vào hệ thống', time: '5 phút trước' },
-    { id: 2, text: 'Đề thi Mạng máy tính vừa được cập nhật', time: '1 giờ trước' },
-    { id: 3, text: 'Người dùng mới đã được thêm vào hệ thống', time: '3 giờ trước' },
-  ]
+  useEffect(() => {
+    // Check if there are any unread notifications
+    const unreadNotifications = notifications.filter(n => !n.isRead);
+    setHasNotifications(unreadNotifications.length > 0);
+  }, [notifications]);
+
+  // Function to add a new notification
+  const addNotification = (text: string, type: 'approval' | 'login' | 'upload' | 'system') => {
+    const newNotification: Notification = {
+      id: Date.now().toString(),
+      text,
+      time: 'Vừa xong',
+      isRead: false,
+      type
+    };
+
+    setNotifications(prev => [newNotification, ...prev]);
+  };
+
+  // Simulate adding a notification when user logs in
+  useEffect(() => {
+    if (user) {
+      // Get login time from localStorage or set it now
+      const lastLoginTime = localStorage.getItem('lastLoginTime');
+      const currentTime = new Date().getTime();
+
+      if (!lastLoginTime || (currentTime - parseInt(lastLoginTime) > 5000)) {
+        addNotification(`Đăng nhập thành công. Xin chào ${user.name}!`, 'login');
+        localStorage.setItem('lastLoginTime', currentTime.toString());
+      }
+    }
+  }, [user]);
+
+  // Function that external components can call to add upload notification
+  window.addEventListener('questionUploaded', (e: any) => {
+    addNotification('Câu hỏi đã được tải lên thành công và đang chờ duyệt', 'upload');
+  });
+
+  // Function that external components can call to add approval notification
+  window.addEventListener('questionApproved', (e: any) => {
+    addNotification('Câu hỏi của bạn đã được duyệt!', 'approval');
+  });
 
   const clearNotifications = () => {
-    setHasNotifications(false)
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    setHasNotifications(false);
   }
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+  }
+
+  const markAsRead = (id: string) => {
+    setNotifications(prev =>
+      prev.map(notification =>
+        notification.id === id
+          ? { ...notification, isRead: true }
+          : notification
+      )
+    );
   }
 
   return (
@@ -82,9 +138,18 @@ const Header = ({ isExpanded }: HeaderProps) => {
             <div className="max-h-[300px] overflow-y-auto">
               {notifications.length > 0 ? (
                 notifications.map(notification => (
-                  <div key={notification.id} className="px-4 py-3 border-b hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
-                    <p className="text-sm">{notification.text}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{notification.time}</p>
+                  <div
+                    key={notification.id}
+                    className={`px-4 py-3 border-b hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer ${notification.isRead ? 'opacity-60' : ''}`}
+                    onClick={() => markAsRead(notification.id)}
+                  >
+                    <div className="flex items-start">
+                      <div className={`w-2 h-2 mt-2 mr-2 rounded-full ${notification.isRead ? 'bg-gray-300' : 'bg-green-500'}`}></div>
+                      <div className="flex-1">
+                        <p className="text-sm">{notification.text}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{notification.time}</p>
+                      </div>
+                    </div>
                   </div>
                 ))
               ) : (

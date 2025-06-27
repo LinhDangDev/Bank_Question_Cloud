@@ -1,4 +1,4 @@
-import { Controller, Post, Get, UseInterceptors, UploadedFile, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, UseInterceptors, UploadedFile, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiConsumes, ApiOperation, ApiBody } from '@nestjs/swagger';
 import { QuestionsImportService } from './questions-import.service';
@@ -115,20 +115,35 @@ export class QuestionsImportController {
     @Post('save')
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles('admin', 'teacher')
-    @ApiOperation({ summary: 'Save previewed questions to the database' })
+    @ApiOperation({ summary: 'Save previewed questions to approval queue (teacher) or directly to database (admin)' })
     async saveQuestions(
         @Body() payload: {
             fileId: string,
             questionIds: string[],
             maPhan?: string,
             questionMetadata?: any[]  // Accept CLO metadata
-        }
+        },
+        @Request() req: any
     ) {
-        return this.questionsImportService.saveQuestionsToDatabase(
-            payload.fileId,
-            payload.questionIds,
-            payload.maPhan,
-            payload.questionMetadata
-        );
+        const user = req.user;
+
+        // Nếu là teacher, lưu vào bảng chờ duyệt
+        if (user.role === 'teacher') {
+            return this.questionsImportService.saveQuestionsToApprovalQueue(
+                payload.fileId,
+                payload.questionIds,
+                payload.maPhan,
+                payload.questionMetadata,
+                user.sub // userId của teacher
+            );
+        } else {
+            // Nếu là admin, lưu trực tiếp vào database
+            return this.questionsImportService.saveQuestionsToDatabase(
+                payload.fileId,
+                payload.questionIds,
+                payload.maPhan,
+                payload.questionMetadata
+            );
+        }
     }
 }

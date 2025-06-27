@@ -4,12 +4,15 @@ import { Repository } from 'typeorm';
 import { Khoa } from '../../entities/khoa.entity';
 import { CreateKhoaDto, UpdateKhoaDto } from '../../dto/khoa.dto';
 import { v4 as uuidv4 } from 'uuid';
+import { User } from '../../entities/user.entity';
 
 @Injectable()
 export class KhoaService {
     constructor(
         @InjectRepository(Khoa)
         private khoaRepository: Repository<Khoa>,
+        @InjectRepository(User)
+        private userRepository: Repository<User>,
     ) { }
 
     async findAll() {
@@ -18,6 +21,30 @@ export class KhoaService {
                 TenKhoa: 'ASC'
             }
         });
+    }
+
+    async findByTeacher(teacherId: string) {
+        // Fetch the teacher details to get their assigned khoa
+        const teacher = await this.userRepository.findOne({
+            where: { UserId: teacherId },
+            relations: ['Khoa']
+        });
+
+        if (!teacher) {
+            throw new NotFoundException(`Teacher with ID ${teacherId} not found`);
+        }
+
+        if (!teacher.MaKhoa) {
+            // If teacher is not assigned to any khoa, return empty array
+            return [];
+        }
+
+        // Return only the khoa that the teacher is assigned to
+        const khoa = await this.khoaRepository.findOne({
+            where: { MaKhoa: teacher.MaKhoa }
+        });
+
+        return khoa ? [khoa] : [];
     }
 
     async findOne(MaKhoa: string) {

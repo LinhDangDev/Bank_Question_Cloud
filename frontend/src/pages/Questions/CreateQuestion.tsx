@@ -6,6 +6,7 @@ import PageContainer from "../../components/ui/PageContainer"
 import { useThemeStyles, cx } from "../../utils/theme"
 import { File, Upload, ChevronRight, Edit, Check, X, Trash } from "lucide-react"
 import { useLocation, useNavigate } from "react-router-dom"
+import { questionApi } from "@/services/api"
 
 interface QuestionTypeCardProps {
   icon: React.ReactNode

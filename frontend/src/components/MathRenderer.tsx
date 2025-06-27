@@ -10,12 +10,53 @@ interface MathRendererProps {
 }
 
 export const MathRenderer = ({ content, className = '' }: MathRendererProps) => {
+  // Add additional CSS for better LaTeX rendering
+  const customStyles = `
+    .katex {
+      font-size: 1.15em;
+    }
+    .katex-display {
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 0.5em 0;
+    }
+  `;
+
   const MarkdownComponent = ReactMarkdown as any;
+
+  // Preprocess content to ensure LaTeX renders correctly
+  let processedContent = content;
+
+  // Make sure all LaTeX commands are properly escaped in markdown context
+  if (processedContent && !processedContent.includes('```math')) {
+    // Convert explicit LaTeX notation that might not be captured by remark-math
+    processedContent = processedContent
+      // Ensure proper spacing for display math mode
+      .replace(/\$\$(.*?)\$\$/g, '\n\n$$\n$1\n$$\n\n')
+      // Convert LaTeX commands outside of math delimiters
+      .replace(/(^|[^$])\\((?:forall|exists|in|subset|cup|cap|rightarrow|Rightarrow))/g, '$1$\\$2$');
+  }
+
   return (
     <div className={`math-renderer ${className}`}>
+      <style>{customStyles}</style>
       <MarkdownComponent
         remarkPlugins={[remarkMath]}
-        rehypePlugins={[rehypeKatex]}
+        rehypePlugins={[
+          [rehypeKatex, {
+            throwOnError: false,
+            strict: false,
+            output: 'htmlAndMathml',
+            trust: true,
+            macros: {
+              // Common LaTeX macros used in mathematical notation
+              "\\E": "\\mathbb{E}",
+              "\\R": "\\mathbb{R}",
+              "\\N": "\\mathbb{N}",
+              "\\Z": "\\mathbb{Z}"
+            }
+          }]
+        ]}
         components={{
           // Allow rendering of basic HTML tags if needed.
           // For security, this should be carefully managed.
@@ -29,10 +70,31 @@ export const MathRenderer = ({ content, className = '' }: MathRendererProps) => 
           ol: ({ node, ...props }: any) => <ol {...props} />,
           li: ({ node, ...props }: any) => <li {...props} />,
           br: ({ node, ...props }: any) => <br {...props} />,
+          code: ({ node, inline, className, children, ...props }: any) => {
+            // Special handling for code blocks that might contain LaTeX
+            const match = /language-(\w+)/.exec(className || '');
+            const isLatex = match && (match[1] === 'latex' || match[1] === 'math' || match[1] === 'tex');
+
+            if (isLatex) {
+              return <span className="katex-block">{children}</span>;
+            }
+
+            return inline ? (
+              <code className={className} {...props}>
+                {children}
+              </code>
+            ) : (
+              <pre className={className}>
+                <code {...props}>{children}</code>
+              </pre>
+            );
+          }
         }}
       >
-        {content}
+        {processedContent}
       </MarkdownComponent>
     </div>
   );
 };
+
+export default MathRenderer;

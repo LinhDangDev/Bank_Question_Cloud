@@ -6,10 +6,11 @@ import { QuestionsImportService } from './questions-import.service';
 import { DocxParserService } from '../../services/docx-parser.service';
 import { CauHoi } from '../../entities/cau-hoi.entity';
 import { CauTraLoi } from '../../entities/cau-tra-loi.entity';
+import { CauHoiChoDuyet } from '../../entities/cau-hoi-cho-duyet.entity';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([CauHoi, CauTraLoi]),
+        TypeOrmModule.forFeature([CauHoi, CauTraLoi, CauHoiChoDuyet]),
         MulterModule.register({
             dest: './uploads/temp',
         }),
