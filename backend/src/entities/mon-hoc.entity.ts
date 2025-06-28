@@ -24,8 +24,11 @@ export class MonHoc {
     @Column({ type: 'datetime', nullable: true })
     NgayTao: Date;
 
-    @Column({ type: 'datetime', nullable: true, select: false })
+    @Column({ type: 'datetime', nullable: true })
     NgaySua: Date;
+
+    @Column({ type: 'datetime', nullable: true, select: false })
+    NgayXoa: Date;
 
     @ManyToOne(() => Khoa, khoa => khoa.MonHoc)
     @JoinColumn({ name: 'MaKhoa' })

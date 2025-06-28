@@ -84,8 +84,10 @@ export class MonHocService {
         }
 
         const newMonHoc = this.monHocRepository.create({
-            ...monHoc,
             MaMonHoc: uuidv4(),
+            MaKhoa: monHoc.MaKhoa,
+            MaSoMonHoc: monHoc.MaSoMonHoc,
+            TenMonHoc: monHoc.TenMonHoc,
             XoaTamMonHoc: false,
             NgayTao: new Date(),
             NgaySua: new Date()

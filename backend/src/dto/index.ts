@@ -9,3 +9,5 @@ export * from './phan.dto';
 export * from './user.dto';
 export * from './yeu-cau-rut-trich.dto';
 export * from './clo.dto';
+export * from './notification.dto';
+export * from './audit-log.dto';

@@ -19,6 +19,8 @@ import { AuthModule } from './modules/auth/auth.module';
 import { QuestionsImportModule } from './modules/questions-import/questions-import.module';
 import { CauHoiChoDuyetModule } from './modules/cau-hoi-cho-duyet/cau-hoi-cho-duyet.module';
 import { UsersModule } from './modules/users/users.module';
+import { NotificationModule } from './modules/notification/notification.module';
+import { AuditLogModule } from './modules/audit-log/audit-log.module';
 import databaseConfig from './config/database.config';
 import { DbConfigController } from './utils/db-env-switcher';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
@@ -64,6 +66,8 @@ import * as path from 'path';
         QuestionsImportModule,
         CauHoiChoDuyetModule,
         UsersModule,
+        NotificationModule,
+        AuditLogModule,
     ],
     controllers: [AppController, DbConfigController],
     providers: [AppService],

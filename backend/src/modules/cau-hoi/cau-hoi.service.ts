@@ -526,7 +526,11 @@ export class CauHoiService extends BaseService<CauHoi> {
     async softDeleteCauHoi(id: string): Promise<void> {
         const cauHoi = await this.findOne(id);
         cauHoi.XoaTamCauHoi = true;
+        cauHoi.NgaySua = new Date();
         await this.cauHoiRepository.save(cauHoi);
+
+        // Clear cached question lists so pagination counts are accurate
+        await this.clearQuestionsCache();
     }
 
     async restoreCauHoi(maCauHoi: string): Promise<void> {
@@ -534,6 +538,9 @@ export class CauHoiService extends BaseService<CauHoi> {
             XoaTamCauHoi: false,
             NgaySua: new Date(),
         });
+
+        // Clear cache after restore to avoid stale pagination data
+        await this.clearQuestionsCache();
     }
 
     async updateQuestionWithAnswers(id: string, dto: UpdateQuestionWithAnswersDto): Promise<{ question: any, answers: CauTraLoi[] }> {

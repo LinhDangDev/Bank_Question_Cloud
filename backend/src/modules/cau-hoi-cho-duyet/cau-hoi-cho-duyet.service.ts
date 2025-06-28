@@ -4,8 +4,10 @@ import { Repository, DataSource } from 'typeorm';
 import { CauHoiChoDuyet } from '../../entities/cau-hoi-cho-duyet.entity';
 import { CauHoi } from '../../entities/cau-hoi.entity';
 import { CauTraLoi } from '../../entities/cau-tra-loi.entity';
+import { User } from '../../entities/user.entity';
 import { CreateCauHoiChoDuyetDto, UpdateCauHoiChoDuyetDto, DuyetCauHoiDto } from '../../dto/cau-hoi-cho-duyet.dto';
 import { PaginationDto } from '../../dto/pagination.dto';
+import { NotificationHelperService } from '../../common/services/notification-helper.service';
 
 @Injectable()
 export class CauHoiChoDuyetService {
@@ -16,7 +18,10 @@ export class CauHoiChoDuyetService {
         private readonly cauHoiRepository: Repository<CauHoi>,
         @InjectRepository(CauTraLoi)
         private readonly cauTraLoiRepository: Repository<CauTraLoi>,
+        @InjectRepository(User)
+        private readonly userRepository: Repository<User>,
         private readonly dataSource: DataSource,
+        private readonly notificationHelper: NotificationHelperService,
     ) { }
 
     async findAll(paginationDto: PaginationDto, trangThai?: number, nguoiTao?: string) {
@@ -74,7 +79,37 @@ export class CauHoiChoDuyetService {
             TrangThai: 0, // Chờ duyệt
         });
 
-        return await this.cauHoiChoDuyetRepository.save(cauHoi);
+        const savedCauHoi = await this.cauHoiChoDuyetRepository.save(cauHoi);
+
+        // Gửi thông báo cho teacher
+        try {
+            await this.notificationHelper.notifyQuestionSubmitted(
+                createDto.NguoiTao,
+                savedCauHoi.MaCauHoiChoDuyet
+            );
+
+            // Gửi thông báo cho admin
+            const admins = await this.userRepository.find({
+                where: { IsBuildInUser: true }, // Assuming admins are built-in users
+            });
+
+            if (admins.length > 0) {
+                const teacher = await this.userRepository.findOne({
+                    where: { UserId: createDto.NguoiTao }
+                });
+
+                const adminIds = admins.map(admin => admin.UserId);
+                await this.notificationHelper.notifyAdminsNewQuestionSubmission(
+                    adminIds,
+                    teacher?.Name || 'Unknown Teacher',
+                    savedCauHoi.MaCauHoiChoDuyet
+                );
+            }
+        } catch (error) {
+            console.error('Failed to send notifications:', error);
+        }
+
+        return savedCauHoi;
     }
 
     async update(id: string, updateDto: UpdateCauHoiChoDuyetDto): Promise<CauHoiChoDuyet> {
@@ -115,6 +150,33 @@ export class CauHoiChoDuyetService {
             }
 
             await queryRunner.commitTransaction();
+
+            // Gửi thông báo sau khi commit thành công
+            try {
+                const admin = await this.userRepository.findOne({
+                    where: { UserId: nguoiDuyet }
+                });
+
+                if (duyetDto.TrangThai === 1) {
+                    // Câu hỏi được duyệt
+                    await this.notificationHelper.notifyQuestionApproved(
+                        cauHoiChoDuyet.NguoiTao,
+                        cauHoiMoi?.MaCauHoi || '',
+                        admin?.Name || 'Admin'
+                    );
+                } else if (duyetDto.TrangThai === 2) {
+                    // Câu hỏi bị từ chối
+                    await this.notificationHelper.notifyQuestionRejected(
+                        cauHoiChoDuyet.NguoiTao,
+                        cauHoiChoDuyet.MaCauHoiChoDuyet,
+                        admin?.Name || 'Admin',
+                        duyetDto.GhiChu || 'Không có lý do cụ thể'
+                    );
+                }
+            } catch (error) {
+                console.error('Failed to send approval/rejection notifications:', error);
+            }
+
             return cauHoiMoi;
         } catch (error) {
             await queryRunner.rollbackTransaction();

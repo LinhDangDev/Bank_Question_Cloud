@@ -12,6 +12,12 @@ export class Khoa {
     @Column({ nullable: true })
     XoaTamKhoa: boolean;
 
+    @Column({ type: 'datetime', nullable: true })
+    NgayTao: Date;
+
+    @Column({ type: 'datetime', nullable: true })
+    NgaySua: Date;
+
     @OneToMany(() => MonHoc, monHoc => monHoc.Khoa)
     MonHoc: MonHoc[];
 }

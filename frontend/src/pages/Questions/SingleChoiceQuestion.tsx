@@ -16,7 +16,7 @@ import { Dialog } from '@/components/ui/dialog';
 import MathModal from '../../components/Modal/MathModal';
 import { useModal } from '../../hooks/useModal';
 import { MathRenderer } from '../../components/MathRenderer';
-import { questionApi, monHocApi, phanApi, khoaApi, cloApi, fileApi } from '@/services/api';
+import { questionApi, monHocApi, phanApi, khoaApi, cloApi, fileApi, fetchWithAuth } from '@/services/api';
 
 // @ts-ignore
 declare global {
@@ -197,7 +197,7 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
         setMaKhoa(question.khoa.MaKhoa);
 
         // Fetch subjects for this faculty
-        fetch(`${API_BASE_URL}/mon-hoc/khoa/${question.khoa.MaKhoa}`)
+        fetchWithAuth(`${API_BASE_URL}/mon-hoc/khoa/${question.khoa.MaKhoa}`)
           .then(res => res.json())
           .then(data => setMonHocList(data))
           .catch(err => console.error("Error fetching subjects:", err));
@@ -208,7 +208,7 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
         setMaMonHoc(question.monHoc.MaMonHoc);
 
         // Fetch chapters for this subject
-        fetch(`${API_BASE_URL}/phan/mon-hoc/${question.monHoc.MaMonHoc}`)
+        fetchWithAuth(`${API_BASE_URL}/phan/mon-hoc/${question.monHoc.MaMonHoc}`)
           .then(res => res.json())
           .then(data => setPhanList(data))
           .catch(err => console.error("Error fetching chapters:", err));
@@ -231,7 +231,7 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
 
   // Fetch CLO list from backend
   useEffect(() => {
-    fetch(`${API_BASE_URL}/clo`)
+    fetchWithAuth(`${API_BASE_URL}/clo`)
       .then(res => res.json())
       .then(data => setCloList(data))
       .catch(err => console.error("Error fetching CLO list:", err));
@@ -248,21 +248,21 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
       // Fetch chapter info to get monHoc and khoa
       const fetchChapterInfo = async () => {
         try {
-          const response = await fetch(`${API_BASE_URL}/phan/${maPhanParam}`);
+          const response = await fetchWithAuth(`${API_BASE_URL}/phan/${maPhanParam}`);
           if (response.ok) {
             const chapter = await response.json();
             if (chapter.MaMonHoc) {
               setMaMonHoc(chapter.MaMonHoc);
 
               // Fetch subject info to get khoa
-              const subjectResponse = await fetch(`${API_BASE_URL}/mon-hoc/${chapter.MaMonHoc}`);
+              const subjectResponse = await fetchWithAuth(`${API_BASE_URL}/mon-hoc/${chapter.MaMonHoc}`);
               if (subjectResponse.ok) {
                 const subject = await subjectResponse.json();
                 if (subject.MaKhoa) {
                   setMaKhoa(subject.MaKhoa);
 
                   // Now that we have maKhoa, fetch the monHoc list
-                  const monHocResponse = await fetch(`${API_BASE_URL}/mon-hoc/khoa/${subject.MaKhoa}`);
+                  const monHocResponse = await fetchWithAuth(`${API_BASE_URL}/mon-hoc/khoa/${subject.MaKhoa}`);
                   if (monHocResponse.ok) {
                     setMonHocList(await monHocResponse.json());
                   }
@@ -270,7 +270,7 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
               }
 
               // Fetch phan list for this monHoc
-              const phanResponse = await fetch(`${API_BASE_URL}/phan/mon-hoc/${chapter.MaMonHoc}`);
+              const phanResponse = await fetchWithAuth(`${API_BASE_URL}/phan/mon-hoc/${chapter.MaMonHoc}`);
               if (phanResponse.ok) {
                 setPhanList(await phanResponse.json());
               }
@@ -287,7 +287,7 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
 
   // Load khoa list always
   useEffect(() => {
-    fetch(`${API_BASE_URL}/khoa`)
+    fetchWithAuth(`${API_BASE_URL}/khoa`)
       .then(res => res.json())
       .then(data => setKhoaList(data))
       .catch(err => console.error("Error loading khoa list:", err));
@@ -296,7 +296,7 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
   // Load monHoc list when khoa changes
   useEffect(() => {
     if (maKhoa) {
-      fetch(`${API_BASE_URL}/mon-hoc/khoa/${maKhoa}`)
+      fetchWithAuth(`${API_BASE_URL}/mon-hoc/khoa/${maKhoa}`)
         .then(res => res.json())
         .then(data => setMonHocList(data))
         .catch(err => console.error("Error loading mon hoc list:", err));
@@ -309,7 +309,7 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
   // Load phan list when monHoc changes
   useEffect(() => {
     if (maMonHoc) {
-      fetch(`${API_BASE_URL}/phan/mon-hoc/${maMonHoc}`)
+      fetchWithAuth(`${API_BASE_URL}/phan/mon-hoc/${maMonHoc}`)
         .then(res => res.json())
         .then(data => setPhanList(data))
         .catch(err => console.error("Error loading phan list:", err));
@@ -332,7 +332,7 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
   // Fetch audio files for the question if editing
   useEffect(() => {
     if (question?.MaCauHoi) {
-      fetch(`${API_BASE_URL}/files/question/${question.MaCauHoi}`)
+      fetchWithAuth(`${API_BASE_URL}/files/question/${question.MaCauHoi}`)
         .then(res => res.json())
         .then(data => {
           // Get the first audio file if it exists
@@ -350,7 +350,7 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
   useEffect(() => {
     if (isGroup && question?.MaCauHoi) {
       // Fetch child questions for this group question
-      fetch(`${API_BASE_URL}/cau-hoi/cau-hoi-cha/${question.MaCauHoi}`)
+      fetchWithAuth(`${API_BASE_URL}/cau-hoi/cau-hoi-cha/${question.MaCauHoi}`)
         .then(res => res.json())
         .then(data => {
           if (data && data.items && Array.isArray(data.items)) {
@@ -745,7 +745,7 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
           answers: mappedAnswers
         };
 
-        const res = await fetch(`${API_BASE_URL}/cau-hoi/${question.MaCauHoi}/with-answers`, {
+        const res = await fetchWithAuth(`${API_BASE_URL}/cau-hoi/${question.MaCauHoi}/with-answers`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -819,7 +819,7 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
 
         console.log("Sending payload:", JSON.stringify(payload, null, 2));
 
-        const res = await fetch(`${API_BASE_URL}/cau-hoi/with-answers`, {
+        const res = await fetchWithAuth(`${API_BASE_URL}/cau-hoi/with-answers`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
