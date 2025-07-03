@@ -241,9 +241,6 @@ export class QuestionsImportService {
                         : question.questionNumber)
                     : String(Math.floor(Math.random() * 9000) + 1000);
 
-                // Handle CLO value with fallback to empty string
-                const maCLO = (question.cloId || question.clo || '');
-
                 // Tạo câu hỏi chờ duyệt - create a new entity instance first
                 const cauHoiChoDuyet = new CauHoiChoDuyet();
 
@@ -258,7 +255,14 @@ export class QuestionsImportService {
                 cauHoiChoDuyet.SoLanDuocThi = 0;
                 cauHoiChoDuyet.SoLanDung = 0;
                 cauHoiChoDuyet.NgayTao = new Date();
-                cauHoiChoDuyet.MaCLO = maCLO;
+
+                // Chỉ gán MaCLO khi có giá trị hợp lệ
+                if (question.cloId && question.cloId !== '') {
+                    cauHoiChoDuyet.MaCLO = question.cloId;
+                } else if (question.clo && question.clo !== '') {
+                    cauHoiChoDuyet.MaCLO = question.clo;
+                }
+
                 cauHoiChoDuyet.NguoiTao = nguoiTao;
                 cauHoiChoDuyet.TrangThai = 0; // Chờ duyệt
                 cauHoiChoDuyet.DuLieuCauTraLoi = duLieuCauTraLoi || '';

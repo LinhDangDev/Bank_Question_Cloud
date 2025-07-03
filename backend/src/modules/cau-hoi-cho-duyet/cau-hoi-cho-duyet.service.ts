@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
+import { v4 as uuidv4 } from 'uuid';
 import { CauHoiChoDuyet } from '../../entities/cau-hoi-cho-duyet.entity';
 import { CauHoi } from '../../entities/cau-hoi.entity';
 import { CauTraLoi } from '../../entities/cau-tra-loi.entity';
@@ -90,18 +91,18 @@ export class CauHoiChoDuyetService {
 
             // Gửi thông báo cho admin
             const admins = await this.userRepository.find({
-                where: { IsBuildInUser: true }, // Assuming admins are built-in users
+                where: { LaNguoiDungHeThong: true }, // Assuming admins are built-in users
             });
 
             if (admins.length > 0) {
                 const teacher = await this.userRepository.findOne({
-                    where: { UserId: createDto.NguoiTao }
+                    where: { MaNguoiDung: createDto.NguoiTao }
                 });
 
-                const adminIds = admins.map(admin => admin.UserId);
+                const adminIds = admins.map(admin => admin.MaNguoiDung);
                 await this.notificationHelper.notifyAdminsNewQuestionSubmission(
                     adminIds,
-                    teacher?.Name || 'Unknown Teacher',
+                    teacher?.HoTen || 'Unknown Teacher',
                     savedCauHoi.MaCauHoiChoDuyet
                 );
             }
@@ -154,7 +155,7 @@ export class CauHoiChoDuyetService {
             // Gửi thông báo sau khi commit thành công
             try {
                 const admin = await this.userRepository.findOne({
-                    where: { UserId: nguoiDuyet }
+                    where: { MaNguoiDung: nguoiDuyet }
                 });
 
                 if (duyetDto.TrangThai === 1) {
@@ -162,14 +163,14 @@ export class CauHoiChoDuyetService {
                     await this.notificationHelper.notifyQuestionApproved(
                         cauHoiChoDuyet.NguoiTao,
                         cauHoiMoi?.MaCauHoi || '',
-                        admin?.Name || 'Admin'
+                        admin?.HoTen || 'Admin'
                     );
                 } else if (duyetDto.TrangThai === 2) {
                     // Câu hỏi bị từ chối
                     await this.notificationHelper.notifyQuestionRejected(
                         cauHoiChoDuyet.NguoiTao,
                         cauHoiChoDuyet.MaCauHoiChoDuyet,
-                        admin?.Name || 'Admin',
+                        admin?.HoTen || 'Admin',
                         duyetDto.GhiChu || 'Không có lý do cụ thể'
                     );
                 }
@@ -187,29 +188,49 @@ export class CauHoiChoDuyetService {
     }
 
     private async taoTuCauHoiChoDuyet(cauHoiChoDuyet: CauHoiChoDuyet, queryRunner: any): Promise<CauHoi> {
-        // Tạo câu hỏi chính
-        const cauHoi = new CauHoi();
-        cauHoi.MaPhan = cauHoiChoDuyet.MaPhan;
-        cauHoi.MaSoCauHoi = typeof cauHoiChoDuyet.MaSoCauHoi === 'string'
-            ? parseInt(cauHoiChoDuyet.MaSoCauHoi)
-            : cauHoiChoDuyet.MaSoCauHoi;
-        cauHoi.NoiDung = cauHoiChoDuyet.NoiDung;
-        cauHoi.HoanVi = cauHoiChoDuyet.HoanVi;
-        cauHoi.CapDo = cauHoiChoDuyet.CapDo;
-        cauHoi.SoCauHoiCon = cauHoiChoDuyet.SoCauHoiCon;
-        cauHoi.DoPhanCachCauHoi = cauHoiChoDuyet.DoPhanCachCauHoi !== undefined && cauHoiChoDuyet.DoPhanCachCauHoi !== null
-            ? (typeof cauHoiChoDuyet.DoPhanCachCauHoi === 'string'
-                ? parseInt(cauHoiChoDuyet.DoPhanCachCauHoi)
-                : cauHoiChoDuyet.DoPhanCachCauHoi)
-            : 0;
-        cauHoi.MaCauHoiCha = cauHoiChoDuyet.MaCauHoiCha;
-        cauHoi.XoaTamCauHoi = false;
-        cauHoi.SoLanDuocThi = 0;
-        cauHoi.SoLanDung = 0;
-        cauHoi.NgayTao = new Date();
-        cauHoi.MaCLO = cauHoiChoDuyet.MaCLO;
+        // Tạo câu hỏi chính với UUID được tạo thủ công
+        const cauHoiUUID = uuidv4();
 
-        const cauHoiDaLuu = await queryRunner.manager.save(CauHoi, cauHoi);
+        // Thực hiện truy vấn SQL trực tiếp để có quyền kiểm soát tốt hơn
+        await queryRunner.query(`
+            INSERT INTO "CauHoi" (
+                "MaCauHoi", "MaPhan", "MaSoCauHoi", "NoiDung",
+                "HoanVi", "CapDo", "SoCauHoiCon", "DoPhanCachCauHoi",
+                "MaCauHoiCha", "XoaTamCauHoi", "SoLanDuocThi", "SoLanDung",
+                "NgayTao", "MaCLO", "NguoiTao"
+            )
+            VALUES (
+                @0, @1, @2, @3,
+                @4, @5, @6, @7,
+                @8, @9, @10, @11,
+                @12, @13, @14
+            )
+        `, [
+            cauHoiUUID, // @0 - MaCauHoi
+            cauHoiChoDuyet.MaPhan, // @1 - MaPhan
+            typeof cauHoiChoDuyet.MaSoCauHoi === 'string' ? parseInt(cauHoiChoDuyet.MaSoCauHoi) : cauHoiChoDuyet.MaSoCauHoi, // @2 - MaSoCauHoi
+            cauHoiChoDuyet.NoiDung, // @3 - NoiDung
+            cauHoiChoDuyet.HoanVi ? 1 : 0, // @4 - HoanVi
+            cauHoiChoDuyet.CapDo, // @5 - CapDo
+            cauHoiChoDuyet.SoCauHoiCon || 0, // @6 - SoCauHoiCon
+            cauHoiChoDuyet.DoPhanCachCauHoi !== undefined && cauHoiChoDuyet.DoPhanCachCauHoi !== null
+                ? (typeof cauHoiChoDuyet.DoPhanCachCauHoi === 'string'
+                    ? parseFloat(cauHoiChoDuyet.DoPhanCachCauHoi)
+                    : cauHoiChoDuyet.DoPhanCachCauHoi)
+                : 0, // @7 - DoPhanCachCauHoi
+            cauHoiChoDuyet.MaCauHoiCha, // @8 - MaCauHoiCha
+            0, // @9 - XoaTamCauHoi
+            0, // @10 - SoLanDuocThi
+            0, // @11 - SoLanDung
+            new Date(), // @12 - NgayTao
+            cauHoiChoDuyet.MaCLO, // @13 - MaCLO
+            cauHoiChoDuyet.NguoiTao, // @14 - NguoiTao
+        ]);
+
+        // Truy vấn câu hỏi vừa tạo để có thông tin đầy đủ
+        const cauHoiDaLuu = await queryRunner.manager.findOne(CauHoi, {
+            where: { MaCauHoi: cauHoiUUID }
+        });
 
         // Tạo câu trả lời nếu có
         if (cauHoiChoDuyet.DuLieuCauTraLoi) {
@@ -217,18 +238,31 @@ export class CauHoiChoDuyetService {
                 const cauTraLoiData = JSON.parse(cauHoiChoDuyet.DuLieuCauTraLoi);
                 if (Array.isArray(cauTraLoiData)) {
                     for (const traLoiData of cauTraLoiData) {
-                        const cauTraLoi = new CauTraLoi();
-                        cauTraLoi.MaCauHoi = cauHoiDaLuu.MaCauHoi;
-                        cauTraLoi.NoiDung = traLoiData.NoiDung;
-                        cauTraLoi.ThuTu = traLoiData.ThuTu;
-                        cauTraLoi.LaDapAn = traLoiData.LaDapAn;
-                        cauTraLoi.HoanVi = traLoiData.HoanVi || true;
+                        // Tạo UUID mới cho câu trả lời
+                        const cauTraLoiUUID = uuidv4();
 
-                        await queryRunner.manager.save(CauTraLoi, cauTraLoi);
+                        await queryRunner.query(`
+                            INSERT INTO "CauTraLoi" (
+                                "MaCauTraLoi", "MaCauHoi", "NoiDung",
+                                "ThuTu", "LaDapAn", "HoanVi"
+                            )
+                            VALUES (
+                                @0, @1, @2,
+                                @3, @4, @5
+                            )
+                        `, [
+                            cauTraLoiUUID, // @0 - MaCauTraLoi
+                            cauHoiUUID, // @1 - MaCauHoi
+                            traLoiData.NoiDung, // @2 - NoiDung
+                            traLoiData.ThuTu, // @3 - ThuTu
+                            traLoiData.LaDapAn ? 1 : 0, // @4 - LaDapAn
+                            traLoiData.HoanVi !== undefined ? (traLoiData.HoanVi ? 1 : 0) : 1, // @5 - HoanVi
+                        ]);
                     }
                 }
             } catch (error) {
                 console.error('Lỗi parse dữ liệu câu trả lời:', error);
+                throw error;
             }
         }
 
@@ -238,41 +272,70 @@ export class CauHoiChoDuyetService {
                 const cauHoiConData = JSON.parse(cauHoiChoDuyet.DuLieuCauHoiCon);
                 if (Array.isArray(cauHoiConData)) {
                     for (const conData of cauHoiConData) {
-                        const cauHoiCon = new CauHoi();
-                        cauHoiCon.MaPhan = cauHoiDaLuu.MaPhan;
-                        cauHoiCon.MaSoCauHoi = typeof conData.MaSoCauHoi === 'string'
-                            ? parseInt(conData.MaSoCauHoi)
-                            : conData.MaSoCauHoi;
-                        cauHoiCon.NoiDung = conData.NoiDung;
-                        cauHoiCon.HoanVi = conData.HoanVi;
-                        cauHoiCon.CapDo = conData.CapDo;
-                        cauHoiCon.SoCauHoiCon = 0;
-                        cauHoiCon.MaCauHoiCha = cauHoiDaLuu.MaCauHoi;
-                        cauHoiCon.XoaTamCauHoi = false;
-                        cauHoiCon.SoLanDuocThi = 0;
-                        cauHoiCon.SoLanDung = 0;
-                        cauHoiCon.NgayTao = new Date();
-                        cauHoiCon.MaCLO = conData.MaCLO;
+                        // Tạo UUID mới cho câu hỏi con
+                        const cauHoiConUUID = uuidv4();
 
-                        const cauHoiConDaLuu = await queryRunner.manager.save(CauHoi, cauHoiCon);
+                        await queryRunner.query(`
+                            INSERT INTO "CauHoi" (
+                                "MaCauHoi", "MaPhan", "MaSoCauHoi", "NoiDung",
+                                "HoanVi", "CapDo", "SoCauHoiCon", "DoPhanCachCauHoi",
+                                "MaCauHoiCha", "XoaTamCauHoi", "SoLanDuocThi", "SoLanDung",
+                                "NgayTao", "MaCLO", "NguoiTao"
+                            )
+                            VALUES (
+                                @0, @1, @2, @3,
+                                @4, @5, @6, @7,
+                                @8, @9, @10, @11,
+                                @12, @13, @14
+                            )
+                        `, [
+                            cauHoiConUUID, // @0 - MaCauHoi
+                            cauHoiDaLuu.MaPhan, // @1 - MaPhan
+                            typeof conData.MaSoCauHoi === 'string' ? parseInt(conData.MaSoCauHoi) : conData.MaSoCauHoi, // @2 - MaSoCauHoi
+                            conData.NoiDung, // @3 - NoiDung
+                            conData.HoanVi ? 1 : 0, // @4 - HoanVi
+                            conData.CapDo, // @5 - CapDo
+                            0, // @6 - SoCauHoiCon
+                            0, // @7 - DoPhanCachCauHoi
+                            cauHoiUUID, // @8 - MaCauHoiCha
+                            0, // @9 - XoaTamCauHoi
+                            0, // @10 - SoLanDuocThi
+                            0, // @11 - SoLanDung
+                            new Date(), // @12 - NgayTao
+                            conData.MaCLO, // @13 - MaCLO
+                            cauHoiChoDuyet.NguoiTao, // @14 - NguoiTao
+                        ]);
 
                         // Tạo câu trả lời cho câu hỏi con
                         if (conData.CauTraLoi && Array.isArray(conData.CauTraLoi)) {
                             for (const traLoiData of conData.CauTraLoi) {
-                                const cauTraLoi = new CauTraLoi();
-                                cauTraLoi.MaCauHoi = cauHoiConDaLuu.MaCauHoi;
-                                cauTraLoi.NoiDung = traLoiData.NoiDung;
-                                cauTraLoi.ThuTu = traLoiData.ThuTu;
-                                cauTraLoi.LaDapAn = traLoiData.LaDapAn;
-                                cauTraLoi.HoanVi = traLoiData.HoanVi || true;
+                                // Tạo UUID mới cho câu trả lời con
+                                const cauTraLoiConUUID = uuidv4();
 
-                                await queryRunner.manager.save(CauTraLoi, cauTraLoi);
+                                await queryRunner.query(`
+                                    INSERT INTO "CauTraLoi" (
+                                        "MaCauTraLoi", "MaCauHoi", "NoiDung",
+                                        "ThuTu", "LaDapAn", "HoanVi"
+                                    )
+                                    VALUES (
+                                        @0, @1, @2,
+                                        @3, @4, @5
+                                    )
+                                `, [
+                                    cauTraLoiConUUID, // @0 - MaCauTraLoi
+                                    cauHoiConUUID, // @1 - MaCauHoi
+                                    traLoiData.NoiDung, // @2 - NoiDung
+                                    traLoiData.ThuTu, // @3 - ThuTu
+                                    traLoiData.LaDapAn ? 1 : 0, // @4 - LaDapAn
+                                    traLoiData.HoanVi !== undefined ? (traLoiData.HoanVi ? 1 : 0) : 1, // @5 - HoanVi
+                                ]);
                             }
                         }
                     }
                 }
             } catch (error) {
                 console.error('Lỗi parse dữ liệu câu hỏi con:', error);
+                throw error;
             }
         }
 

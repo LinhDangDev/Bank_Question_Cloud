@@ -14,7 +14,7 @@ export class AuditLogService {
     async create(createAuditLogDto: CreateAuditLogDto): Promise<AuditLog> {
         const auditLog = this.auditLogRepository.create({
             ...createAuditLogDto,
-            Timestamp: new Date(),
+            ThoiGianThucHien: new Date(),
         });
 
         return await this.auditLogRepository.save(auditLog);
@@ -52,7 +52,7 @@ export class AuditLogService {
         const options: FindManyOptions<AuditLog> = {
             where: whereConditions,
             relations: ['User'],
-            order: { Timestamp: 'DESC' },
+            order: { ThoiGianThucHien: 'DESC' },
             skip: (page - 1) * limit,
             take: limit,
         };
@@ -64,7 +64,7 @@ export class AuditLogService {
 
     async findOne(id: number): Promise<AuditLog> {
         const auditLog = await this.auditLogRepository.findOne({
-            where: { LogId: id },
+            where: { MaNhatKy: id },
             relations: ['User'],
         });
 
@@ -77,17 +77,17 @@ export class AuditLogService {
 
     async findByTableAndRecord(tableName: string, recordId: string): Promise<AuditLog[]> {
         return await this.auditLogRepository.find({
-            where: { TableName: tableName, RecordId: recordId },
+            where: { TenBang: tableName, MaBanGhi: recordId },
             relations: ['User'],
-            order: { Timestamp: 'DESC' },
+            order: { ThoiGianThucHien: 'DESC' },
         });
     }
 
     async findByUser(userId: string): Promise<AuditLog[]> {
         return await this.auditLogRepository.find({
-            where: { UserId: userId },
+            where: { MaNguoiDung: userId },
             relations: ['User'],
-            order: { Timestamp: 'DESC' },
+            order: { ThoiGianThucHien: 'DESC' },
         });
     }
 
@@ -104,14 +104,14 @@ export class AuditLogService {
         notes?: string
     ): Promise<AuditLog> {
         return await this.create({
-            TableName: tableName,
-            RecordId: recordId,
-            Action: action,
-            UserId: userId,
-            UserName: userName,
-            OldValues: oldValues ? JSON.stringify(oldValues) : undefined,
-            NewValues: newValues ? JSON.stringify(newValues) : undefined,
-            IPAddress: ipAddress,
+            TenBang: tableName,
+            MaBanGhi: recordId,
+            HanhDong: action,
+            MaNguoiDung: userId,
+            TenNguoiDung: userName,
+            GiaTriCu: oldValues ? JSON.stringify(oldValues) : undefined,
+            GiaTriMoi: newValues ? JSON.stringify(newValues) : undefined,
+            DiaChiIP: ipAddress,
             UserAgent: userAgent,
             Notes: notes,
         });
@@ -143,7 +143,7 @@ export class AuditLogService {
 
         const recentActivity = await this.auditLogRepository.find({
             relations: ['User'],
-            order: { Timestamp: 'DESC' },
+            order: { ThoiGianThucHien: 'DESC' },
             take: 20,
         });
 

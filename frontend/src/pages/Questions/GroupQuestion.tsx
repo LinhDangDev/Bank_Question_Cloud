@@ -151,7 +151,7 @@ const GroupQuestion = () => {
           variant: 'success'
         });
         resetForm();
-        navigate('/questions/group');
+        navigate('/questions');
       } else {
         throw new Error(data.message || 'Không thể tạo câu hỏi nhóm');
       }

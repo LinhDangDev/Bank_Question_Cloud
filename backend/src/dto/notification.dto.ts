@@ -2,36 +2,36 @@ import { IsBoolean, IsDate, IsOptional, IsString, IsUUID } from 'class-validator
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateNotificationDto {
-    @ApiProperty({ description: 'User ID to receive notification' })
+    @ApiProperty({ description: 'Mã người dùng nhận thông báo' })
     @IsUUID()
-    UserId: string;
+    MaNguoiDung: string;
 
-    @ApiProperty({ description: 'Notification title' })
+    @ApiProperty({ description: 'Tiêu đề thông báo' })
     @IsString()
-    Title: string;
+    TieuDe: string;
 
-    @ApiProperty({ description: 'Notification message' })
+    @ApiProperty({ description: 'Nội dung thông báo' })
     @IsString()
-    Message: string;
+    NoiDung: string;
 
-    @ApiProperty({ description: 'Notification type' })
+    @ApiProperty({ description: 'Loại thông báo' })
     @IsString()
-    Type: string;
+    LoaiThongBao: string;
 
-    @ApiPropertyOptional({ description: 'Related table name' })
-    @IsString()
-    @IsOptional()
-    RelatedTable?: string;
-
-    @ApiPropertyOptional({ description: 'Related record ID' })
+    @ApiPropertyOptional({ description: 'Tên bảng liên quan' })
     @IsString()
     @IsOptional()
-    RelatedId?: string;
+    BangLienQuan?: string;
 
-    @ApiPropertyOptional({ description: 'Is notification read' })
+    @ApiPropertyOptional({ description: 'Mã bản ghi liên quan' })
+    @IsString()
+    @IsOptional()
+    MaLienQuan?: string;
+
+    @ApiPropertyOptional({ description: 'Đã đọc thông báo' })
     @IsBoolean()
     @IsOptional()
-    IsRead?: boolean;
+    DaDoc?: boolean;
 }
 
 export class UpdateNotificationDto {
@@ -67,52 +67,52 @@ export class UpdateNotificationDto {
 }
 
 export class NotificationResponseDto {
-    @ApiProperty({ description: 'Notification ID' })
+    @ApiProperty({ description: 'Mã thông báo' })
     @IsUUID()
-    NotificationId: string;
+    MaThongBao: string;
 
-    @ApiProperty({ description: 'User ID' })
+    @ApiProperty({ description: 'Mã người dùng' })
     @IsUUID()
-    UserId: string;
+    MaNguoiDung: string;
 
-    @ApiProperty({ description: 'Notification title' })
+    @ApiProperty({ description: 'Tiêu đề thông báo' })
     @IsString()
-    Title: string;
+    TieuDe: string;
 
-    @ApiProperty({ description: 'Notification message' })
+    @ApiProperty({ description: 'Nội dung thông báo' })
     @IsString()
-    Message: string;
+    NoiDung: string;
 
-    @ApiProperty({ description: 'Notification type' })
+    @ApiProperty({ description: 'Loại thông báo' })
     @IsString()
-    Type: string;
+    LoaiThongBao: string;
 
-    @ApiPropertyOptional({ description: 'Related table name' })
+    @ApiPropertyOptional({ description: 'Tên bảng liên quan' })
     @IsString()
     @IsOptional()
-    RelatedTable?: string;
+    BangLienQuan?: string;
 
-    @ApiPropertyOptional({ description: 'Related record ID' })
+    @ApiPropertyOptional({ description: 'Mã bản ghi liên quan' })
     @IsString()
     @IsOptional()
-    RelatedId?: string;
+    MaLienQuan?: string;
 
-    @ApiProperty({ description: 'Is notification read' })
+    @ApiProperty({ description: 'Đã đọc thông báo' })
     @IsBoolean()
-    IsRead: boolean;
+    DaDoc: boolean;
 
-    @ApiProperty({ description: 'Created date' })
+    @ApiProperty({ description: 'Ngày tạo' })
     @IsDate()
-    CreatedAt: Date;
+    NgayTao: Date;
 
-    @ApiPropertyOptional({ description: 'Read date' })
+    @ApiPropertyOptional({ description: 'Ngày đọc' })
     @IsDate()
     @IsOptional()
-    ReadAt?: Date;
+    NgayDoc?: Date;
 }
 
 export class MarkAsReadDto {
-    @ApiProperty({ description: 'Mark notification as read' })
+    @ApiProperty({ description: 'Đánh dấu thông báo đã đọc' })
     @IsBoolean()
-    IsRead: boolean;
+    DaDoc: boolean;
 }

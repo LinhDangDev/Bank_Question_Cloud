@@ -4,36 +4,36 @@ import { User } from './user.entity';
 @Entity('Notification')
 export class Notification {
     @PrimaryGeneratedColumn('uuid')
-    NotificationId: string;
+    MaThongBao: string;
 
     @Column({ type: 'uuid' })
-    UserId: string;
+    MaNguoiDung: string;
 
     @Column({ type: 'nvarchar', length: 255 })
-    Title: string;
+    TieuDe: string;
 
     @Column({ type: 'nvarchar', length: 'max' })
-    Message: string;
+    NoiDung: string;
 
     @Column({ type: 'nvarchar', length: 50 })
-    Type: string;
+    LoaiThongBao: string;
 
     @Column({ type: 'nvarchar', length: 100, nullable: true })
-    RelatedTable: string;
+    BangLienQuan: string;
 
     @Column({ type: 'nvarchar', length: 50, nullable: true })
-    RelatedId: string;
+    MaLienQuan: string;
 
     @Column({ default: false })
-    IsRead: boolean;
+    DaDoc: boolean;
 
     @Column({ type: 'datetime' })
-    CreatedAt: Date;
+    NgayTao: Date;
 
     @Column({ type: 'datetime', nullable: true })
-    ReadAt: Date;
+    NgayDoc: Date;
 
     @ManyToOne(() => User)
-    @JoinColumn({ name: 'UserId' })
+    @JoinColumn({ name: 'MaNguoiDung' })
     User: User;
 }

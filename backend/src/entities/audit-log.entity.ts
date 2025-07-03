@@ -4,34 +4,34 @@ import { User } from './user.entity';
 @Entity('AuditLog')
 export class AuditLog {
     @PrimaryGeneratedColumn('increment')
-    LogId: number;
+    MaNhatKy: number;
 
     @Column({ type: 'nvarchar', length: 100 })
-    TableName: string;
+    TenBang: string;
 
     @Column({ type: 'nvarchar', length: 50 })
-    RecordId: string;
+    MaBanGhi: string;
 
     @Column({ type: 'nvarchar', length: 20 })
-    Action: string;
+    HanhDong: string;
 
     @Column({ type: 'nvarchar', length: 'max', nullable: true })
-    OldValues: string;
+    GiaTriCu: string;
 
     @Column({ type: 'nvarchar', length: 'max', nullable: true })
-    NewValues: string;
+    GiaTriMoi: string;
 
     @Column({ type: 'uuid', nullable: true })
-    UserId: string;
+    MaNguoiDung: string;
 
     @Column({ type: 'nvarchar', length: 255, nullable: true })
-    UserName: string;
+    TenNguoiDung: string;
 
     @Column({ type: 'datetime' })
-    Timestamp: Date;
+    ThoiGianThucHien: Date;
 
     @Column({ type: 'nvarchar', length: 45, nullable: true })
-    IPAddress: string;
+    DiaChiIP: string;
 
     @Column({ type: 'nvarchar', length: 500, nullable: true })
     UserAgent: string;
@@ -40,6 +40,6 @@ export class AuditLog {
     Notes: string;
 
     @ManyToOne(() => User)
-    @JoinColumn({ name: 'UserId' })
+    @JoinColumn({ name: 'MaNguoiDung' })
     User: User;
 }

@@ -5,6 +5,8 @@ import SignIn from '@/pages/Auth/SignIn'
 import Questions from '@/pages/Questions/Questions'
 import ChapterQuestions from '@/pages/Questions/ChapterQuestions'
 import CreateQuestion from '@/pages/Questions/CreateQuestion'
+import CreateGroupQuestion from '@/pages/Questions/CreateGroupQuestion'
+import EditGroupQuestion from '@/pages/Questions/EditGroupQuestion'
 import UploadQuestions from '@/pages/Questions/UploadQuestions'
 import QuestionsApproval from '@/pages/Questions/QuestionsApproval'
 import Faculty from '@/pages/Subject/Faculty'
@@ -111,6 +113,8 @@ function AppRoutes() {
           <Route path="chapters/:subjectId" element={<ChapterList />} />
           <Route path="questions" element={<Questions />} />
           <Route path="questions/create" element={<CreateQuestion />} />
+          <Route path="questions/create-group" element={<CreateGroupQuestion />} />
+          <Route path="questions/edit-group/:id" element={<EditGroupQuestion />} />
           <Route path="questions/edit/:id" element={<EditQuestion />} />
           <Route path="questions/upload" element={<UploadQuestions />} />
           <Route path="questions/approval" element={<QuestionsApproval />} />

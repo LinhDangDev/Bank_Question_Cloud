@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, BadRequestException } from '@nestjs/common';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -63,13 +63,31 @@ async function bootstrap() {
     });
 
     // Global validation
-    app.useGlobalPipes(new ValidationPipe({
-        whitelist: true,
-        transform: true,
-        transformOptions: {
-            enableImplicitConversion: true,
-        },
-    }));
+    app.useGlobalPipes(
+        new ValidationPipe({
+            transform: true,
+            whitelist: true,
+            forbidNonWhitelisted: true,
+            transformOptions: { enableImplicitConversion: true },
+            exceptionFactory: (errors) => {
+                // Tạo thông báo lỗi chi tiết hơn với tên trường và thông báo
+                const formattedErrors = errors.map(err => {
+                    // Lấy ràng buộc đầu tiên (thường là quan trọng nhất)
+                    const constraints = err.constraints ? Object.values(err.constraints) : ['Lỗi validation'];
+                    const firstConstraint = constraints[0];
+
+                    // Định dạng thông báo lỗi
+                    return `${err.property}: ${firstConstraint}`;
+                });
+
+                return new BadRequestException({
+                    message: formattedErrors,
+                    error: 'Bad Request',
+                    statusCode: 400
+                });
+            }
+        }),
+    );
 
     // Serve static files from public directory
     const publicPath = path.resolve(__dirname, '../public');

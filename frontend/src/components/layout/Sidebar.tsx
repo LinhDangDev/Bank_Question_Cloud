@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from "react-router-dom";
 import {
   PanelRightClose,
   LayoutDashboard,
@@ -12,10 +12,10 @@ import {
   Settings,
   MessageSquare,
   BookOpen,
-} from 'lucide-react';
-import { useTheme } from '../../context/ThemeContext';
-import { useAuth } from '../../context/AuthContext';
-import { usePermissions } from '../../hooks/usePermissions';
+} from "lucide-react";
+import { useTheme } from "../../context/ThemeContext";
+import { useAuth } from "../../context/AuthContext";
+import { usePermissions } from "../../hooks/usePermissions";
 
 interface SidebarProps {
   isExpanded: boolean;
@@ -24,7 +24,7 @@ interface SidebarProps {
 
 const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
   const { theme } = useTheme();
-  const isDark = theme === 'dark';
+  const isDark = theme === "dark";
   const { user } = useAuth();
   const role = user?.role;
   const {
@@ -34,27 +34,25 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
     canApproveQuestions,
     canManageDepartments,
     isAdmin,
-    isTeacher
+    isTeacher,
   } = usePermissions();
 
   // Xác định trang chủ phù hợp với vai trò
   const getHomeRoute = () => {
     if (isAdmin()) {
-      return '/dashboard';
+      return "/dashboard";
     } else if (isTeacher()) {
-      return '/questions'; // Teachers go to questions page
+      return "/questions"; // Teachers go to questions page
     }
-    return '/';
+    return "/";
   };
 
   return (
     <nav
       className={`fixed top-0 left-0 h-screen p-4 z-[51] transition-all duration-300 shadow-sm flex flex-col ${
-        isDark
-          ? 'bg-gray-800 text-gray-200'
-          : 'bg-white text-gray-800'
+        isDark ? "bg-gray-800 text-gray-200" : "bg-white text-gray-800"
       }`}
-      style={{ width: isExpanded ? '200px' : '64px', overflowY: 'hidden' }}
+      style={{ width: isExpanded ? "200px" : "64px", overflowY: "hidden" }}
     >
       {/* Header with logo */}
       <div className="flex items-center justify-center relative -mx-1">
@@ -62,12 +60,12 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
           <img
             src="/logo_fullname.png"
             alt="Logo"
-            className={`w-[90%] max-w-[180px] cursor-pointer hover:opacity-80 transition-opacity ${!isExpanded && 'hidden'}`}
+            className={`w-[90%] max-w-[180px] cursor-pointer hover:opacity-80 transition-opacity ${!isExpanded && "hidden"}`}
           />
           <img
             src="/logo_icon.png"
             alt="Logo Icon"
-            className={`w-12 cursor-pointer hover:opacity-80 transition-opacity ${isExpanded && 'hidden'}`}
+            className={`w-12 cursor-pointer hover:opacity-80 transition-opacity ${isExpanded && "hidden"}`}
           />
         </Link>
       </div>
@@ -78,8 +76,8 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
         <div>
           <h2
             className={`text-xs uppercase font-semibold mb-1 ${
-              !isExpanded && 'sr-only'
-            } ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+              !isExpanded && "sr-only"
+            } ${isDark ? "text-gray-400" : "text-gray-500"}`}
           >
             Home
           </h2>
@@ -87,30 +85,24 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
             <Link
               to={getHomeRoute()}
               className={`flex items-center px-2 py-2 text-sm rounded-lg ${
-                !isExpanded ? 'justify-center' : ''
-              } ${isDark
-                ? 'hover:bg-gray-700'
-                : 'hover:bg-gray-100'
-              }`}
+                !isExpanded ? "justify-center" : ""
+              } ${isDark ? "hover:bg-gray-700" : "hover:bg-gray-100"}`}
               aria-label="Dashboard"
             >
               <LayoutDashboard className="w-5 h-5" />
-              <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
+              <span className={`ml-3 ${!isExpanded && "hidden"}`}>
                 Dashboard
               </span>
             </Link>
             <Link
               to="/search"
               className={`flex items-center px-2 py-2 text-sm rounded-lg ${
-                !isExpanded ? 'justify-center' : ''
-              } ${isDark
-                ? 'hover:bg-gray-700'
-                : 'hover:bg-gray-100'
-              }`}
+                !isExpanded ? "justify-center" : ""
+              } ${isDark ? "hover:bg-gray-700" : "hover:bg-gray-100"}`}
               aria-label="Tìm kiếm nhanh"
             >
               <Search className="w-5 h-5" />
-              <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
+              <span className={`ml-3 ${!isExpanded && "hidden"}`}>
                 Tìm kiếm nhanh
               </span>
             </Link>
@@ -121,8 +113,8 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
         <div>
           <h2
             className={`text-xs uppercase font-semibold mb-1 ${
-              !isExpanded && 'sr-only'
-            } ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+              !isExpanded && "sr-only"
+            } ${isDark ? "text-gray-400" : "text-gray-500"}`}
           >
             Đề
           </h2>
@@ -130,15 +122,12 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
             <Link
               to="/faculty"
               className={`flex items-center px-2 py-2 text-sm rounded-lg ${
-                !isExpanded ? 'justify-center' : ''
-              } ${isDark
-                ? 'hover:bg-gray-700'
-                : 'hover:bg-gray-100'
-              }`}
+                !isExpanded ? "justify-center" : ""
+              } ${isDark ? "hover:bg-gray-700" : "hover:bg-gray-100"}`}
               aria-label="Danh sách khoa"
             >
               <Users className="w-5 h-5" />
-              <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
+              <span className={`ml-3 ${!isExpanded && "hidden"}`}>
                 Danh sách khoa
               </span>
             </Link>
@@ -146,15 +135,12 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
               <Link
                 to="/exams"
                 className={`flex items-center px-2 py-2 text-sm rounded-lg ${
-                  !isExpanded ? 'justify-center' : ''
-                } ${isDark
-                  ? 'hover:bg-gray-700'
-                  : 'hover:bg-gray-100'
-                }`}
+                  !isExpanded ? "justify-center" : ""
+                } ${isDark ? "hover:bg-gray-700" : "hover:bg-gray-100"}`}
                 aria-label="Danh sách đề"
               >
                 <List className="w-5 h-5" />
-                <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
+                <span className={`ml-3 ${!isExpanded && "hidden"}`}>
                   Danh sách đề
                 </span>
               </Link>
@@ -166,8 +152,8 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
         <div>
           <h2
             className={`text-xs uppercase font-semibold mb-1 ${
-              !isExpanded && 'sr-only'
-            } ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+              !isExpanded && "sr-only"
+            } ${isDark ? "text-gray-400" : "text-gray-500"}`}
           >
             Câu Hỏi
           </h2>
@@ -175,31 +161,25 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
             <Link
               to="/questions"
               className={`flex items-center px-2 py-2 text-sm rounded-lg ${
-                !isExpanded ? 'justify-center' : ''
-              } ${isDark
-                ? 'hover:bg-gray-700'
-                : 'hover:bg-gray-100'
-              }`}
+                !isExpanded ? "justify-center" : ""
+              } ${isDark ? "hover:bg-gray-700" : "hover:bg-gray-100"}`}
               aria-label="Danh sách câu hỏi"
             >
               <List className="w-5 h-5" />
-              <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
+              <span className={`ml-3 ${!isExpanded && "hidden"}`}>
                 Danh sách câu hỏi
               </span>
             </Link>
-            {isAdmin() && (
+            {(isAdmin() || isTeacher()) && (
               <Link
                 to="/questions/create"
                 className={`flex items-center px-2 py-2 text-sm rounded-lg ${
-                  !isExpanded ? 'justify-center' : ''
-                } ${isDark
-                  ? 'hover:bg-gray-700'
-                  : 'hover:bg-gray-100'
-                }`}
+                  !isExpanded ? "justify-center" : ""
+                } ${isDark ? "hover:bg-gray-700" : "hover:bg-gray-100"}`}
                 aria-label="Tạo câu hỏi"
               >
                 <PlusCircle className="w-5 h-5" />
-                <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
+                <span className={`ml-3 ${!isExpanded && "hidden"}`}>
                   Tạo câu hỏi
                 </span>
               </Link>
@@ -207,15 +187,12 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
             <Link
               to="/questions/upload"
               className={`flex items-center px-2 py-2 text-sm rounded-lg ${
-                !isExpanded ? 'justify-center' : ''
-              } ${isDark
-                ? 'hover:bg-gray-700'
-                : 'hover:bg-gray-100'
-              }`}
+                !isExpanded ? "justify-center" : ""
+              } ${isDark ? "hover:bg-gray-700" : "hover:bg-gray-100"}`}
               aria-label="Tải lên câu hỏi"
             >
               <Upload className="w-5 h-5" />
-              <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
+              <span className={`ml-3 ${!isExpanded && "hidden"}`}>
                 Tải lên câu hỏi
               </span>
             </Link>
@@ -224,49 +201,43 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
             <Link
               to="/questions/approval"
               className={`flex items-center px-2 py-2 text-sm rounded-lg ${
-                !isExpanded ? 'justify-center' : ''
-              } ${isDark
-                ? 'hover:bg-gray-700'
-                : 'hover:bg-gray-100'
-              }`}
+                !isExpanded ? "justify-center" : ""
+              } ${isDark ? "hover:bg-gray-700" : "hover:bg-gray-100"}`}
               aria-label="Câu hỏi chờ duyệt"
             >
               <FileText className="w-5 h-5" />
-              <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
-                {isAdmin() ? 'Duyệt câu hỏi' : 'Câu hỏi chờ duyệt'}
+              <span className={`ml-3 ${!isExpanded && "hidden"}`}>
+                {isAdmin() ? "Duyệt câu hỏi" : "Câu hỏi chờ duyệt"}
               </span>
             </Link>
           </div>
         </div>
 
         {/* Quản lý người dùng section - chỉ admin */}
-        {role === 'admin' && (
-        <div>
-          <h2
-            className={`text-xs uppercase font-semibold mb-1 ${
-              !isExpanded && 'sr-only'
-            } ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
-          >
-            Quản lý người dùng
-          </h2>
-          <div className="space-y-1">
-            <Link
-              to="/users"
-              className={`flex items-center px-2 py-2 text-sm rounded-lg ${
-                !isExpanded ? 'justify-center' : ''
-              } ${isDark
-                ? 'hover:bg-gray-700'
-                : 'hover:bg-gray-100'
-              }`}
-              aria-label="Danh sách người dùng"
+        {role === "admin" && (
+          <div>
+            <h2
+              className={`text-xs uppercase font-semibold mb-1 ${
+                !isExpanded && "sr-only"
+              } ${isDark ? "text-gray-400" : "text-gray-500"}`}
             >
-              <Users className="w-5 h-5" />
-              <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
-                Danh sách người dùng
-              </span>
-            </Link>
+              Quản lý người dùng
+            </h2>
+            <div className="space-y-1">
+              <Link
+                to="/users"
+                className={`flex items-center px-2 py-2 text-sm rounded-lg ${
+                  !isExpanded ? "justify-center" : ""
+                } ${isDark ? "hover:bg-gray-700" : "hover:bg-gray-100"}`}
+                aria-label="Danh sách người dùng"
+              >
+                <Users className="w-5 h-5" />
+                <span className={`ml-3 ${!isExpanded && "hidden"}`}>
+                  Danh sách người dùng
+                </span>
+              </Link>
+            </div>
           </div>
-        </div>
         )}
 
         {/* Công cụ section - chỉ hiển thị cho admin */}
@@ -274,13 +245,13 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
           <div>
             <h2
               className={`text-xs uppercase font-semibold mb-1 ${
-                !isExpanded && 'sr-only'
-              } ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                !isExpanded && "sr-only"
+              } ${isDark ? "text-gray-400" : "text-gray-500"}`}
             >
               Công cụ
             </h2>
             <div className="space-y-1">
-              <Link
+              {/* <Link
                 to="/pdf"
                 className={`flex items-center px-2 py-2 text-sm rounded-lg ${
                   !isExpanded ? 'justify-center' : ''
@@ -294,19 +265,16 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
                 <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
                   Xuất file PDF
                 </span>
-              </Link>
+              </Link> */}
               <Link
                 to="/extract"
                 className={`flex items-center px-2 py-2 text-sm rounded-lg ${
-                  !isExpanded ? 'justify-center' : ''
-                } ${isDark
-                  ? 'hover:bg-gray-700'
-                  : 'hover:bg-gray-100'
-                }`}
+                  !isExpanded ? "justify-center" : ""
+                } ${isDark ? "hover:bg-gray-700" : "hover:bg-gray-100"}`}
                 aria-label="Rút trích đề thi"
               >
                 <Download className="w-5 h-5" />
-                <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
+                <span className={`ml-3 ${!isExpanded && "hidden"}`}>
                   Rút trích đề thi
                 </span>
               </Link>
@@ -318,8 +286,8 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
         <div>
           <h2
             className={`text-xs uppercase font-semibold mb-1 ${
-              !isExpanded && 'sr-only'
-            } ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+              !isExpanded && "sr-only"
+            } ${isDark ? "text-gray-400" : "text-gray-500"}`}
           >
             Hỗ trợ
           </h2>
@@ -327,30 +295,24 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
             <Link
               to="/help"
               className={`flex items-center px-2 py-2 text-sm rounded-lg ${
-                !isExpanded ? 'justify-center' : ''
-              } ${isDark
-                ? 'hover:bg-gray-700'
-                : 'hover:bg-gray-100'
-              }`}
+                !isExpanded ? "justify-center" : ""
+              } ${isDark ? "hover:bg-gray-700" : "hover:bg-gray-100"}`}
               aria-label="Hướng dẫn sử dụng"
             >
               <BookOpen className="w-5 h-5" />
-              <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
+              <span className={`ml-3 ${!isExpanded && "hidden"}`}>
                 Hướng dẫn sử dụng
               </span>
             </Link>
             <Link
               to="/feedback"
               className={`flex items-center px-2 py-2 text-sm rounded-lg ${
-                !isExpanded ? 'justify-center' : ''
-              } ${isDark
-                ? 'hover:bg-gray-700'
-                : 'hover:bg-gray-100'
-              }`}
+                !isExpanded ? "justify-center" : ""
+              } ${isDark ? "hover:bg-gray-700" : "hover:bg-gray-100"}`}
               aria-label="Gửi phản hồi"
             >
               <MessageSquare className="w-5 h-5" />
-              <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
+              <span className={`ml-3 ${!isExpanded && "hidden"}`}>
                 Gửi phản hồi
               </span>
             </Link>
@@ -361,8 +323,8 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
         <div>
           <h2
             className={`text-xs uppercase font-semibold mb-1 ${
-              !isExpanded && 'sr-only'
-            } ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+              !isExpanded && "sr-only"
+            } ${isDark ? "text-gray-400" : "text-gray-500"}`}
           >
             Cài đặt
           </h2>
@@ -370,32 +332,29 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
             <Link
               to="/settings"
               className={`flex items-center px-2 py-2 text-sm rounded-lg ${
-                !isExpanded ? 'justify-center' : ''
-              } ${isDark
-                ? 'hover:bg-gray-700'
-                : 'hover:bg-gray-100'
-              }`}
+                !isExpanded ? "justify-center" : ""
+              } ${isDark ? "hover:bg-gray-700" : "hover:bg-gray-100"}`}
               aria-label="Cài đặt hệ thống"
             >
               <Settings className="w-5 h-5" />
-              <span className={`ml-3 ${!isExpanded && 'hidden'}`}>
-                Cài đặt hệ thống
-              </span>
+              <span className={`ml-3 ${!isExpanded && "hidden"}`}>Cài đặt</span>
             </Link>
           </div>
         </div>
       </div>
 
       {/* Toggle button at bottom */}
-      <div className={`mt-auto pt-4 flex ${isExpanded ? 'justify-end pr-0' : 'justify-center'}`}>
+      <div
+        className={`mt-auto pt-4 flex ${isExpanded ? "justify-end pr-0" : "justify-center"}`}
+      >
         <button
           onClick={onToggle}
-          className={`p-2 rounded-full ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors duration-200`}
+          className={`p-2 rounded-full ${isDark ? "hover:bg-gray-700" : "hover:bg-gray-100"} transition-colors duration-200`}
           aria-label="Toggle sidebar"
         >
           <PanelRightClose
-            className={`h-5 w-5 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}
-            style={{ transform: isExpanded ? 'none' : 'rotate(180deg)' }}
+            className={`h-5 w-5 ${isDark ? "text-gray-300" : "text-gray-600"}`}
+            style={{ transform: isExpanded ? "none" : "rotate(180deg)" }}
           />
         </button>
       </div>

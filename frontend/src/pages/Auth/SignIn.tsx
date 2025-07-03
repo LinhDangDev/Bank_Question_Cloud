@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Eye, EyeOff, AlertCircle } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useThemeStyles, cx } from '../../utils/theme'
@@ -13,29 +13,59 @@ const SignIn = () => {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [passwordError, setPasswordError] = useState('')
   const styles = useThemeStyles();
   const { login } = useAuth();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    // Validate password when it changes
+    if (password.length > 0 && password.length < 6) {
+      setPasswordError('Mật khẩu phải có ít nhất 6 ký tự');
+    } else {
+      setPasswordError('');
+    }
+  }, [password]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Clear previous errors
     setError('');
+
+    // Validate password length
+    if (password.length < 6) {
+      setPasswordError('Mật khẩu phải có ít nhất 6 ký tự');
+      return;
+    }
+
     setLoading(true);
 
     try {
       const response = await authApi.login({ username, password });
-
-
       login(response.data.user, response.data.access_token);
       navigate('/');
     } catch (err: any) {
       console.error('Login error:', err);
-      if (err.response?.data?.message) {
-        setError(err.response.data.message);
+
+      // Specific error messages based on response
+      if (err.response?.status === 401) {
+        setError('Tên đăng nhập hoặc mật khẩu không chính xác');
+      } else if (err.response?.data?.message) {
+        // Parse server error message
+        const message = err.response.data.message;
+
+        if (message.includes('password') || message.includes('mật khẩu')) {
+          setError('Mật khẩu không chính xác');
+        } else if (message.includes('user') || message.includes('username') || message.includes('not found')) {
+          setError('Tài khoản không tồn tại');
+        } else {
+          setError(message);
+        }
       } else if (err.message) {
         setError(err.message);
       } else {
-        setError('An error occurred during login');
+        setError('Đã xảy ra lỗi khi đăng nhập');
       }
     } finally {
       setLoading(false);
@@ -54,7 +84,7 @@ const SignIn = () => {
             <div className="relative">
               <Input
                 type="text"
-                placeholder="Account"
+                placeholder="Tên đăng nhập"
                 required
                 className="w-full pl-10 border-gray-300"
                 value={username}
@@ -66,13 +96,13 @@ const SignIn = () => {
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1">
             <div className="relative">
               <Input
                 type={showPassword ? "text" : "password"}
-                placeholder="Password"
+                placeholder="Mật khẩu"
                 required
-                className="w-full pl-10 pr-10 border-gray-300"
+                className={`w-full pl-10 pr-10 ${passwordError ? 'border-red-500' : 'border-gray-300'}`}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
               />
@@ -91,6 +121,12 @@ const SignIn = () => {
                 )}
               </button>
             </div>
+            {passwordError && (
+              <div className="text-red-500 text-xs flex items-center gap-1 mt-1">
+                <AlertCircle className="h-3 w-3" />
+                <span>{passwordError}</span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center">
@@ -100,11 +136,16 @@ const SignIn = () => {
               className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
             />
             <label htmlFor="remember" className="ml-2 text-sm text-gray-700">
-              Remember me
+              Ghi nhớ đăng nhập
             </label>
           </div>
 
-          {error && <div className="text-red-500 text-sm">{error}</div>}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 px-3 py-2 rounded-md text-sm flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              <span>{error}</span>
+            </div>
+          )}
 
           <Button
             type="submit"
@@ -112,7 +153,7 @@ const SignIn = () => {
             fullWidth
             loading={loading}
           >
-            Sign In
+            Đăng nhập
           </Button>
         </form>
       </div>

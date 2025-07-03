@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BookOpen, FileText, Plus, Upload, Download, Eye, Edit2, AlertTriangle } from 'lucide-react';
+import { BookOpen, FileText, Plus, Upload, Download, Eye, Edit2, AlertTriangle, Save, Trash2, Info, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { API_BASE_URL } from '@/config';
@@ -25,6 +25,11 @@ interface MatrixRow {
   clo3: number;
   clo4: number;
   clo5: number;
+  availableClo1?: number;
+  availableClo2?: number;
+  availableClo3?: number;
+  availableClo4?: number;
+  availableClo5?: number;
 }
 
 interface Faculty {
@@ -73,6 +78,7 @@ const Extract = () => {
   const [importedData, setImportedData] = useState<MatrixRow[] | null>(null);
   const [loaiBoChuongPhan, setLoaiBoChuongPhan] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [unsavedChanges, setUnsavedChanges] = useState(false);
 
   // Add state for API data
   const [faculties, setFaculties] = useState<Faculty[]>([]);
@@ -82,6 +88,8 @@ const Extract = () => {
   const [loading, setLoading] = useState(false);
   const [availabilityChecked, setAvailabilityChecked] = useState(false);
   const [availabilityData, setAvailabilityData] = useState<any>(null);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [autoCheckAvailability, setAutoCheckAvailability] = useState(true);
 
   // Fetch faculties on component mount
   useEffect(() => {
@@ -90,6 +98,11 @@ const Extract = () => {
         const response = await khoaApi.getAll();
         const filtered = response.data.filter((faculty: Faculty) => !faculty.XoaTamKhoa);
         setFaculties(filtered);
+
+        // Nếu là teacher và chỉ có 1 khoa, tự động chọn khoa đó
+        if (filtered.length === 1) {
+          setSelectedFaculty(filtered[0].MaKhoa);
+        }
       } catch (error) {
         console.error('Error fetching faculties:', error);
         toast.error('Lỗi khi tải danh sách khoa');
@@ -166,6 +179,11 @@ const Extract = () => {
           clo5: 0
         }));
         setMatrix(initialMatrix);
+
+        // Auto-check availability when subject changes
+        if (autoCheckAvailability) {
+          fetchAvailabilityData(initialMatrix);
+        }
       } catch (error) {
         console.error('Error fetching chapters:', error);
         toast.error('Lỗi khi tải danh sách chương');
@@ -281,6 +299,7 @@ const Extract = () => {
     const newMatrix = [...matrix];
     newMatrix[index] = { ...newMatrix[index], [field]: value };
     setMatrix(newMatrix);
+    setUnsavedChanges(true);
   };
 
   const getTotalQuestions = (data: MatrixRow[] = matrix) => {
@@ -472,23 +491,113 @@ const Extract = () => {
     }
   };
 
+  // Thêm hàm lưu thay đổi
+  const saveChanges = () => {
+    setIsPreviewMode(true);
+    setUnsavedChanges(false);
+    toast.success('Đã lưu thay đổi ma trận đề thi');
+  };
+
+  // Thêm hàm xóa hàng khỏi ma trận
+  const removeMatrixRow = (index: number) => {
+    const newMatrix = matrix.filter((_, i) => i !== index);
+    setMatrix(newMatrix);
+    setUnsavedChanges(true);
+  };
+
+  // Cập nhật chế độ chỉnh sửa
+  const toggleEditMode = () => {
+    // Nếu đang ở chế độ chỉnh sửa và có thay đổi chưa lưu, hiển thị cảnh báo
+    if (!isPreviewMode && unsavedChanges) {
+      if (window.confirm("Bạn có thay đổi chưa lưu. Bạn có muốn lưu thay đổi không?")) {
+        saveChanges();
+      } else {
+        setUnsavedChanges(false);
+      }
+    }
+    setIsPreviewMode(!isPreviewMode);
+  };
+
+  // Function to check if a CLO value exceeds available questions
+  const isExceedingAvailable = (row: MatrixRow, cloField: 'clo1' | 'clo2' | 'clo3' | 'clo4' | 'clo5'): boolean => {
+    const availableField = `available${cloField.charAt(0).toUpperCase() + cloField.slice(1)}` as keyof MatrixRow;
+    const available = row[availableField] as number | undefined;
+    return available !== undefined && row[cloField] > available;
+  };
+
+  // Function to fetch availability data
+  const fetchAvailabilityData = async (matrixData: MatrixRow[] = matrix) => {
+    if (!selectedSubject || matrixData.length === 0) return;
+
+    const examData = {
+      maMonHoc: selectedSubject,
+      matrix: matrixData.map(row => ({
+        maPhan: row.chapterId,
+        clo1: 0, // Send 0 to just get availability without checking if enough
+        clo2: 0,
+        clo3: 0,
+        clo4: 0,
+        clo5: 0
+      })).filter(row => row.maPhan)
+    };
+
+    try {
+      setAvailabilityLoading(true);
+      const response = await examApi.checkQuestionAvailability(examData);
+
+      if (response.data.success) {
+        // Update matrix with availability data
+        const updatedMatrix = [...matrixData];
+        response.data.availability.chapters.forEach((chapterData: any) => {
+          const rowIndex = updatedMatrix.findIndex(row => row.chapterId === chapterData.chapterId);
+          if (rowIndex !== -1) {
+            updatedMatrix[rowIndex] = {
+              ...updatedMatrix[rowIndex],
+              availableClo1: chapterData.available.clo1 || 0,
+              availableClo2: chapterData.available.clo2 || 0,
+              availableClo3: chapterData.available.clo3 || 0,
+              availableClo4: chapterData.available.clo4 || 0,
+              availableClo5: chapterData.available.clo5 || 0
+            };
+          }
+        });
+        setMatrix(updatedMatrix);
+      }
+    } catch (error) {
+      console.error('Error fetching availability data:', error);
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  };
+
+  // Add auto-check toggle handler
+  const toggleAutoCheck = (checked: boolean) => {
+    setAutoCheckAvailability(checked);
+    if (checked && selectedSubject) {
+      fetchAvailabilityData();
+    }
+  };
+
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
+    <div className="container mx-auto px-4 py-8 max-w-aspect-ratio-8x5">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Thông tin đề thi */}
         <div className="lg:col-span-4">
-          <Card className="shadow-md border-0">
-            <CardHeader className="bg-blue-600 text-white">
+          <Card className="shadow-lg border-0 overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
               <CardTitle className="flex items-center gap-2 text-xl">
                 <BookOpen className="w-5 h-5" />
                 Thông tin đề thi
               </CardTitle>
+              <CardDescription className="text-blue-100 mt-1">
+                Điền thông tin cho đề thi của bạn
+              </CardDescription>
             </CardHeader>
             <CardContent className="p-6 space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="faculty">Khoa</Label>
+                <Label htmlFor="faculty" className="text-sm font-medium">Khoa</Label>
                 <Select value={selectedFaculty} onValueChange={setSelectedFaculty}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="w-full border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-colors">
                     <SelectValue placeholder="Chọn khoa" />
                   </SelectTrigger>
                   <SelectContent>
@@ -502,9 +611,9 @@ const Extract = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="subject">Môn học</Label>
+                <Label htmlFor="subject" className="text-sm font-medium">Môn học</Label>
                 <Select value={selectedSubject} onValueChange={setSelectedSubject} disabled={!selectedFaculty}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="w-full border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-colors">
                     <SelectValue placeholder="Chọn môn học" />
                   </SelectTrigger>
                   <SelectContent>
@@ -518,12 +627,13 @@ const Extract = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="title">Tên đề thi</Label>
+                <Label htmlFor="title" className="text-sm font-medium">Tên đề thi</Label>
                 <Input
                   id="title"
                   value={examTitle}
                   onChange={(e) => setExamTitle(e.target.value)}
                   placeholder="Nhập tên đề thi"
+                  className="border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-colors"
                 />
               </div>
 
@@ -543,7 +653,7 @@ const Extract = () => {
                 </div>
               </div>
 
-              <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
                 <div className="text-sm font-medium text-blue-800">Tổng số câu hỏi</div>
                 <div className="text-3xl font-bold text-blue-600">{getTotalQuestions()}</div>
               </div>
@@ -553,35 +663,71 @@ const Extract = () => {
 
         {/* Ma trận đề thi */}
         <div className="lg:col-span-8">
-          <Card className="shadow-md border-0">
-            <CardHeader className="bg-emerald-600 text-white">
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <FileText className="w-5 h-5" />
-                Ma trận đề thi
-              </CardTitle>
+          <Card className="shadow-lg border-0 overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white">
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <FileText className="w-5 h-5" />
+                    Ma trận đề thi
+                  </CardTitle>
+                  <CardDescription className="text-emerald-100 mt-1">
+                    Phân bố câu hỏi theo chuẩn đầu ra học phần
+                  </CardDescription>
+                </div>
+                {!isPreviewMode && (
+                  <div className="flex items-center">
+                    <Checkbox
+                      id="autoCheck"
+                      checked={autoCheckAvailability}
+                      onCheckedChange={toggleAutoCheck}
+                      className="mr-2"
+                    />
+                    <Label htmlFor="autoCheck" className="text-white text-sm cursor-pointer">
+                      Tự động kiểm tra câu hỏi khả dụng
+                    </Label>
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="p-6">
               <div className="flex justify-between mb-4">
                 <div className="flex gap-2">
-                  <Button
-                    variant={isPreviewMode ? "primary" : "outline"}
-                    size="sm"
-                    onClick={() => setIsPreviewMode(true)}
-                    className="flex items-center gap-1"
-                  >
-                    <Eye className="w-4 h-4" />
-                    Xem
-                  </Button>
-                  <Button
-                    variant={!isPreviewMode ? "primary" : "outline"}
-                    size="sm"
-                    onClick={() => setIsPreviewMode(false)}
-                    className="flex items-center gap-1"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                    Chỉnh sửa
-                  </Button>
+                  {isPreviewMode ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={toggleEditMode}
+                      className="flex items-center gap-1 border-blue-500 text-blue-600 hover:bg-blue-50"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                      <span>Chỉnh sửa</span>
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={saveChanges}
+                        className="flex items-center gap-1"
+                        disabled={!unsavedChanges}
+                      >
+                        <Save className="w-4 h-4" />
+                        <span>Lưu</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={toggleEditMode}
+                        className="flex items-center gap-1"
+                      >
+                        <Eye className="w-4 h-4" />
+                        <span>Hủy</span>
+                      </Button>
+                    </>
+                  )}
                 </div>
+
                 <div className="flex gap-2">
                   <input
                     ref={fileInputRef}
@@ -608,41 +754,54 @@ const Extract = () => {
                     <Download className="w-4 h-4" />
                     Export Excel
                   </Button>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={addMatrixRow}
-                    className="flex items-center gap-1"
-                    disabled={isPreviewMode || loading}
-                  >
-                    <Plus className="w-4 h-4" />
-                    Thêm chương
-                  </Button>
+                  {!isPreviewMode && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={addMatrixRow}
+                      className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700"
+                      disabled={loading}
+                    >
+                      <Plus className="w-4 h-4" />
+                      Thêm chương
+                    </Button>
+                  )}
                 </div>
               </div>
 
               {loading ? (
-                <div className="flex justify-center items-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                <div className="flex justify-center items-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+                </div>
+              ) : matrix.length === 0 ? (
+                <div className="text-center py-12 bg-gray-50 border border-dashed border-gray-200 rounded-md">
+                  <Info className="w-12 h-12 mx-auto text-gray-400 mb-2" />
+                  <h3 className="text-lg font-medium text-gray-700 mb-1">Chưa có dữ liệu</h3>
+                  <p className="text-gray-500 mb-4">Chọn môn học hoặc thêm chương để tạo ma trận đề thi</p>
+                  <Button onClick={addMatrixRow} disabled={isPreviewMode || loading} className="mx-auto">
+                    <Plus className="w-4 h-4 mr-1" />
+                    Thêm chương
+                  </Button>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
+                  <Table className="border">
+                    <TableHeader className="bg-gray-50">
                       <TableRow>
-                        <TableHead>Chương</TableHead>
-                        <TableHead className="text-center">CLO 1</TableHead>
-                        <TableHead className="text-center">CLO 2</TableHead>
-                        <TableHead className="text-center">CLO 3</TableHead>
-                        <TableHead className="text-center">CLO 4</TableHead>
-                        <TableHead className="text-center">CLO 5</TableHead>
-                        <TableHead className="text-center">Tổng</TableHead>
+                        <TableHead className="font-semibold text-gray-700 w-[200px]">Chương</TableHead>
+                        <TableHead className="font-semibold text-gray-700 text-center">CLO 1</TableHead>
+                        <TableHead className="font-semibold text-gray-700 text-center">CLO 2</TableHead>
+                        <TableHead className="font-semibold text-gray-700 text-center">CLO 3</TableHead>
+                        <TableHead className="font-semibold text-gray-700 text-center">CLO 4</TableHead>
+                        <TableHead className="font-semibold text-gray-700 text-center">CLO 5</TableHead>
+                        <TableHead className="font-semibold text-gray-700 text-center">Tổng</TableHead>
+                        {!isPreviewMode && <TableHead className="w-[50px]"></TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {matrix.map((row, index) => (
-                        <TableRow key={index}>
-                          <TableCell>
+                        <TableRow key={index} className="hover:bg-gray-50 transition-colors">
+                          <TableCell className="font-medium border">
                             {isPreviewMode ? (
                               row.chapter
                             ) : (
@@ -663,102 +822,167 @@ const Extract = () => {
                               </Select>
                             )}
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="text-center border">
                             {isPreviewMode ? (
                               row.clo1
                             ) : (
-                              <Input
-                                type="number"
-                                min="0"
-                                value={row.clo1}
-                                onChange={(e) => updateMatrix(index, 'clo1', parseInt(e.target.value) || 0)}
-                                className="w-16 text-center mx-auto"
-                              />
+                              <div className="relative">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  value={row.clo1}
+                                  onChange={(e) => updateMatrix(index, 'clo1', parseInt(e.target.value) || 0)}
+                                  className={`w-16 text-center mx-auto ${isExceedingAvailable(row, 'clo1') ? 'border-red-500 bg-red-50 text-red-600' : ''}`}
+                                />
+                                {row.availableClo1 !== undefined && (
+                                  <div className={`text-xs mt-1 ${isExceedingAvailable(row, 'clo1') ? 'text-red-500' : 'text-gray-500'}`}>
+                                    Có: {row.availableClo1}
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="text-center border">
                             {isPreviewMode ? (
                               row.clo2
                             ) : (
-                              <Input
-                                type="number"
-                                min="0"
-                                value={row.clo2}
-                                onChange={(e) => updateMatrix(index, 'clo2', parseInt(e.target.value) || 0)}
-                                className="w-16 text-center mx-auto"
-                              />
+                              <div className="relative">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  value={row.clo2}
+                                  onChange={(e) => updateMatrix(index, 'clo2', parseInt(e.target.value) || 0)}
+                                  className={`w-16 text-center mx-auto ${isExceedingAvailable(row, 'clo2') ? 'border-red-500 bg-red-50 text-red-600' : ''}`}
+                                />
+                                {row.availableClo2 !== undefined && (
+                                  <div className={`text-xs mt-1 ${isExceedingAvailable(row, 'clo2') ? 'text-red-500' : 'text-gray-500'}`}>
+                                    Có: {row.availableClo2}
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="text-center border">
                             {isPreviewMode ? (
                               row.clo3
                             ) : (
-                              <Input
-                                type="number"
-                                min="0"
-                                value={row.clo3}
-                                onChange={(e) => updateMatrix(index, 'clo3', parseInt(e.target.value) || 0)}
-                                className="w-16 text-center mx-auto"
-                              />
+                              <div className="relative">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  value={row.clo3}
+                                  onChange={(e) => updateMatrix(index, 'clo3', parseInt(e.target.value) || 0)}
+                                  className={`w-16 text-center mx-auto ${isExceedingAvailable(row, 'clo3') ? 'border-red-500 bg-red-50 text-red-600' : ''}`}
+                                />
+                                {row.availableClo3 !== undefined && (
+                                  <div className={`text-xs mt-1 ${isExceedingAvailable(row, 'clo3') ? 'text-red-500' : 'text-gray-500'}`}>
+                                    Có: {row.availableClo3}
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="text-center border">
                             {isPreviewMode ? (
                               row.clo4
                             ) : (
-                              <Input
-                                type="number"
-                                min="0"
-                                value={row.clo4}
-                                onChange={(e) => updateMatrix(index, 'clo4', parseInt(e.target.value) || 0)}
-                                className="w-16 text-center mx-auto"
-                              />
+                              <div className="relative">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  value={row.clo4}
+                                  onChange={(e) => updateMatrix(index, 'clo4', parseInt(e.target.value) || 0)}
+                                  className={`w-16 text-center mx-auto ${isExceedingAvailable(row, 'clo4') ? 'border-red-500 bg-red-50 text-red-600' : ''}`}
+                                />
+                                {row.availableClo4 !== undefined && (
+                                  <div className={`text-xs mt-1 ${isExceedingAvailable(row, 'clo4') ? 'text-red-500' : 'text-gray-500'}`}>
+                                    Có: {row.availableClo4}
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="text-center border">
                             {isPreviewMode ? (
                               row.clo5
                             ) : (
-                              <Input
-                                type="number"
-                                min="0"
-                                value={row.clo5}
-                                onChange={(e) => updateMatrix(index, 'clo5', parseInt(e.target.value) || 0)}
-                                className="w-16 text-center mx-auto"
-                              />
+                              <div className="relative">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  value={row.clo5}
+                                  onChange={(e) => updateMatrix(index, 'clo5', parseInt(e.target.value) || 0)}
+                                  className={`w-16 text-center mx-auto ${isExceedingAvailable(row, 'clo5') ? 'border-red-500 bg-red-50 text-red-600' : ''}`}
+                                />
+                                {row.availableClo5 !== undefined && (
+                                  <div className={`text-xs mt-1 ${isExceedingAvailable(row, 'clo5') ? 'text-red-500' : 'text-gray-500'}`}>
+                                    Có: {row.availableClo5}
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </TableCell>
-                          <TableCell className="text-center font-medium">
+                          <TableCell className="text-center font-medium border bg-gray-50">
                             {row.clo1 + row.clo2 + row.clo3 + row.clo4 + row.clo5}
                           </TableCell>
+                          {!isPreviewMode && (
+                            <TableCell className="p-1 border">
+                              <Button
+                                variant="text"
+                                size="sm"
+                                onClick={() => removeMatrixRow(index)}
+                                className="p-1 hover:bg-red-50 hover:text-red-500 rounded-full"
+                                disabled={loading}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </TableCell>
+                          )}
                         </TableRow>
                       ))}
-                      <TableRow className="bg-slate-50 font-medium">
-                        <TableCell>Tổng cộng</TableCell>
-                        <TableCell className="text-center text-blue-600">
+                      <TableRow className="bg-blue-50 font-medium">
+                        <TableCell className="border-t-2 border-blue-200">Tổng cộng</TableCell>
+                        <TableCell className="text-center text-blue-700 border-t-2 border-blue-200">
                           {matrix.reduce((sum, row) => sum + row.clo1, 0)}
                         </TableCell>
-                        <TableCell className="text-center text-blue-600">
+                        <TableCell className="text-center text-blue-700 border-t-2 border-blue-200">
                           {matrix.reduce((sum, row) => sum + row.clo2, 0)}
                         </TableCell>
-                        <TableCell className="text-center text-blue-600">
+                        <TableCell className="text-center text-blue-700 border-t-2 border-blue-200">
                           {matrix.reduce((sum, row) => sum + row.clo3, 0)}
                         </TableCell>
-                        <TableCell className="text-center text-blue-600">
+                        <TableCell className="text-center text-blue-700 border-t-2 border-blue-200">
                           {matrix.reduce((sum, row) => sum + row.clo4, 0)}
                         </TableCell>
-                        <TableCell className="text-center text-blue-600">
+                        <TableCell className="text-center text-blue-700 border-t-2 border-blue-200">
                           {matrix.reduce((sum, row) => sum + row.clo5, 0)}
                         </TableCell>
-                        <TableCell className="text-center text-blue-600 font-bold">
+                        <TableCell className="text-center text-blue-700 font-bold border-t-2 border-blue-200">
                           {getTotalQuestions()}
                         </TableCell>
+                        {!isPreviewMode && <TableCell className="border-t-2 border-blue-200"></TableCell>}
                       </TableRow>
                     </TableBody>
                   </Table>
                 </div>
               )}
             </CardContent>
+            {matrix.length > 0 && (
+              <CardFooter className="bg-gray-50 border-t px-6 py-3">
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center text-sm text-gray-500">
+                    <Info className="w-4 h-4 mr-2 text-blue-500" />
+                    <span>Nhấn "Chỉnh sửa" để thay đổi ma trận đề thi. Sau khi chỉnh sửa xong, nhấn "Lưu" để áp dụng thay đổi.</span>
+                  </div>
+                  {!isPreviewMode && autoCheckAvailability && (
+                    <div className="flex items-center text-sm text-gray-500">
+                      <Info className="w-4 h-4 mr-2 text-orange-500" />
+                      <span>Số câu hỏi hiển thị màu đỏ khi vượt quá số lượng câu hỏi khả dụng trong hệ thống.</span>
+                    </div>
+                  )}
+                </div>
+              </CardFooter>
+            )}
           </Card>
         </div>
       </div>
@@ -770,7 +994,7 @@ const Extract = () => {
             onClick={checkAvailability}
             disabled={!selectedFaculty || !selectedSubject || getTotalQuestions() === 0 || loading}
             variant="outline"
-            className="bg-green-600 hover:bg-green-700 text-white px-6 py-2"
+            className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 gap-2 flex items-center shadow-md"
           >
             {loading ? (
               <>
@@ -779,6 +1003,7 @@ const Extract = () => {
               </>
             ) : (
               <>
+                <CheckCircle className="w-4 h-4" />
                 Kiểm tra tính khả dụng
               </>
             )}
@@ -786,7 +1011,7 @@ const Extract = () => {
           <Button
             onClick={generateExam}
             disabled={!selectedFaculty || !selectedSubject || !examTitle || getTotalQuestions() === 0 || loading}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 gap-2 flex items-center shadow-md"
           >
             {loading ? (
               <>
@@ -795,6 +1020,7 @@ const Extract = () => {
               </>
             ) : (
               <>
+                <FileText className="w-4 h-4" />
                 Tạo đề thi
               </>
             )}
@@ -805,33 +1031,43 @@ const Extract = () => {
       {/* Hiển thị thông tin tính khả dụng */}
       {availabilityChecked && availabilityData && (
         <div className="mt-6">
-          <Card className="shadow-md border-0">
-            <CardHeader className="bg-orange-600 text-white">
+          <Card className="shadow-lg border-0 overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-orange-500 to-orange-600 text-white">
               <CardTitle className="flex items-center gap-2 text-xl">
                 <AlertTriangle className="w-5 h-5" />
                 Kết quả kiểm tra tính khả dụng
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div className="text-center">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div className="bg-white shadow rounded-lg p-4 text-center">
                   <div className="text-2xl font-bold text-blue-600">{availabilityData.summary.totalRequired}</div>
                   <div className="text-sm text-gray-600">Tổng câu hỏi cần thiết</div>
                 </div>
-                <div className="text-center">
+                <div className="bg-white shadow rounded-lg p-4 text-center">
                   <div className="text-2xl font-bold text-green-600">{availabilityData.summary.totalAvailable}</div>
                   <div className="text-sm text-gray-600">Tổng câu hỏi khả dụng</div>
                 </div>
-                <div className="text-center">
-                  <div className={`text-2xl font-bold ${availabilityData.summary.canGenerate ? 'text-green-600' : 'text-red-600'}`}>
-                    {availabilityData.summary.canGenerate ? 'Có thể tạo' : 'Không thể tạo'}
+                <div className="bg-white shadow rounded-lg p-4 text-center">
+                  <div className={`text-2xl font-bold flex justify-center items-center gap-2 ${availabilityData.summary.canGenerate ? 'text-green-600' : 'text-red-600'}`}>
+                    {availabilityData.summary.canGenerate ? (
+                      <>
+                        <CheckCircle className="w-5 h-5" />
+                        Có thể tạo
+                      </>
+                    ) : (
+                      <>
+                        <AlertTriangle className="w-5 h-5" />
+                        Không thể tạo
+                      </>
+                    )}
                   </div>
                   <div className="text-sm text-gray-600">Trạng thái</div>
                 </div>
               </div>
 
               {availabilityData.summary.warnings.length > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
                   <h4 className="font-semibold text-red-800 mb-2">Cảnh báo:</h4>
                   <ul className="list-disc list-inside text-red-700 space-y-1">
                     {availabilityData.summary.warnings.map((warning: string, index: number) => (
@@ -842,31 +1078,35 @@ const Extract = () => {
               )}
 
               <div className="mt-4">
-                <h4 className="font-semibold mb-2">Chi tiết theo chương:</h4>
-                <div className="space-y-2">
+                <h4 className="font-semibold mb-4 text-gray-800">Chi tiết theo chương:</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {availabilityData.chapters.map((chapter: any, index: number) => (
-                    <div key={index} className="border rounded-lg p-3">
-                      <div className="flex justify-between items-center mb-2">
+                    <div key={index} className="border rounded-lg shadow-sm overflow-hidden">
+                      <div className="flex justify-between items-center p-3 border-b bg-gray-50">
                         <span className="font-medium">Chương {chapter.chapterId}</span>
                         <span className={`px-2 py-1 rounded text-sm ${chapter.canFulfill ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                           {chapter.canFulfill ? 'Đủ câu hỏi' : 'Thiếu câu hỏi'}
                         </span>
                       </div>
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-sm">
-                        {[1, 2, 3, 4, 5].map(clo => (
-                          <div key={clo} className="text-center">
-                            <div className="font-medium">CLO {clo}</div>
-                            <div className="text-gray-600">
-                              {chapter.required[`clo${clo}`]} / {chapter.available[`clo${clo}`]}
+                      <div className="p-4">
+                        <div className="grid grid-cols-5 gap-2">
+                          {[1, 2, 3, 4, 5].map(clo => (
+                            <div key={clo} className={`p-2 rounded ${chapter.required[`clo${clo}`] > 0 ? (chapter.available[`clo${clo}`] >= chapter.required[`clo${clo}`] ? 'bg-green-50' : 'bg-red-50') : 'bg-gray-50'}`}>
+                              <div className="text-center">
+                                <div className="font-medium text-gray-700">CLO {clo}</div>
+                                <div className={`text-sm ${chapter.required[`clo${clo}`] > 0 ? (chapter.available[`clo${clo}`] >= chapter.required[`clo${clo}`] ? 'text-green-700' : 'text-red-700') : 'text-gray-500'}`}>
+                                  {chapter.required[`clo${clo}`] || 0} / {chapter.available[`clo${clo}`] || 0}
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                      {chapter.warnings.length > 0 && (
-                        <div className="mt-2 text-sm text-red-600">
-                          {chapter.warnings.join(', ')}
+                          ))}
                         </div>
-                      )}
+                        {chapter.warnings.length > 0 && (
+                          <div className="mt-3 text-sm text-red-600 bg-red-50 p-2 rounded">
+                            {chapter.warnings.join(', ')}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -126,15 +126,21 @@ export class QuestionsImportController {
         @Request() req: any
     ) {
         const user = req.user;
+        console.log('Current user:', user); // Log user info for debugging
 
         // Nếu là teacher, lưu vào bảng chờ duyệt
         if (user.role === 'teacher') {
+            // Sử dụng userId thay vì user.sub
+            if (!user.userId) {
+                throw new Error('User ID not found in token');
+            }
+
             return this.questionsImportService.saveQuestionsToApprovalQueue(
                 payload.fileId,
                 payload.questionIds,
                 payload.maPhan,
                 payload.questionMetadata,
-                user.sub // userId của teacher
+                user.userId // Sử dụng userId thay vì sub
             );
         } else {
             // Nếu là admin, lưu trực tiếp vào database

@@ -4,64 +4,64 @@ import { Khoa } from './khoa.entity';
 @Entity('User')
 export class User {
     @PrimaryGeneratedColumn('uuid')
-    UserId: string;
+    MaNguoiDung: string;
 
     @Column({ unique: true })
-    LoginName: string;
+    TenDangNhap: string;
 
     @Column({ unique: true })
     Email: string;
 
     @Column()
-    Name: string;
+    HoTen: string;
 
     @Column()
-    Password: string;
+    MatKhau: string;
 
     @Column()
-    DateCreated: Date;
+    NgayTao: Date;
 
     @Column({ default: false })
-    IsDeleted: boolean;
+    DaXoa: boolean;
 
     @Column({ default: false })
-    IsLockedOut: boolean;
+    BiKhoa: boolean;
 
     @Column({ default: true })
-    NeedChangePassword: boolean;
+    CanDoiMatKhau: boolean;
 
     @Column({ nullable: true })
-    LastActivityDate: Date;
+    NgayHoatDongCuoi: Date;
 
     @Column({ nullable: true })
-    LastLoginDate: Date;
+    NgayDangNhapCuoi: Date;
 
     @Column({ nullable: true })
-    LastPasswordChangedDate: Date;
+    NgayDoiMatKhauCuoi: Date;
 
     @Column({ nullable: true })
-    LastLockoutDate: Date;
+    NgayKhoaCuoi: Date;
 
     @Column({ nullable: true })
-    FailedPwdAttemptCount: number;
+    SoLanNhapSaiMatKhau: number;
 
     @Column({ nullable: true })
-    FailedPwdAttemptWindowStart: Date;
+    BatDauKhoangThoiGianNhapSai: Date;
 
     @Column({ nullable: true })
-    FailedPwdAnswerCount: number;
+    SoLanTraLoiSai: number;
 
     @Column({ nullable: true })
-    FailedPwdAnswerWindowStart: Date;
+    BatDauKhoangThoiGianTraLoiSai: Date;
 
     @Column({ nullable: true })
-    PasswordSalt: string;
+    MuoiMatKhau: string;
 
     @Column({ nullable: true, type: 'ntext' })
-    Comment: string;
+    GhiChu: string;
 
     @Column({ default: false })
-    IsBuildInUser: boolean;
+    LaNguoiDungHeThong: boolean;
 
     @Column({ nullable: true })
     MaKhoa: string;

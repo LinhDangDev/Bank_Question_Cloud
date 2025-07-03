@@ -10,13 +10,13 @@ import { useAuth } from '../../context/AuthContext'
 import { toast } from 'react-toastify'
 
 interface User {
-  UserId: string;
-  LoginName: string;
+  MaNguoiDung: string;
+  TenDangNhap: string;
   Email: string;
-  Name: string;
-  IsBuildInUser: boolean;
-  IsDeleted: boolean;
-  LastLoginDate: string | null;
+  HoTen: string;
+  LaNguoiDungHeThong: boolean;
+  DaXoa: boolean;
+  NgayDangNhapCuoi: string | null;
   MaKhoa?: string;
   Khoa?: {
     MaKhoa: string;
@@ -66,8 +66,8 @@ const Users = () => {
     try {
       await userApi.changeStatus(userId, newStatus);
       setUsers(users.map(user =>
-        user.UserId === userId
-          ? {...user, IsDeleted: !newStatus}
+        user.MaNguoiDung === userId
+          ? {...user, DaXoa: !newStatus}
           : user
       ));
       toast.success(newStatus ? 'Đã kích hoạt người dùng' : 'Đã vô hiệu hóa người dùng');
@@ -80,7 +80,7 @@ const Users = () => {
     if (window.confirm('Bạn có chắc chắn muốn xóa người dùng này?')) {
       try {
         await userApi.delete(userId);
-        setUsers(users.filter(user => user.UserId !== userId));
+        setUsers(users.filter(user => user.MaNguoiDung !== userId));
         toast.success('Đã xóa người dùng');
       } catch (err) {
         toast.error('Không thể xóa người dùng');
@@ -89,15 +89,15 @@ const Users = () => {
   };
 
   const filteredUsers = users.filter(user => {
-    const matchesQuery = user.Name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    const matchesQuery = user.HoTen?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                         user.Email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        user.LoginName?.toLowerCase().includes(searchQuery.toLowerCase());
+                        user.TenDangNhap?.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesRole = roleFilter === '' || roleFilter === 'Tất cả' ||
-                       (user.IsBuildInUser ? 'Quản trị viên' : 'Giảng viên') === roleFilter;
+                       (user.LaNguoiDungHeThong ? 'Quản trị viên' : 'Giảng viên') === roleFilter;
 
     const matchesStatus = statusFilter === '' || statusFilter === 'Tất cả' ||
-                         (user.IsDeleted ? 'Không hoạt động' : 'Hoạt động') === statusFilter;
+                         (user.DaXoa ? 'Không hoạt động' : 'Hoạt động') === statusFilter;
 
     return matchesQuery && matchesRole && matchesStatus;
   });
@@ -184,42 +184,42 @@ const Users = () => {
               <tbody className={styles.textMuted}>
                 {filteredUsers.length > 0 ? (
                   filteredUsers.map(user => (
-                    <tr key={user.UserId} className={cx("border-b", styles.table.row, styles.table.rowHover)}>
-                      <td className="py-3 px-6 text-left">{user.Name}</td>
+                    <tr key={user.MaNguoiDung} className={cx("border-b", styles.table.row, styles.table.rowHover)}>
+                      <td className="py-3 px-6 text-left">{user.HoTen}</td>
                       <td className="py-3 px-6 text-left">{user.Email}</td>
                       <td className="py-3 px-6 text-left">
                         <span className={cx("px-2 py-1 rounded-full text-xs",
-                          user.IsBuildInUser ? styles.roleAdmin : styles.roleTeacher
+                          user.LaNguoiDungHeThong ? styles.roleAdmin : styles.roleTeacher
                         )}>
-                          {user.IsBuildInUser ? 'Quản trị viên' : 'Giảng viên'}
+                          {user.LaNguoiDungHeThong ? 'Quản trị viên' : 'Giảng viên'}
                         </span>
                       </td>
                       <td className="py-3 px-6 text-left">{user.Khoa?.TenKhoa || '-'}</td>
                       <td className="py-3 px-6 text-center">
                         <span className={cx("px-2 py-1 rounded-full text-xs",
-                          !user.IsDeleted ? styles.statusActive : styles.statusInactive
+                          !user.DaXoa ? styles.statusActive : styles.statusInactive
                         )}>
-                          {!user.IsDeleted ? 'Hoạt động' : 'Không hoạt động'}
+                          {!user.DaXoa ? 'Hoạt động' : 'Không hoạt động'}
                         </span>
                       </td>
-                      <td className="py-3 px-6 text-center">{user.LastLoginDate ? new Date(user.LastLoginDate).toLocaleDateString() : '-'}</td>
+                      <td className="py-3 px-6 text-center">{user.NgayDangNhapCuoi ? new Date(user.NgayDangNhapCuoi).toLocaleDateString() : '-'}</td>
                       <td className="py-3 px-6 text-center">
                         <div className="flex items-center justify-center">
                           <button
                             className="transform hover:text-green-500 hover:scale-110 transition-all p-1"
-                            onClick={() => handleStatusChange(user.UserId, user.IsDeleted)}
+                            onClick={() => handleStatusChange(user.MaNguoiDung, user.DaXoa)}
                           >
-                            {!user.IsDeleted ? <UserX size={18} /> : <UserCheck size={18} />}
+                            {!user.DaXoa ? <UserX size={18} /> : <UserCheck size={18} />}
                           </button>
                           <Link
-                            to={`/users/edit/${user.UserId}`}
+                            to={`/users/edit/${user.MaNguoiDung}`}
                             className="transform hover:text-yellow-500 hover:scale-110 transition-all p-1 ml-2"
                           >
                             <Edit size={18} />
                           </Link>
                           <button
                             className="transform hover:text-red-500 hover:scale-110 transition-all p-1 ml-2"
-                            onClick={() => handleDeleteUser(user.UserId)}
+                            onClick={() => handleDeleteUser(user.MaNguoiDung)}
                           >
                             <Trash2 size={18} />
                           </button>

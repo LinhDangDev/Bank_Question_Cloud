@@ -26,7 +26,7 @@ export class KhoaService {
     async findByTeacher(teacherId: string) {
         // Fetch the teacher details to get their assigned khoa
         const teacher = await this.userRepository.findOne({
-            where: { UserId: teacherId },
+            where: { MaNguoiDung: teacherId },
             relations: ['Khoa']
         });
 

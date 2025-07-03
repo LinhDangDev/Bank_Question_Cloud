@@ -17,8 +17,8 @@ export class UsersService {
         // Return all users with password excluded
         const users = await this.userRepository.find({
             select: [
-                'UserId', 'LoginName', 'Email', 'Name', 'DateCreated', 'IsDeleted',
-                'IsLockedOut', 'LastActivityDate', 'LastLoginDate', 'IsBuildInUser', 'MaKhoa'
+                'MaNguoiDung', 'TenDangNhap', 'Email', 'HoTen', 'NgayTao', 'DaXoa',
+                'BiKhoa', 'NgayHoatDongCuoi', 'NgayDangNhapCuoi', 'LaNguoiDungHeThong', 'MaKhoa'
             ],
             relations: ['Khoa']
         });
@@ -28,10 +28,10 @@ export class UsersService {
 
     async findOne(id: string): Promise<User> {
         const user = await this.userRepository.findOne({
-            where: { UserId: id },
+            where: { MaNguoiDung: id },
             select: [
-                'UserId', 'LoginName', 'Email', 'Name', 'DateCreated', 'IsDeleted',
-                'IsLockedOut', 'LastActivityDate', 'LastLoginDate', 'IsBuildInUser', 'MaKhoa'
+                'MaNguoiDung', 'TenDangNhap', 'Email', 'HoTen', 'NgayTao', 'DaXoa',
+                'BiKhoa', 'NgayHoatDongCuoi', 'NgayDangNhapCuoi', 'LaNguoiDungHeThong', 'MaKhoa'
             ],
             relations: ['Khoa']
         });
@@ -47,7 +47,7 @@ export class UsersService {
         // Check if user already exists
         const existingUser = await this.userRepository.findOne({
             where: [
-                { LoginName: createUserDto.LoginName },
+                { TenDangNhap: createUserDto.TenDangNhap },
                 { Email: createUserDto.Email }
             ]
         });
@@ -58,47 +58,47 @@ export class UsersService {
 
         // Hash password
         const salt = await bcrypt.genSalt();
-        const hashedPassword = await bcrypt.hash(createUserDto.Password, salt);
+        const hashedPassword = await bcrypt.hash(createUserDto.MatKhau, salt);
 
         // Create user with explicit values for non-nullable fields
         const user = this.userRepository.create({
             ...createUserDto,
-            UserId: uuidv4(),
-            Password: hashedPassword,
-            PasswordSalt: salt,
-            DateCreated: new Date(),
-            IsDeleted: createUserDto.IsDeleted !== undefined ? createUserDto.IsDeleted : false,
-            IsLockedOut: createUserDto.IsLockedOut !== undefined ? createUserDto.IsLockedOut : false,
-            NeedChangePassword: createUserDto.NeedChangePassword !== undefined ? createUserDto.NeedChangePassword : true,
-            IsBuildInUser: createUserDto.IsBuildInUser !== undefined ? createUserDto.IsBuildInUser : false
+            MaNguoiDung: uuidv4(),
+            MatKhau: hashedPassword,
+            MuoiMatKhau: salt,
+            NgayTao: new Date(),
+            DaXoa: createUserDto.DaXoa !== undefined ? createUserDto.DaXoa : false,
+            BiKhoa: createUserDto.BiKhoa !== undefined ? createUserDto.BiKhoa : false,
+            CanDoiMatKhau: createUserDto.CanDoiMatKhau !== undefined ? createUserDto.CanDoiMatKhau : true,
+            LaNguoiDungHeThong: createUserDto.LaNguoiDungHeThong !== undefined ? createUserDto.LaNguoiDungHeThong : false
         });
 
         // Save user and return without password
         const savedUser = await this.userRepository.save(user);
 
         // Create a new object without sensitive data
-        const { Password, PasswordSalt, ...userWithoutSensitiveData } = savedUser;
+        const { MatKhau, MuoiMatKhau, ...userWithoutSensitiveData } = savedUser;
 
         return userWithoutSensitiveData as User;
     }
 
     async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
         // Check if user exists
-        const user = await this.userRepository.findOne({ where: { UserId: id } });
+        const user = await this.userRepository.findOne({ where: { MaNguoiDung: id } });
         if (!user) {
             throw new NotFoundException(`User with ID ${id} not found`);
         }
 
         // Check if email or login name is already taken by another user
-        if (updateUserDto.Email !== user.Email || updateUserDto.LoginName !== user.LoginName) {
+        if (updateUserDto.Email !== user.Email || updateUserDto.TenDangNhap !== user.TenDangNhap) {
             const existingUser = await this.userRepository.findOne({
                 where: [
-                    { LoginName: updateUserDto.LoginName },
+                    { TenDangNhap: updateUserDto.TenDangNhap },
                     { Email: updateUserDto.Email }
                 ]
             });
 
-            if (existingUser && existingUser.UserId !== id) {
+            if (existingUser && existingUser.MaNguoiDung !== id) {
                 throw new BadRequestException('Username or email already exists');
             }
         }
@@ -107,23 +107,23 @@ export class UsersService {
         const updateData: any = { ...updateUserDto };
 
         // Hash password if provided
-        if (updateUserDto.Password) {
+        if (updateUserDto.MatKhau) {
             const salt = await bcrypt.genSalt();
-            updateData.Password = await bcrypt.hash(updateUserDto.Password, salt);
-            updateData.PasswordSalt = salt;
+            updateData.MatKhau = await bcrypt.hash(updateUserDto.MatKhau, salt);
+            updateData.MuoiMatKhau = salt;
         } else {
             // Remove password from update data if not provided
-            delete updateData.Password;
+            delete updateData.MatKhau;
         }
 
         await this.userRepository.update(id, updateData);
 
         // Return updated user without password
         const updatedUser = await this.userRepository.findOne({
-            where: { UserId: id },
+            where: { MaNguoiDung: id },
             select: [
-                'UserId', 'LoginName', 'Email', 'Name', 'DateCreated', 'IsDeleted',
-                'IsLockedOut', 'LastActivityDate', 'LastLoginDate', 'IsBuildInUser', 'MaKhoa'
+                'MaNguoiDung', 'TenDangNhap', 'Email', 'HoTen', 'NgayTao', 'DaXoa',
+                'BiKhoa', 'NgayHoatDongCuoi', 'NgayDangNhapCuoi', 'LaNguoiDungHeThong', 'MaKhoa'
             ],
             relations: ['Khoa']
         });
@@ -139,20 +139,20 @@ export class UsersService {
     }
 
     async changeStatus(id: string, active: boolean): Promise<User> {
-        const user = await this.userRepository.findOne({ where: { UserId: id } });
+        const user = await this.userRepository.findOne({ where: { MaNguoiDung: id } });
         if (!user) {
             throw new NotFoundException(`User with ID ${id} not found`);
         }
 
         // Update the IsDeleted field (inverted from active)
-        await this.userRepository.update(id, { IsDeleted: !active });
+        await this.userRepository.update(id, { DaXoa: !active });
 
         // Return updated user
         return this.findOne(id);
     }
 
     async changePassword(id: string, password: string): Promise<User> {
-        const user = await this.userRepository.findOne({ where: { UserId: id } });
+        const user = await this.userRepository.findOne({ where: { MaNguoiDung: id } });
         if (!user) {
             throw new NotFoundException(`User with ID ${id} not found`);
         }
@@ -163,10 +163,10 @@ export class UsersService {
 
         // Update user password
         await this.userRepository.update(id, {
-            Password: hashedPassword,
-            PasswordSalt: salt,
-            LastPasswordChangedDate: new Date(),
-            NeedChangePassword: false
+            MatKhau: hashedPassword,
+            MuoiMatKhau: salt,
+            NgayDoiMatKhauCuoi: new Date(),
+            CanDoiMatKhau: false
         });
 
         // Return updated user
@@ -179,8 +179,8 @@ export class UsersService {
     async firstTimePasswordChange(id: string, newPassword: string, currentPassword: string): Promise<User> {
         // Get the user with password
         const user = await this.userRepository.findOne({
-            where: { UserId: id },
-            select: ['UserId', 'Password', 'NeedChangePassword']
+            where: { MaNguoiDung: id },
+            select: ['MaNguoiDung', 'MatKhau', 'CanDoiMatKhau']
         });
 
         if (!user) {
@@ -188,12 +188,12 @@ export class UsersService {
         }
 
         // Verify that the user needs to change password
-        if (!user.NeedChangePassword) {
+        if (!user.CanDoiMatKhau) {
             throw new BadRequestException('Password change not required for this user');
         }
 
         // Verify current password
-        const isPasswordValid = await bcrypt.compare(currentPassword, user.Password);
+        const isPasswordValid = await bcrypt.compare(currentPassword, user.MatKhau);
         if (!isPasswordValid) {
             throw new BadRequestException('Current password is incorrect');
         }
@@ -204,10 +204,10 @@ export class UsersService {
 
         // Update user password
         await this.userRepository.update(id, {
-            Password: hashedPassword,
-            PasswordSalt: salt,
-            LastPasswordChangedDate: new Date(),
-            NeedChangePassword: false
+            MatKhau: hashedPassword,
+            MuoiMatKhau: salt,
+            NgayDoiMatKhauCuoi: new Date(),
+            CanDoiMatKhau: false
         });
 
         // Return updated user without password
@@ -227,7 +227,7 @@ export class UsersService {
                 result.success++;
             } catch (error) {
                 result.failed++;
-                result.errors.push(`User ${userData.Name} (${userData.Email}): ${error.message}`);
+                result.errors.push(`User ${userData.HoTen} (${userData.Email}): ${error.message}`);
             }
         }
 
@@ -241,7 +241,7 @@ export class UsersService {
      */
     async isUsernameTaken(username: string): Promise<boolean> {
         const existingUser = await this.userRepository.findOne({
-            where: { LoginName: username }
+            where: { TenDangNhap: username }
         });
 
         return !!existingUser;

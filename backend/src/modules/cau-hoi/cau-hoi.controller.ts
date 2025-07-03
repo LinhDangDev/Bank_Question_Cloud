@@ -21,34 +21,43 @@ export class CauHoiController {
     @ApiResponse({ status: 200, description: 'Return questions with pagination' })
     async findAll(
         @Query() paginationDto: PaginationDto,
-        @Query('includeAnswers') includeAnswers?: boolean,
+        @Query('includeAnswers') includeAnswers?: string,
         @Query('answersPage') answersPage?: number,
         @Query('answersLimit') answersLimit?: number,
         @Request() req?: any
     ) {
-        const answersPagination = answersPage || answersLimit ? {
-            page: answersPage || 1,
-            limit: answersLimit || 10
-        } : undefined;
+        try {
+            const answersPagination = answersPage || answersLimit ? {
+                page: answersPage || 1,
+                limit: answersLimit || 10
+            } : undefined;
 
-        const user = req.user;
+            const user = req.user;
+            const includeAnswersBool = includeAnswers === 'true';
 
-        // Nếu là teacher, chỉ lấy câu hỏi của mình
-        if (user.role === 'teacher') {
-            return await this.cauHoiService.findByCreator(
-                user.sub,
+            // Nếu là teacher, chỉ lấy câu hỏi của mình
+            if (user.role === 'teacher') {
+                return await this.cauHoiService.findByCreator(
+                    user.sub,
+                    paginationDto,
+                    includeAnswersBool,
+                    answersPagination
+                );
+            }
+
+            // Admin xem tất cả câu hỏi
+            return await this.cauHoiService.findAll(
                 paginationDto,
-                includeAnswers,
+                includeAnswersBool,
                 answersPagination
             );
+        } catch (error) {
+            console.error('Error in findAll questions:', error);
+            throw new HttpException(
+                'Lỗi khi tải danh sách câu hỏi: ' + (error.message || 'Unknown error'),
+                HttpStatus.INTERNAL_SERVER_ERROR
+            );
         }
-
-        // Admin xem tất cả câu hỏi
-        return await this.cauHoiService.findAll(
-            paginationDto,
-            includeAnswers,
-            answersPagination
-        );
     }
 
     @Get('group')
@@ -60,13 +69,22 @@ export class CauHoiController {
         @Query() paginationDto: PaginationDto,
         @Request() req?: any
     ) {
-        const user = req.user;
+        try {
+            const user = req.user;
 
-        if (user.role === 'teacher') {
-            return await this.cauHoiService.findGroupQuestionsByCreator(user.sub, paginationDto);
+            if (user.role === 'teacher') {
+                return await this.cauHoiService.findGroupQuestionsByCreator(user.sub, paginationDto);
+            }
+
+            // Admin có thể xem tất cả câu hỏi nhóm
+            return await this.cauHoiService.findGroupQuestions(paginationDto);
+        } catch (error) {
+            console.error('Error in findGroupQuestions:', error);
+            throw new HttpException(
+                'Lỗi khi tải danh sách câu hỏi nhóm: ' + (error.message || 'Unknown error'),
+                HttpStatus.INTERNAL_SERVER_ERROR
+            );
         }
-
-        return await this.cauHoiService.findGroupQuestions(paginationDto);
     }
 
     @Get(':id')
@@ -258,26 +276,68 @@ export class CauHoiController {
         @Request() req: any
     ) {
         try {
+            console.log('DTO nhận được từ client:', JSON.stringify(dto, null, 2));
+            console.log('User ID người tạo:', req.user.sub);
+
+            // Validate required fields
+            if (!dto.parentQuestion || !dto.parentQuestion.MaPhan) {
+                throw new HttpException('MaPhan là bắt buộc cho câu hỏi cha', HttpStatus.BAD_REQUEST);
+            }
+
+            if (!dto.parentQuestion.NoiDung || dto.parentQuestion.NoiDung.trim() === '') {
+                throw new HttpException('NoiDung là bắt buộc cho câu hỏi cha', HttpStatus.BAD_REQUEST);
+            }
+
+            if (!dto.childQuestions || dto.childQuestions.length === 0) {
+                throw new HttpException('Cần ít nhất một câu hỏi con', HttpStatus.BAD_REQUEST);
+            }
+
+            // Validate child questions
+            for (let i = 0; i < dto.childQuestions.length; i++) {
+                const child = dto.childQuestions[i];
+                if (!child.question || !child.question.NoiDung || child.question.NoiDung.trim() === '') {
+                    throw new HttpException(`Câu hỏi con ${i + 1} cần có NoiDung`, HttpStatus.BAD_REQUEST);
+                }
+                if (!child.answers || child.answers.length < 2) {
+                    throw new HttpException(`Câu hỏi con ${i + 1} cần ít nhất 2 câu trả lời`, HttpStatus.BAD_REQUEST);
+                }
+                const hasCorrectAnswer = child.answers.some(answer => answer.LaDapAn === true);
+                if (!hasCorrectAnswer) {
+                    throw new HttpException(`Câu hỏi con ${i + 1} cần có ít nhất 1 đáp án đúng`, HttpStatus.BAD_REQUEST);
+                }
+            }
+
             // Add the current user as creator
             dto.parentQuestion.NguoiTao = req.user.sub;
 
             // Also set the creator for all child questions
             if (dto.childQuestions && dto.childQuestions.length > 0) {
                 dto.childQuestions.forEach(child => {
-                    child.question.NguoiTao = req.user.sub;
+                    if (child && child.question) {
+                        child.question.NguoiTao = req.user.sub;
+                    }
                 });
             }
 
             const result = await this.cauHoiService.createGroupQuestion(dto);
             return {
                 success: true,
-                data: result
+                data: result,
+                message: 'Tạo câu hỏi nhóm thành công'
             };
         } catch (error) {
-            return {
-                success: false,
-                message: error.message || 'Error creating group question'
-            };
+            console.error('Lỗi khi tạo câu hỏi nhóm:', error);
+
+            if (error instanceof HttpException) {
+                throw error;
+            }
+
+            let errorMessage = 'Lỗi khi tạo câu hỏi nhóm';
+            if (error.message) {
+                errorMessage = error.message;
+            }
+
+            throw new HttpException(errorMessage, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 

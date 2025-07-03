@@ -2,39 +2,39 @@ import { IsBoolean, IsDate, IsEmail, IsOptional, IsString, IsUUID } from 'class-
 
 export class CreateUserDto {
     @IsString()
-    LoginName: string;
+    TenDangNhap: string;
 
     @IsEmail()
     Email: string;
 
     @IsString()
-    Name: string;
+    HoTen: string;
 
     @IsString()
-    Password: string;
+    MatKhau: string;
 
     @IsBoolean()
     @IsOptional()
-    IsDeleted?: boolean;
+    DaXoa?: boolean;
 
     @IsBoolean()
     @IsOptional()
-    IsLockedOut?: boolean;
+    BiKhoa?: boolean;
 
     @IsBoolean()
     @IsOptional()
-    NeedChangePassword?: boolean;
-
-    @IsString()
-    @IsOptional()
-    PasswordSalt?: string;
+    CanDoiMatKhau?: boolean;
 
     @IsString()
     @IsOptional()
-    Comment?: string;
+    MuoiMatKhau?: string;
+
+    @IsString()
+    @IsOptional()
+    GhiChu?: string;
 
     @IsBoolean()
-    IsBuildInUser: boolean;
+    LaNguoiDungHeThong: boolean;
 
     @IsUUID()
     @IsOptional()
@@ -45,69 +45,69 @@ export class UpdateUserDto extends CreateUserDto { }
 
 export class UserResponseDto {
     @IsUUID()
-    UserId: string;
+    MaNguoiDung: string;
 
     @IsString()
-    LoginName: string;
+    TenDangNhap: string;
 
     @IsEmail()
     Email: string;
 
     @IsString()
-    Name: string;
+    HoTen: string;
 
     @IsDate()
-    DateCreated: Date;
+    NgayTao: Date;
 
     @IsBoolean()
-    IsDeleted: boolean;
+    DaXoa: boolean;
 
     @IsBoolean()
-    IsLockedOut: boolean;
+    BiKhoa: boolean;
 
     @IsBoolean()
-    NeedChangePassword: boolean;
+    CanDoiMatKhau: boolean;
 
     @IsDate()
     @IsOptional()
-    LastActivityDate?: Date;
+    NgayHoatDongCuoi?: Date;
 
     @IsDate()
     @IsOptional()
-    LastLoginDate?: Date;
+    NgayDangNhapCuoi?: Date;
 
     @IsDate()
     @IsOptional()
-    LastPasswordChangedDate?: Date;
+    NgayDoiMatKhauCuoi?: Date;
 
     @IsDate()
     @IsOptional()
-    LastLockoutDate?: Date;
+    NgayKhoaCuoi?: Date;
 
     @IsOptional()
-    FailedPwdAttemptCount?: number;
-
-    @IsDate()
-    @IsOptional()
-    FailedPwdAttemptWindowStart?: Date;
-
-    @IsOptional()
-    FailedPwdAnswerCount?: number;
+    SoLanNhapSaiMatKhau?: number;
 
     @IsDate()
     @IsOptional()
-    FailedPwdAnswerWindowStart?: Date;
+    BatDauKhoangThoiGianNhapSai?: Date;
+
+    @IsOptional()
+    SoLanTraLoiSai?: number;
+
+    @IsDate()
+    @IsOptional()
+    BatDauKhoangThoiGianTraLoiSai?: Date;
 
     @IsString()
     @IsOptional()
-    PasswordSalt?: string;
+    MuoiMatKhau?: string;
 
     @IsString()
     @IsOptional()
-    Comment?: string;
+    GhiChu?: string;
 
     @IsBoolean()
-    IsBuildInUser: boolean;
+    LaNguoiDungHeThong: boolean;
 
     @IsUUID()
     @IsOptional()

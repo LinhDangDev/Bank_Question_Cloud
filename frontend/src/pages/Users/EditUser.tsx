@@ -12,13 +12,13 @@ interface Khoa {
 }
 
 interface UserData {
-  UserId: string;
-  LoginName: string;
+  MaNguoiDung: string;
+  TenDangNhap: string;
   Email: string;
-  Name: string;
-  IsBuildInUser: boolean;
-  IsDeleted: boolean;
-  IsLockedOut: boolean;
+  HoTen: string;
+  LaNguoiDungHeThong: boolean;
+  DaXoa: boolean;
+  BiKhoa: boolean;
   MaKhoa?: string;
   Khoa?: Khoa;
 }
@@ -30,13 +30,13 @@ const EditUser = () => {
   const { user } = useAuth()
 
   const [formData, setFormData] = useState({
-    Name: '',
+    HoTen: '',
     Email: '',
-    LoginName: '',
-    IsBuildInUser: false,
+    TenDangNhap: '',
+    LaNguoiDungHeThong: false,
     MaKhoa: '',
-    IsDeleted: false,
-    IsLockedOut: false,
+    DaXoa: false,
+    BiKhoa: false,
     resetPassword: false,
     newPassword: '',
   })
@@ -77,13 +77,13 @@ const EditUser = () => {
         const userData = response.data as UserData;
 
         setFormData({
-          Name: userData.Name,
+          HoTen: userData.HoTen,
           Email: userData.Email,
-          LoginName: userData.LoginName,
-          IsBuildInUser: userData.IsBuildInUser,
+          TenDangNhap: userData.TenDangNhap,
+          LaNguoiDungHeThong: userData.LaNguoiDungHeThong,
           MaKhoa: userData.MaKhoa || '',
-          IsDeleted: userData.IsDeleted,
-          IsLockedOut: userData.IsLockedOut,
+          DaXoa: userData.DaXoa,
+          BiKhoa: userData.BiKhoa,
           resetPassword: false,
           newPassword: '',
         });
@@ -120,8 +120,8 @@ const EditUser = () => {
   const validateForm = () => {
     const newErrors: {[key: string]: string} = {};
 
-    if (!formData.Name.trim()) {
-      newErrors.Name = 'Tên người dùng không được để trống';
+    if (!formData.HoTen.trim()) {
+      newErrors.HoTen = 'Tên người dùng không được để trống';
     }
 
     if (!formData.Email.trim()) {
@@ -130,11 +130,11 @@ const EditUser = () => {
       newErrors.Email = 'Email không hợp lệ';
     }
 
-    if (!formData.LoginName.trim()) {
-      newErrors.LoginName = 'Tên đăng nhập không được để trống';
+    if (!formData.TenDangNhap.trim()) {
+      newErrors.TenDangNhap = 'Tên đăng nhập không được để trống';
     }
 
-    if (!formData.IsBuildInUser && !formData.MaKhoa) {
+    if (!formData.LaNguoiDungHeThong && !formData.MaKhoa) {
       newErrors.MaKhoa = 'Vui lòng chọn khoa cho giảng viên';
     }
 
@@ -156,13 +156,13 @@ const EditUser = () => {
 
       try {
         const updateData = {
-          Name: formData.Name,
+          HoTen: formData.HoTen,
           Email: formData.Email,
-          LoginName: formData.LoginName,
-          IsBuildInUser: formData.IsBuildInUser,
-          MaKhoa: formData.IsBuildInUser ? null : formData.MaKhoa,
-          IsDeleted: formData.IsDeleted,
-          IsLockedOut: formData.IsLockedOut
+          TenDangNhap: formData.TenDangNhap,
+          LaNguoiDungHeThong: formData.LaNguoiDungHeThong,
+          MaKhoa: formData.LaNguoiDungHeThong ? null : formData.MaKhoa,
+          DaXoa: formData.DaXoa,
+          BiKhoa: formData.BiKhoa
         };
 
         await userApi.update(id as string, updateData);
@@ -180,7 +180,7 @@ const EditUser = () => {
           toast.error('Tên đăng nhập hoặc email đã tồn tại!');
           setErrors(prev => ({
             ...prev,
-            LoginName: 'Tên đăng nhập hoặc email đã tồn tại',
+            TenDangNhap: 'Tên đăng nhập hoặc email đã tồn tại',
             Email: 'Tên đăng nhập hoặc email đã tồn tại'
           }));
         } else {
@@ -237,20 +237,20 @@ const EditUser = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Name field */}
             <div>
-              <label htmlFor="Name" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="HoTen" className="block text-sm font-medium text-gray-700 mb-1">
                 Tên người dùng <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
-                id="Name"
-                name="Name"
-                value={formData.Name}
+                id="HoTen"
+                name="HoTen"
+                value={formData.HoTen}
                 onChange={handleChange}
                 className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none ${
-                  errors.Name ? 'border-red-500' : 'border-gray-300'
+                  errors.HoTen ? 'border-red-500' : 'border-gray-300'
                 }`}
               />
-              {errors.Name && <p className="mt-1 text-red-500 text-sm">{errors.Name}</p>}
+              {errors.HoTen && <p className="mt-1 text-red-500 text-sm">{errors.HoTen}</p>}
             </div>
 
             {/* Email field */}
@@ -273,20 +273,20 @@ const EditUser = () => {
 
             {/* Login Name field */}
             <div>
-              <label htmlFor="LoginName" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="TenDangNhap" className="block text-sm font-medium text-gray-700 mb-1">
                 Tên đăng nhập <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
-                id="LoginName"
-                name="LoginName"
-                value={formData.LoginName}
+                id="TenDangNhap"
+                name="TenDangNhap"
+                value={formData.TenDangNhap}
                 onChange={handleChange}
                 className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none ${
-                  errors.LoginName ? 'border-red-500' : 'border-gray-300'
+                  errors.TenDangNhap ? 'border-red-500' : 'border-gray-300'
                 }`}
               />
-              {errors.LoginName && <p className="mt-1 text-red-500 text-sm">{errors.LoginName}</p>}
+              {errors.TenDangNhap && <p className="mt-1 text-red-500 text-sm">{errors.TenDangNhap}</p>}
             </div>
 
             {/* Role field - Read-only */}
@@ -296,9 +296,9 @@ const EditUser = () => {
               </label>
               <div className="relative">
                 <div className={`w-full px-4 py-2 border rounded-lg bg-gray-100 text-gray-700 ${
-                  errors.IsBuildInUser ? 'border-red-500' : 'border-gray-300'
+                  errors.LaNguoiDungHeThong ? 'border-red-500' : 'border-gray-300'
                 }`}>
-                  {formData.IsBuildInUser ? 'Quản trị viên' : 'Giảng viên'}
+                  {formData.LaNguoiDungHeThong ? 'Quản trị viên' : 'Giảng viên'}
                 </div>
                 <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none rounded-r-lg text-xs text-gray-500">
                   Không thể thay đổi
@@ -307,7 +307,7 @@ const EditUser = () => {
             </div>
 
             {/* Faculty field - Only for teachers */}
-            {!formData.IsBuildInUser && (
+            {!formData.LaNguoiDungHeThong && (
               <div>
                 <label htmlFor="MaKhoa" className="block text-sm font-medium text-gray-700 mb-1">
                   Khoa <span className="text-red-500">*</span>
@@ -372,8 +372,8 @@ const EditUser = () => {
                 type="checkbox"
                 id="active"
                 name="IsDeleted"
-                checked={!formData.IsDeleted}
-                onChange={(e) => setFormData(prev => ({ ...prev, IsDeleted: !e.target.checked }))}
+                checked={!formData.DaXoa}
+                onChange={(e) => setFormData(prev => ({ ...prev, DaXoa: !e.target.checked }))}
                 className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
               />
               <label htmlFor="active" className="ml-2 block text-sm text-gray-700">

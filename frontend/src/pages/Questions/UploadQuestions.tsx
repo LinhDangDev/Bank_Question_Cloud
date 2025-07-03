@@ -27,6 +27,7 @@ import { questionsImportApi } from '../../services/api';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 // Interface for parsed question
 interface ParsedQuestion {
@@ -477,6 +478,7 @@ const UploadQuestions = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [questionToDelete, setQuestionToDelete] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const navigate = useNavigate();
 
   // Toggle group expansion
   const toggleGroup = (questionId: string) => {
@@ -489,9 +491,18 @@ const UploadQuestions = () => {
   useEffect(() => {
     const fetchFaculties = async () => {
       try {
-        const response = await axios.get(`${API_BASE_URL}/khoa`);
+        const response = await axios.get(`${API_BASE_URL}/khoa`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          }
+        });
         if (response.data) {
           setFaculties(response.data);
+
+          // Nếu là teacher và chỉ có 1 khoa, tự động chọn khoa đó
+          if (response.data.length === 1) {
+            setFacultyId(response.data[0].MaKhoa);
+          }
         }
       } catch (err) {
         console.error('Error fetching faculties:', err);
@@ -641,8 +652,8 @@ const UploadQuestions = () => {
       const data = await response.json();
       console.log('Upload successful, file ID:', data.fileId);
 
-      // Now fetch the parsed questions
-      const questionsResponse = await fetch(`${API_BASE_URL}/questions-import/preview/${data.fileId}`, {
+      // Now fetch the parsed questions with higher limit
+      const questionsResponse = await fetch(`${API_BASE_URL}/questions-import/preview/${data.fileId}?limit=100`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         }
@@ -1248,616 +1259,322 @@ const UploadQuestions = () => {
   };
 
   return (
-    <div className="container mx-auto py-6 px-4 max-w-screen-2xl">
-      {/* Hidden file input */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        accept=".docx"
-        style={{ display: 'none' }}
-        onChange={handleFileSelected}
-      />
+    <div className="flex flex-col h-[calc(100vh-56px)] overflow-hidden">
+      {/* Header with title and back button */}
+      <div className="bg-white border-b px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center">
+          <button
+            onClick={() => navigate(-1)}
+            className="mr-4 p-1 rounded-full hover:bg-gray-100"
+            aria-label="Quay lại"
+          >
+            <ChevronLeft className="h-5 w-5 text-gray-600" />
+          </button>
+          <h1 className="text-xl font-bold text-gray-800">Tải lên câu hỏi</h1>
+        </div>
+      </div>
 
-      {/* Teacher approval notice */}
-      {isTeacher() && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-          <div className="flex items-start">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
+      {/* Main content area with scrolling */}
+      <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
+        <div className="max-w-7xl mx-auto">
+          {/* Error display */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-start">
+              <span className="mr-2 mt-0.5">⚠️</span>
+              <div>
+                <p className="font-medium">Lỗi</p>
+                <p>{error}</p>
+              </div>
             </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-800">
-                Quy trình duyệt câu hỏi
-              </h3>
-              <div className="mt-2 text-sm text-blue-700">
-                <p>
-                  Câu hỏi bạn import sẽ được gửi đến admin để duyệt trước khi thêm vào ngân hàng câu hỏi.
-                  Bạn có thể theo dõi trạng thái duyệt tại trang "Câu hỏi chờ duyệt".
-                </p>
+          )}
+
+          {/* Faculty, Subject, Chapter selection */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+            <h2 className="text-lg font-medium mb-4">Chọn khoa, môn học và chương/phần</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Faculty dropdown */}
+              <div>
+                <label htmlFor="faculty" className="block text-sm font-medium text-gray-700 mb-1">
+                  Khoa <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="faculty"
+                  className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  value={facultyId}
+                  onChange={handleFacultyChange}
+                >
+                  <option value="">-- Chọn khoa --</option>
+                  {faculties.map(faculty => (
+                    <option key={faculty.MaKhoa} value={faculty.MaKhoa}>
+                      {faculty.TenKhoa}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Subject dropdown */}
+              <div>
+                <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-1">
+                  Môn học <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="subject"
+                  className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  value={subjectId}
+                  onChange={handleSubjectChange}
+                  disabled={!facultyId}
+                >
+                  <option value="">-- Chọn môn học --</option>
+                  {subjects.map(subject => (
+                    <option key={subject.MaMonHoc} value={subject.MaMonHoc}>
+                      {subject.TenMonHoc}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Chapter dropdown */}
+              <div>
+                <label htmlFor="chapter" className="block text-sm font-medium text-gray-700 mb-1">
+                  Chương/Phần <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="chapter"
+                  className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  value={chapterId}
+                  onChange={(e) => setChapterId(e.target.value)}
+                  disabled={!subjectId}
+                >
+                  <option value="">-- Chọn chương/phần --</option>
+                  {chapters.map(chapter => (
+                    <option key={chapter.MaPhan} value={chapter.MaPhan}>
+                      {chapter.TenPhan}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* Header with statistics */}
-      <div className="border bg-white rounded-lg p-4 mb-4">
-        <h1 className="text-xl font-medium mb-2">Thông kê câu hỏi</h1>
-
-        <div className="flex justify-between">
-          <div className="text-right text-sm font-medium">
-            {selectedQuestionIds.length}/{selectedQuestions.length} câu hỏi được chọn
-          </div>
-        </div>
-
-        <div className="grid grid-cols-4 gap-4 mt-2">
-          <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
-            <div className="text-sm text-blue-700 font-medium">Đơn lựa chọn</div>
-            <div className="text-2xl font-bold text-blue-700">{getQuestionStats().singleChoice}</div>
-          </div>
-          <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-100">
-            <div className="text-sm text-yellow-700 font-medium">Nhiều lựa chọn</div>
-            <div className="text-2xl font-bold text-yellow-700">{getQuestionStats().multiChoice}</div>
-          </div>
-          <div className="bg-purple-50 p-3 rounded-lg border border-purple-100">
-            <div className="text-sm text-purple-700 font-medium">Nhóm</div>
-            <div className="text-2xl font-bold text-purple-700">{getQuestionStats().groups}</div>
-          </div>
-          <div className="bg-green-50 p-3 rounded-lg border border-green-100">
-            <div className="text-sm text-green-700 font-medium">Tổng</div>
-            <div className="text-2xl font-bold text-green-700">{getQuestionStats().total}</div>
-          </div>
-        </div>
-
-        {Object.keys(getQuestionStats().clos).length > 0 && (
-          <div className="mt-3">
-            <div className="text-sm font-medium mb-1">Phân bố CLOs:</div>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(getQuestionStats().clos).map(([clo, count]) => (
-                <div key={clo} className={`${getCloColor(clo)} text-sm px-2 py-0.5 rounded-full`}>
-                  <span className="mr-1">{clo}</span>
-                  <span className="font-medium">{count}</span>
-                </div>
-              ))}
+          {/* File upload area */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+            <h2 className="text-lg font-medium mb-4">Tải lên tệp tin</h2>
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center ${
+                dragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400'
+              } transition-colors duration-200 cursor-pointer`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelected}
+                className="hidden"
+                accept=".docx,.doc"
+              />
+              <div className="mx-auto flex flex-col items-center">
+                <UploadIcon className="h-12 w-12 text-gray-400 mb-3" />
+                <h3 className="text-lg font-medium text-gray-700">Kéo thả hoặc nhấp để tải lên</h3>
+                <p className="text-sm text-gray-500 mt-1">Hỗ trợ tệp tin Word (.docx, .doc)</p>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
 
-      {/* Step 1: File Upload */}
-      <div className="space-y-2">
-        <h2 className="text-lg font-medium flex items-center">
-          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 mr-2">1</span>
-          Chọn tệp tin câu hỏi
-        </h2>
-
-        {/* Drag and drop area */}
-        <div
-          className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-            dragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400'
-          }`}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <div className="flex flex-col items-center justify-center cursor-pointer">
-            <UploadIcon className="w-8 h-8 text-gray-400 mb-2" />
-            <p className="text-sm font-medium">Kéo thả file DOCX vào đây hoặc nhấn để chọn file</p>
-            <p className="text-xs text-gray-500 mt-1">Chỉ hỗ trợ file DOCX với định dạng chuẩn</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-          {/* Templates */}
-          <div className="border rounded-lg bg-white p-4">
-            <div className="flex justify-between items-center mb-2">
-              <h3 className="text-md font-medium">Mẫu câu hỏi</h3>
+            <div className="mt-4 flex flex-wrap gap-2">
               <button
-                className="text-xs text-blue-600 hover:text-blue-800"
-                onClick={() => setShowTemplates(!showTemplates)}
-              >
-                {showTemplates ? 'Ẩn bớt' : 'Xem thêm'}
-              </button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {availableTemplates.slice(0, showTemplates ? undefined : 2).map((template) => (
-                <div
-                  key={template.id}
-                  className="border rounded-md p-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2"
-                  onClick={() => showGuide('word')}
-                >
-                  <FileText className="h-4 w-4 text-gray-400" />
-                  <div>
-                    <p className="text-sm truncate">{template.name}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Guide instead of recent files */}
-          <div className="border rounded-lg bg-white p-4">
-            <h3 className="text-md font-medium mb-2">Hướng dẫn soạn đề</h3>
-            <div className="text-sm text-gray-600 space-y-2">
-              <p>• Câu hỏi đơn: Nội dung câu hỏi sau đó là các phương án A, B, C, D. Gạch chân đáp án đúng.</p>
-              <p>• Câu hỏi nhóm: Sử dụng các ký hiệu [&lt;sg&gt;] để bắt đầu nhóm và [&lt;/sg&gt;] để kết thúc.</p>
-              <p>• Ký hiệu [&lt;br&gt;] để ngăn cách giữa các câu hỏi.</p>
-              <button
-                className="text-blue-600 hover:text-blue-800 mt-2 text-sm font-medium"
+                type="button"
+                className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 onClick={() => showGuide('word')}
               >
-                Xem hướng dẫn chi tiết
+                <FileText className="h-4 w-4 mr-2" />
+                Xem hướng dẫn định dạng
               </button>
             </div>
           </div>
-        </div>
 
-        {/* Loading and Error states */}
-        {isLoading && (
-          <div className="text-center p-2">
-            <div className="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500"></div>
-            <span className="ml-2 text-xs sm:text-sm">Đang xử lý...</span>
-          </div>
-        )}
-
-        {error && (
-          <div className="bg-red-100 text-red-700 p-2 rounded-md text-xs sm:text-sm">
-            {error}
-          </div>
-        )}
-      </div>
-
-      {/* Step 2: Save Questions */}
-      <div className="space-y-2">
-        <h2 className="text-lg font-medium flex items-center">
-          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 mr-2">2</span>
-          Lưu câu hỏi vào
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-          {/* Select Khoa */}
-          <div className="space-y-1 sm:space-y-2">
-            <label className="text-xs sm:text-sm font-medium">Chọn khoa: <span className="text-red-500">*</span></label>
-            <select
-              className="border p-1 sm:p-2 rounded-md w-full text-xs sm:text-sm"
-              value={facultyId}
-              onChange={handleFacultyChange}
-            >
-              <option value="">Chọn khoa</option>
-              {faculties.map(faculty => (
-                <option key={faculty.MaKhoa} value={faculty.MaKhoa}>
-                  {faculty.TenKhoa}
-                </option>
-              ))}
-            </select>
-          </div>
-          {/* Select Môn Học */}
-          <div className="space-y-1 sm:space-y-2">
-            <label className="text-xs sm:text-sm font-medium">Chọn Môn Học: <span className="text-red-500">*</span></label>
-            <select
-              className="border p-1 sm:p-2 rounded-md w-full text-xs sm:text-sm"
-              value={subjectId}
-              onChange={handleSubjectChange}
-              disabled={!facultyId}
-            >
-              <option value="">Chọn môn học</option>
-              {subjects.map(subject => (
-                <option key={subject.MaMonHoc} value={subject.MaMonHoc}>
-                  {subject.TenMonHoc}
-                </option>
-              ))}
-            </select>
-          </div>
-          {/* Select Chương/Phần */}
-          <div className="space-y-1 sm:space-y-2">
-            <label className="text-xs sm:text-sm font-medium">Chọn Chương/Phần: <span className="text-red-500">*</span></label>
-            <select
-              className="border p-1 sm:p-2 rounded-md w-full text-xs sm:text-sm"
-              value={chapterId}
-              onChange={(e) => setChapterId(e.target.value)}
-              disabled={!subjectId}
-            >
-              <option value="">Chọn chương/phần</option>
-              {chapters.map(chapter => (
-                <option key={chapter.MaPhan} value={chapter.MaPhan}>
-                  {chapter.TenPhan}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Questions List Section with filters integrated */}
-      <div className="space-y-4 flex flex-col h-full mt-4">
-        {selectedQuestions.length > 0 && (
-          <div className="bg-white border rounded-lg p-4">
-            <div className="flex justify-between items-center mb-4">
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 text-blue-600"
-                  checked={selectedQuestionIds.length === selectedQuestions.length && selectedQuestions.length > 0}
-                  onChange={handleSelectAll}
-                />
-                <span className="ml-2 text-sm font-medium">
-                  Chọn tất cả câu hỏi
-                  {selectedQuestionIds.length > 0 && (
-                    <span className="text-xs text-gray-500 ml-1">
-                      ({selectedQuestionIds.length} / {selectedQuestions.length})
-                    </span>
-                  )}
-                </span>
+          {/* Questions preview area */}
+          {selectedQuestions.length > 0 && (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-medium">Xem trước câu hỏi</h2>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="selectAll"
+                    checked={selectedQuestionIds.length === selectedQuestions.length}
+                    onChange={handleSelectAll}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="selectAll" className="ml-2 text-sm text-gray-700">
+                    Chọn tất cả ({selectedQuestions.length} câu hỏi)
+                  </label>
+                </div>
               </div>
 
-              <div className="flex gap-2 items-center">
+              {/* Filter options */}
+              <div className="mb-4 flex flex-wrap gap-2">
                 <select
-                  className="border p-1 rounded-md text-xs"
-                  value={filterType}
-                  onChange={e => setFilterType(e.target.value)}
+                  value={filterClo}
+                  onChange={(e) => setFilterClo(e.target.value)}
+                  className="border border-gray-300 rounded-md shadow-sm py-1.5 px-3 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="all">Tất cả loại</option>
-                  <option value="single-choice">Đơn lựa chọn</option>
-                  <option value="multi-choice">Nhiều lựa chọn</option>
-                  <option value="fill-blank">Điền khuyết</option>
-                  <option value="group">Nhóm</option>
+                  <option value="">Tất cả CLO</option>
+                  {getUniqueClos().map(clo => (
+                    <option key={clo} value={clo}>{clo}</option>
+                  ))}
                 </select>
 
-                {getUniqueClos().length > 0 && (
-                  <select
-                    className="border p-1 rounded-md text-xs"
-                    value={filterClo}
-                    onChange={e => setFilterClo(e.target.value)}
-                  >
-                    <option value="all">Tất cả CLO</option>
-                    <option value="none">Không có CLO</option>
-                    {getUniqueClos().map(clo => (
-                      <option key={clo} value={clo}>{clo}</option>
-                    ))}
-                  </select>
-                )}
+                <select
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value as any)}
+                  className="border border-gray-300 rounded-md shadow-sm py-1.5 px-3 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Tất cả loại</option>
+                  <option value="single-choice">Trắc nghiệm đơn</option>
+                  <option value="multi-choice">Trắc nghiệm nhiều đáp án</option>
+                  <option value="fill-blank">Điền khuyết</option>
+                  <option value="group">Câu hỏi nhóm</option>
+                </select>
+              </div>
 
-                {(filterType !== 'all' || filterClo !== 'all') && (
-                  <button
-                    onClick={() => {
-                      setFilterType('all');
-                      setFilterClo('all');
-                    }}
-                    className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 py-1 px-2 rounded-md flex items-center"
+              {/* Questions list with max height and scrolling */}
+              <div className="max-h-[60vh] overflow-y-auto border border-gray-200 rounded-lg">
+                {filterQuestions(selectedQuestions).map((question, index) => (
+                  <div
+                    key={question.id}
+                    className={`p-4 ${
+                      index !== filterQuestions(selectedQuestions).length - 1 ? 'border-b border-gray-200' : ''
+                    } ${selectedQuestionIds.includes(question.id) ? 'bg-blue-50' : 'bg-white'}`}
                   >
-                    <X className="h-3 w-3 mr-1" />
-                    Xóa bộ lọc
-                  </button>
-                )}
+                    <div className="flex items-start">
+                      <input
+                        type="checkbox"
+                        checked={selectedQuestionIds.includes(question.id)}
+                        onChange={(e) => handleSelectQuestion(question.id, e.target.checked)}
+                        className="h-4 w-4 mt-1 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <div className="ml-3 flex-1">
+                        {/* Question header with tags */}
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <span className="text-sm font-medium">Câu {index + 1}</span>
+
+                          {question.type && (
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              question.type === 'single-choice' ? 'bg-blue-100 text-blue-800' :
+                              question.type === 'multi-choice' ? 'bg-purple-100 text-purple-800' :
+                              question.type === 'fill-blank' ? 'bg-amber-100 text-amber-800' :
+                              'bg-green-100 text-green-800'
+                            }`}>
+                              {question.type === 'single-choice' ? 'Trắc nghiệm đơn' :
+                               question.type === 'multi-choice' ? 'Trắc nghiệm nhiều đáp án' :
+                               question.type === 'fill-blank' ? 'Điền khuyết' :
+                               'Câu hỏi nhóm'}
+                            </span>
+                          )}
+
+                          {question.clo && (
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${getCloColor(question.clo)}`}>
+                              {question.clo}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Question content */}
+                        {renderContent(question.content)}
+
+                        {/* Answers for non-group questions */}
+                        {question.type !== 'group' && question.answers && question.answers.length > 0 && (
+                          renderAnswers(question.answers)
+                        )}
+
+                        {/* Child questions for group questions */}
+                        {question.type === 'group' && question.childQuestions && (
+                          <div className="mt-4">
+                            <button
+                              onClick={() => handleToggleGroup(question.id)}
+                              className="flex items-center text-sm font-medium text-blue-600 hover:text-blue-800"
+                            >
+                              {expandedGroups.includes(question.id) ? (
+                                <ChevronDown className="h-4 w-4 mr-1" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 mr-1" />
+                              )}
+                              {question.childQuestions.length} câu hỏi con
+                            </button>
+
+                            {expandedGroups.includes(question.id) && (
+                              <div className="mt-2 pl-4 border-l-2 border-gray-200">
+                                {question.childQuestions.map((childQuestion, childIndex) => (
+                                  renderGroupQuestionContent(childQuestion, childIndex)
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Save button */}
+              <div className="mt-6 flex justify-end">
+                <button
+                  type="button"
+                  className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  onClick={handleSaveQuestions}
+                  disabled={isLoading || selectedQuestionIds.length === 0 || !chapterId}
+                >
+                  {isLoading ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Đang lưu...
+                    </>
+                  ) : (
+                    <>
+                      <Database className="mr-2 h-4 w-4" />
+                      {isTeacher() ? 'Gửi câu hỏi chờ duyệt' : 'Lưu câu hỏi'}
+                    </>
+                  )}
+                </button>
               </div>
             </div>
-
-            {/* Questions */}
-            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-              {renderQuestions()}
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* Save Button */}
-      <div className="fixed bottom-4 right-4 z-20">
-        <button
-          onClick={handleSaveQuestions}
-          className={`bg-green-500 hover:bg-green-600 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg flex items-center gap-1 sm:gap-2 text-xs sm:text-sm ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-          disabled={isLoading || selectedQuestionIds.length === 0 || !chapterId}
-        >
-          <UploadIcon className="h-3 w-3 sm:h-5 sm:w-5" />
-          {isLoading ? 'Đang lưu...' : 'Lưu câu hỏi'}
-        </button>
-      </div>
-
-      {/* Modal */}
+      {/* Guide modal */}
       <Modal
         isOpen={showGuideModal}
         onClose={() => setShowGuideModal(false)}
-        title="Hướng Dẫn Soạn Thảo Nội Dung"
-        size="xl"
-        footer={
-          <button
-            onClick={() => setShowGuideModal(false)}
-            className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-3 sm:px-6 py-1 sm:py-2 rounded text-xs sm:text-sm font-medium"
-          >
-            Đóng
-          </button>
-        }
+        title="Hướng dẫn định dạng"
       >
         {renderGuideContent()}
       </Modal>
 
-      {/* KaTeX Styles */}
-      <style>{`
-        .katex-formula .katex {
-          display: inline-block;
-          font-size: 1.1em;
-        }
-
-        /* Additional styles for better LaTeX rendering */
-        .katex-display {
-          display: block;
-          margin: 1em 0;
-          text-align: center;
-          overflow-x: auto;
-          overflow-y: hidden;
-        }
-
-        /* Fix for fractions */
-        .katex .mfrac .frac-line {
-          border-bottom-width: 1px;
-        }
-
-        /* Fix for matrices */
-        .katex .mord.mtable {
-          vertical-align: middle;
-        }
-
-        /* Fix for chemical formulas */
-        .katex .msupsub {
-          text-align: left;
-        }
-
-        /* Fix for superscripts */
-        .katex .msup {
-          vertical-align: baseline;
-        }
-
-        /* Fix for subscripts */
-        .katex .msub {
-          vertical-align: baseline;
-        }
-      `}</style>
-
-      {/* View Question Modal */}
+      {/* View question modal */}
       <Modal
-        isOpen={showViewModal}
-        onClose={() => setShowViewModal(false)}
-        title="Chi tiết câu hỏi"
-        size="lg"
+        isOpen={!!viewingQuestion}
+        onClose={() => setViewingQuestion(null)}
+        title="Xem chi tiết câu hỏi"
       >
         {viewingQuestion && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              {viewingQuestion.clo && (
-                <span className={`${getCloColor(viewingQuestion.clo)} text-xs rounded px-2 py-0.5`}>
-                  {viewingQuestion.clo}
-                </span>
-              )}
-              <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                viewingQuestion.type === 'fill-blank'
-                  ? 'bg-blue-100 text-blue-700'
-                  : viewingQuestion.type === 'multi-choice'
-                    ? 'bg-yellow-100 text-yellow-700'
-                    : viewingQuestion.type === 'group'
-                      ? 'bg-purple-100 text-purple-700'
-                      : 'bg-green-100 text-green-700'
-              }`}>
-                {viewingQuestion.type === 'fill-blank'
-                  ? 'Điền khuyết'
-                  : viewingQuestion.type === 'multi-choice'
-                    ? 'Nhiều lựa chọn'
-                    : viewingQuestion.type === 'group'
-                      ? 'Câu hỏi nhóm'
-                      : 'Đơn lựa chọn'}
-              </span>
-            </div>
-
+          <div className="p-4">
             <div className="mb-4">
               {renderContent(viewingQuestion.content)}
             </div>
-
-            {viewingQuestion.groupContent && (
-              <div className="bg-gray-50 p-3 rounded-md border border-gray-200 mb-4">
-                {renderContent(viewingQuestion.groupContent)}
-              </div>
-            )}
-
-            {viewingQuestion.type !== 'group' && viewingQuestion.answers && (
-              <div className="space-y-3">
-                <h4 className="font-medium">Phương án trả lời:</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {viewingQuestion.answers.map((answer, idx) => (
-                    <div
-                      key={idx}
-                      className={`flex items-center p-2 rounded-md ${
-                        answer.isCorrect
-                          ? 'bg-green-50 border-2 border-green-300'
-                          : 'bg-gray-50 border border-gray-200'
-                      }`}
-                    >
-                      <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium mr-2 ${
-                        answer.isCorrect
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-gray-200 text-gray-700'
-                      }`}>
-                        {String.fromCharCode(65 + idx)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        {renderContent(answer.content)}
-                      </div>
-                      {answer.isCorrect && (
-                        <div className="flex-shrink-0 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded ml-2 font-medium">
-                          Đáp án
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {viewingQuestion.type === 'group' && viewingQuestion.childQuestions && (
-              <div className="space-y-3">
-                <h4 className="font-medium">Câu hỏi con:</h4>
-                {viewingQuestion.childQuestions.map((childQ, childIdx) => (
-                  <div key={childIdx} className="border rounded-md bg-gray-50 p-3">
-                    <div className="font-medium mb-2 flex items-center gap-2">
-                      <div className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs">
-                        Câu {childIdx + 1}
-                      </div>
-                      {childQ.clo && (
-                        <span className={`${getCloColor(childQ.clo)} text-xs rounded px-2 py-0.5`}>
-                          {childQ.clo}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="mb-3">
-                      {renderContent(childQ.content)}
-                    </div>
-
-                    {childQ.answers && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {childQ.answers.map((answer, idx) => (
-                          <div
-                            key={idx}
-                            className={`flex items-center p-2 rounded-md ${
-                              answer.isCorrect
-                                ? 'bg-green-50 border-2 border-green-300'
-                                : 'bg-gray-50 border border-gray-200'
-                            }`}
-                          >
-                            <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium mr-2 ${
-                              answer.isCorrect
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-gray-200 text-gray-700'
-                            }`}>
-                              {String.fromCharCode(65 + idx)}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              {renderContent(answer.content)}
-                            </div>
-                            {answer.isCorrect && (
-                              <div className="flex-shrink-0 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded ml-2 font-medium">
-                                Đáp án
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
+            {viewingQuestion.answers && viewingQuestion.answers.length > 0 && (
+              <div className="mt-4">
+                {renderAnswers(viewingQuestion.answers)}
               </div>
             )}
           </div>
         )}
-      </Modal>
-
-      {/* Edit Question Modal - Simple version */}
-      <Modal
-        isOpen={showEditModal}
-        onClose={() => setShowEditModal(false)}
-        title="Chỉnh sửa câu hỏi"
-        size="lg"
-      >
-        {editingQuestion && (
-          <div className="space-y-4">
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-1">Nội dung câu hỏi:</label>
-              <textarea
-                className="w-full border rounded-md p-2 h-24"
-                value={editingQuestion.content}
-                onChange={(e) => setEditingQuestion({...editingQuestion, content: e.target.value})}
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-1">CLO:</label>
-              <input
-                type="text"
-                className="w-full border rounded-md p-2"
-                value={editingQuestion.clo || ''}
-                onChange={(e) => setEditingQuestion({...editingQuestion, clo: e.target.value})}
-              />
-            </div>
-
-            {editingQuestion.type !== 'group' && editingQuestion.answers && (
-              <div>
-                <label className="block text-sm font-medium mb-2">Phương án trả lời:</label>
-                {editingQuestion.answers.map((answer, idx) => (
-                  <div key={idx} className="mb-2 flex items-start">
-                    <div className="flex items-center mr-2 mt-2">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 text-blue-600"
-                        checked={answer.isCorrect}
-                        onChange={(e) => {
-                          const newAnswers = [...editingQuestion.answers];
-                          newAnswers[idx] = {...answer, isCorrect: e.target.checked};
-                          setEditingQuestion({...editingQuestion, answers: newAnswers});
-                        }}
-                      />
-                      <span className="ml-2">{String.fromCharCode(65 + idx)}</span>
-                    </div>
-                    <textarea
-                      className="flex-1 border rounded-md p-2 h-16"
-                      value={answer.content}
-                      onChange={(e) => {
-                        const newAnswers = [...editingQuestion.answers];
-                        newAnswers[idx] = {...answer, content: e.target.value};
-                        setEditingQuestion({...editingQuestion, answers: newAnswers});
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="flex justify-end mt-4">
-              <button
-                className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded mr-2"
-                onClick={() => setShowEditModal(false)}
-              >
-                Hủy
-              </button>
-              <button
-                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
-                onClick={() => {
-                  // Update the question in the selectedQuestions array
-                  setSelectedQuestions(prev => prev.map(q =>
-                    q.id === editingQuestion.id ? editingQuestion : q
-                  ));
-                  setShowEditModal(false);
-                }}
-              >
-                Lưu thay đổi
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* Delete Question Modal */}
-      <Modal
-        isOpen={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
-        title="Xóa câu hỏi"
-        size="sm"
-      >
-        <div className="p-4 text-center">
-          <p className="mb-4">Bạn có chắc chắn muốn xóa câu hỏi này?</p>
-          <div className="flex justify-center gap-2">
-            <button
-              className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded"
-              onClick={() => setShowDeleteModal(false)}
-            >
-              Hủy
-            </button>
-            <button
-              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
-              onClick={confirmDeleteQuestion}
-            >
-              Xóa
-            </button>
-          </div>
-        </div>
       </Modal>
     </div>
   );

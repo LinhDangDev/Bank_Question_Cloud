@@ -11,12 +11,12 @@ interface Khoa {
 }
 
 interface UserData {
-  UserId: string;
-  LoginName: string;
+  MaNguoiDung: string;
+  TenDangNhap: string;
   Email: string;
-  Name: string;
-  IsBuildInUser: boolean;
-  IsDeleted: boolean;
+  HoTen: string;
+  LaNguoiDungHeThong: boolean;
+  DaXoa: boolean;
 }
 
 const AddUser = () => {
@@ -28,15 +28,15 @@ const AddUser = () => {
   }
 
   const [formData, setFormData] = useState({
-    Name: '',
+    HoTen: '',
     Email: '',
-    LoginName: '',
-    Password: '',
+    TenDangNhap: '',
+    MatKhau: '',
     confirmPassword: '',
-    IsBuildInUser: false,
+    LaNguoiDungHeThong: false,
     MaKhoa: '',
-    IsDeleted: false,
-    NeedChangePassword: true
+    DaXoa: false,
+    CanDoiMatKhau: true
   })
   const [errors, setErrors] = useState<{[key: string]: string}>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -51,6 +51,15 @@ const AddUser = () => {
   const [loadingFaculties, setLoadingFaculties] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const usernameTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Password requirements state
+  const [passwordRequirements, setPasswordRequirements] = useState({
+    length: false,
+    lowercase: false,
+    uppercase: false,
+    number: false,
+    special: false
+  });
 
   const roles = ['Quản trị viên', 'Giảng viên']
 
@@ -75,15 +84,31 @@ const AddUser = () => {
   const checkPasswordStrength = (password: string) => {
     if (!password) {
       setPasswordStrength(null);
+      setPasswordRequirements({
+        length: false,
+        lowercase: false,
+        uppercase: false,
+        number: false,
+        special: false
+      });
       return;
     }
 
-    // Điều kiện cho mật khẩu mạnh
+    // Kiểm tra các yêu cầu mật khẩu
     const hasUpperCase = /[A-Z]/.test(password);
     const hasLowerCase = /[a-z]/.test(password);
     const hasNumbers = /\d/.test(password);
     const hasSpecialChar = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password);
-    const isLongEnough = password.length >= 8;
+    const isLongEnough = password.length >= 6;
+
+    // Cập nhật trạng thái yêu cầu mật khẩu
+    setPasswordRequirements({
+      length: isLongEnough,
+      lowercase: hasLowerCase,
+      uppercase: hasUpperCase,
+      number: hasNumbers,
+      special: hasSpecialChar
+    });
 
     // Tính điểm mạnh của mật khẩu
     let strength = 0;
@@ -183,8 +208,8 @@ const AddUser = () => {
     }
 
     // Check password confirmation match
-    if (name === 'confirmPassword' || (name === 'Password' && formData.confirmPassword)) {
-      const passwordToCheck = name === 'Password' ? value : formData.Password;
+    if (name === 'confirmPassword' || (name === 'MatKhau' && formData.confirmPassword)) {
+      const passwordToCheck = name === 'MatKhau' ? value : formData.MatKhau;
       const confirmToCheck = name === 'confirmPassword' ? value : formData.confirmPassword;
 
       if (confirmToCheck && passwordToCheck !== confirmToCheck) {
@@ -207,8 +232,8 @@ const AddUser = () => {
   const validateForm = () => {
     const newErrors: {[key: string]: string} = {}
 
-    if (!formData.Name.trim()) {
-      newErrors.Name = 'Tên người dùng không được để trống'
+    if (!formData.HoTen.trim()) {
+      newErrors.HoTen = 'Tên người dùng không được để trống'
     }
 
     if (!formData.Email.trim()) {
@@ -217,27 +242,27 @@ const AddUser = () => {
       newErrors.Email = 'Email không hợp lệ'
     }
 
-    if (!formData.LoginName.trim()) {
-      newErrors.LoginName = 'Tên đăng nhập không được để trống'
-    } else if (formData.LoginName.length < 3) {
-      newErrors.LoginName = 'Tên đăng nhập phải có ít nhất 3 ký tự'
+    if (!formData.TenDangNhap.trim()) {
+      newErrors.TenDangNhap = 'Tên đăng nhập không được để trống'
+    } else if (formData.TenDangNhap.length < 3) {
+      newErrors.TenDangNhap = 'Tên đăng nhập phải có ít nhất 3 ký tự'
     } else if (usernameAvailable === false) {
-      newErrors.LoginName = 'Tên đăng nhập đã tồn tại'
+      newErrors.TenDangNhap = 'Tên đăng nhập đã tồn tại'
     }
 
-    if (!formData.Password) {
-      newErrors.Password = 'Mật khẩu không được để trống'
-    } else if (formData.Password.length < 6) {
-      newErrors.Password = 'Mật khẩu phải có ít nhất 6 ký tự'
+    if (!formData.MatKhau) {
+      newErrors.MatKhau = 'Mật khẩu không được để trống'
+    } else if (formData.MatKhau.length < 6) {
+      newErrors.MatKhau = 'Mật khẩu phải có ít nhất 6 ký tự'
     } else if (passwordStrength === 'weak') {
-      newErrors.Password = 'Mật khẩu quá yếu, cần kết hợp chữ hoa, chữ thường, số và ký tự đặc biệt'
+      newErrors.MatKhau = 'Mật khẩu quá yếu, cần kết hợp chữ hoa, chữ thường, số và ký tự đặc biệt'
     }
 
-    if (formData.Password !== formData.confirmPassword) {
+    if (formData.MatKhau !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Mật khẩu xác nhận không khớp'
     }
 
-    if (!formData.IsBuildInUser && !formData.MaKhoa) {
+    if (!formData.LaNguoiDungHeThong && !formData.MaKhoa) {
       newErrors.MaKhoa = 'Vui lòng chọn khoa cho giảng viên'
     }
 
@@ -252,14 +277,14 @@ const AddUser = () => {
       try {
         // Prepare payload for API
         const payload = {
-          Name: formData.Name,
+          HoTen: formData.HoTen,
           Email: formData.Email,
-          LoginName: formData.LoginName,
-          Password: formData.Password,
-          IsBuildInUser: formData.IsBuildInUser,
-          IsDeleted: formData.IsDeleted,
-          NeedChangePassword: formData.NeedChangePassword,
-          MaKhoa: formData.IsBuildInUser ? null : formData.MaKhoa
+          TenDangNhap: formData.TenDangNhap,
+          MatKhau: formData.MatKhau,
+          LaNguoiDungHeThong: formData.LaNguoiDungHeThong,
+          DaXoa: formData.DaXoa,
+          CanDoiMatKhau: formData.CanDoiMatKhau,
+          MaKhoa: formData.LaNguoiDungHeThong ? null : formData.MaKhoa
         }
 
         console.log('Creating user with payload:', payload);
@@ -405,6 +430,39 @@ const AddUser = () => {
     setImportErrors([])
   }
 
+  // Get password strength class for styling
+  const getPasswordStrengthClass = () => {
+    if (!passwordStrength) return '';
+    switch (passwordStrength) {
+      case 'weak': return 'bg-red-500';
+      case 'medium': return 'bg-yellow-500';
+      case 'strong': return 'bg-green-500';
+      default: return '';
+    }
+  };
+
+  // Get password strength text
+  const getPasswordStrengthText = () => {
+    if (!passwordStrength) return '';
+    switch (passwordStrength) {
+      case 'weak': return 'Yếu';
+      case 'medium': return 'Trung bình';
+      case 'strong': return 'Mạnh';
+      default: return '';
+    }
+  };
+
+  // Get password strength percentage
+  const getPasswordStrengthPercentage = () => {
+    if (!passwordStrength) return '0%';
+    switch (passwordStrength) {
+      case 'weak': return '33%';
+      case 'medium': return '66%';
+      case 'strong': return '100%';
+      default: return '0%';
+    }
+  };
+
   return (
     <div className="p-6">
       <div className="flex items-center mb-6">
@@ -529,13 +587,13 @@ const AddUser = () => {
               </label>
               <input
                 type="text"
-                name="Name"
-                id="Name"
-                value={formData.Name}
+                name="HoTen"
+                id="HoTen"
+                value={formData.HoTen}
                 onChange={handleChange}
-                className={`w-full p-2 border ${errors.Name ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                className={`w-full p-2 border ${errors.HoTen ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
               />
-              {errors.Name && <p className="mt-1 text-sm text-red-500">{errors.Name}</p>}
+              {errors.HoTen && <p className="mt-1 text-sm text-red-500">{errors.HoTen}</p>}
             </div>
 
             <div>
@@ -560,17 +618,17 @@ const AddUser = () => {
               <div className="relative">
                 <input
                   type="text"
-                  name="LoginName"
-                  id="LoginName"
-                  value={formData.LoginName}
+                  name="TenDangNhap"
+                  id="TenDangNhap"
+                  value={formData.TenDangNhap}
                   onChange={handleChange}
-                  className={`w-full p-2 border ${errors.LoginName ? 'border-red-500' : usernameAvailable === true ? 'border-green-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                  className={`w-full p-2 border ${errors.TenDangNhap ? 'border-red-500' : usernameAvailable === true ? 'border-green-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
                 />
                 {isCheckingUsername ? (
                   <div className="absolute right-3 top-2.5">
                     <div className="animate-spin h-4 w-4 border-2 border-blue-500 rounded-full border-t-transparent"></div>
                   </div>
-                ) : usernameAvailable === true && formData.LoginName ? (
+                ) : usernameAvailable === true && formData.TenDangNhap ? (
                   <div className="absolute right-3 top-2.5 text-green-500">
                     <Check size={18} />
                   </div>
@@ -580,8 +638,8 @@ const AddUser = () => {
                   </div>
                 ) : null}
               </div>
-              {errors.LoginName && <p className="mt-1 text-sm text-red-500">{errors.LoginName}</p>}
-              {usernameAvailable === true && formData.LoginName && !errors.LoginName && (
+              {errors.TenDangNhap && <p className="mt-1 text-sm text-red-500">{errors.TenDangNhap}</p>}
+              {usernameAvailable === true && formData.TenDangNhap && !errors.TenDangNhap && (
                 <p className="mt-1 text-sm text-green-500 flex items-center">
                   <Check size={14} className="mr-1" /> Tên đăng nhập có thể sử dụng
                 </p>
@@ -597,9 +655,9 @@ const AddUser = () => {
                   <label key={role} className="inline-flex items-center">
                     <input
                       type="radio"
-                      name="IsBuildInUser"
-                      checked={role === 'Quản trị viên' ? formData.IsBuildInUser : !formData.IsBuildInUser}
-                      onChange={() => setFormData(prev => ({ ...prev, IsBuildInUser: role === 'Quản trị viên' }))}
+                      name="LaNguoiDungHeThong"
+                      checked={role === 'Quản trị viên' ? formData.LaNguoiDungHeThong : !formData.LaNguoiDungHeThong}
+                      onChange={() => setFormData(prev => ({ ...prev, LaNguoiDungHeThong: role === 'Quản trị viên' }))}
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500"
                     />
                     <span className="ml-2 text-sm text-gray-700">{role}</span>
@@ -608,37 +666,82 @@ const AddUser = () => {
               </div>
             </div>
 
-            <div>
-              <label htmlFor="Password" className="block text-sm font-medium text-gray-700 mb-1">
-                Mật khẩu
+            <div className="mb-4">
+              <label className="block text-gray-700 text-sm font-medium mb-1" htmlFor="Password">
+                Mật khẩu <span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <input
-                  type="password"
-                  name="Password"
-                  id="Password"
-                  value={formData.Password}
-                  onChange={handleChange}
-                  className={`w-full p-2 border ${errors.Password ? 'border-red-500' : passwordStrength === 'strong' ? 'border-green-500' : passwordStrength === 'medium' ? 'border-yellow-500' : passwordStrength === 'weak' ? 'border-red-300' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                />
-                {passwordStrength && (
-                  <div className="absolute right-3 top-2.5">
-                    <ShieldAlert size={18} className={passwordStrength === 'strong' ? 'text-green-500' : passwordStrength === 'medium' ? 'text-yellow-500' : 'text-red-500'} />
+              <input
+                type="password"
+                id="Password"
+                name="MatKhau"
+                value={formData.MatKhau}
+                onChange={handleChange}
+                className={`w-full p-2 border rounded ${errors.MatKhau ? 'border-red-500' : 'border-gray-300'}`}
+                placeholder="Nhập mật khẩu"
+              />
+
+              {/* Password strength meter */}
+              {formData.MatKhau && (
+                <div className="mt-2 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs">Độ mạnh: <span className={`font-medium ${
+                      passwordStrength === 'weak' ? 'text-red-500' :
+                      passwordStrength === 'medium' ? 'text-yellow-600' :
+                      passwordStrength === 'strong' ? 'text-green-600' : ''
+                    }`}>{getPasswordStrengthText()}</span></span>
                   </div>
-                )}
-              </div>
-              {errors.Password && <p className="mt-1 text-sm text-red-500">{errors.Password}</p>}
-              {passwordStrength && !errors.Password && (
-                <div className="mt-1">
                   <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
                     <div
-                      className={`h-full ${passwordStrength === 'strong' ? 'bg-green-500 w-full' : passwordStrength === 'medium' ? 'bg-yellow-500 w-2/3' : 'bg-red-500 w-1/3'}`}
+                      className={`h-full ${getPasswordStrengthClass()}`}
+                      style={{ width: getPasswordStrengthPercentage() }}
                     ></div>
                   </div>
-                  <p className="mt-1 text-xs text-gray-500">
-                    {passwordStrength === 'strong' ? 'Mật khẩu mạnh' : passwordStrength === 'medium' ? 'Mật khẩu trung bình' : 'Mật khẩu yếu'}
-                  </p>
+
+                  {/* Password requirements */}
+                  <div className="bg-gray-50 border rounded p-3 text-sm space-y-1">
+                    <p className="font-medium text-xs mb-2">Mật khẩu nên có:</p>
+                    <div className="grid grid-cols-1 gap-1">
+                      <div className="flex items-center">
+                        <div className={`w-4 h-4 mr-2 rounded-full flex items-center justify-center ${passwordRequirements.length ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+                          {passwordRequirements.length ? <Check size={12} /> : <X size={12} />}
+                        </div>
+                        <span className={`text-xs ${passwordRequirements.length ? 'text-green-600' : 'text-gray-500'}`}>Ít nhất 6 ký tự</span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <div className={`w-4 h-4 mr-2 rounded-full flex items-center justify-center ${passwordRequirements.lowercase ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+                          {passwordRequirements.lowercase ? <Check size={12} /> : <X size={12} />}
+                        </div>
+                        <span className={`text-xs ${passwordRequirements.lowercase ? 'text-green-600' : 'text-gray-500'}`}>Ít nhất 1 chữ thường (a-z)</span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <div className={`w-4 h-4 mr-2 rounded-full flex items-center justify-center ${passwordRequirements.uppercase ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+                          {passwordRequirements.uppercase ? <Check size={12} /> : <X size={12} />}
+                        </div>
+                        <span className={`text-xs ${passwordRequirements.uppercase ? 'text-green-600' : 'text-gray-500'}`}>Ít nhất 1 chữ hoa (A-Z)</span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <div className={`w-4 h-4 mr-2 rounded-full flex items-center justify-center ${passwordRequirements.number ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+                          {passwordRequirements.number ? <Check size={12} /> : <X size={12} />}
+                        </div>
+                        <span className={`text-xs ${passwordRequirements.number ? 'text-green-600' : 'text-gray-500'}`}>Ít nhất 1 chữ số (0-9)</span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <div className={`w-4 h-4 mr-2 rounded-full flex items-center justify-center ${passwordRequirements.special ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+                          {passwordRequirements.special ? <Check size={12} /> : <X size={12} />}
+                        </div>
+                        <span className={`text-xs ${passwordRequirements.special ? 'text-green-600' : 'text-gray-500'}`}>Ít nhất 1 ký tự đặc biệt (!@#$...)</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
+              )}
+
+              {errors.MatKhau && (
+                <p className="text-red-500 text-sm mt-1">{errors.MatKhau}</p>
               )}
             </div>
 
@@ -655,14 +758,14 @@ const AddUser = () => {
                 className={`w-full p-2 border ${errors.confirmPassword ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
               />
               {errors.confirmPassword && <p className="mt-1 text-sm text-red-500">{errors.confirmPassword}</p>}
-              {formData.Password && formData.confirmPassword && formData.Password === formData.confirmPassword && (
+              {formData.MatKhau && formData.confirmPassword && formData.MatKhau === formData.confirmPassword && (
                 <p className="mt-1 text-sm text-green-500 flex items-center">
                   <Check size={14} className="mr-1" /> Mật khẩu khớp
                 </p>
               )}
             </div>
 
-            {!formData.IsBuildInUser && (
+            {!formData.LaNguoiDungHeThong && (
               <div>
                 <label htmlFor="MaKhoa" className="block text-sm font-medium text-gray-700 mb-1">
                   Khoa
@@ -693,7 +796,7 @@ const AddUser = () => {
                   type="checkbox"
                   id="NeedChangePassword"
                   name="NeedChangePassword"
-                  checked={formData.NeedChangePassword}
+                  checked={formData.CanDoiMatKhau}
                   onChange={handleChange}
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />

@@ -5,9 +5,60 @@ export const renderLatex = (content: string): string => {
     if (!content) return '';
 
     try {
+        // Xử lý các công thức LaTeX phổ biến trước khi tiếp tục
+        let processedContent = content;
+
+        // Xử lý riêng các công thức binom
+        processedContent = processedContent.replace(/\\binom\{([^}]*)\}\{([^}]*)\}/g, (match) => {
+            try {
+                const rendered = katex.renderToString(match, {
+                    throwOnError: false,
+                    output: 'html',
+                    displayMode: false,
+                    strict: false
+                });
+                return `<span class="katex-formula">${rendered}</span>`;
+            } catch (e) {
+                console.error('Error rendering binom:', match, e);
+                return match;
+            }
+        });
+
+        // Xử lý các công thức tích phân với giới hạn
+        processedContent = processedContent.replace(/\\int(_[^\s^]+)?(\^[^\s_]+)?/g, (match) => {
+            try {
+                const rendered = katex.renderToString(match, {
+                    throwOnError: false,
+                    output: 'html',
+                    displayMode: false,
+                    strict: false
+                });
+                return `<span class="katex-formula">${rendered}</span>`;
+            } catch (e) {
+                console.error('Error rendering integral:', match, e);
+                return match;
+            }
+        });
+
+        // Xử lý sqrt
+        processedContent = processedContent.replace(/\\sqrt\{([^}]*)\}/g, (match) => {
+            try {
+                const rendered = katex.renderToString(match, {
+                    throwOnError: false,
+                    output: 'html',
+                    displayMode: false,
+                    strict: false
+                });
+                return `<span class="katex-formula">${rendered}</span>`;
+            } catch (e) {
+                console.error('Error rendering sqrt:', match, e);
+                return match;
+            }
+        });
+
         // Handle LaTeX with HTML style attributes (like colored math)
         const styledLatexRegex = /(\\[a-zA-Z]+\{[^}]*\})"?\s*style="([^"]+)">(\\[a-zA-Z]+\{[^}]*\})/g;
-        let processedContent = content.replace(styledLatexRegex, (match, formula1, style, formula2) => {
+        processedContent = processedContent.replace(styledLatexRegex, (match, formula1, style, formula2) => {
             try {
                 // Extract color from style if present
                 const colorMatch = style.match(/color:\s*([^;]+)/);
@@ -118,6 +169,23 @@ export const renderLatex = (content: string): string => {
         // Fix specific patterns seen in the screenshots
         processedContent = processedContent.replace(/\\sqrt\{([a-z0-9])(\^)(\d+)\}/g, '\\sqrt{$1^{$3}}');
 
+        // Xử lý đặc biệt cho các công thức LaTeX được bọc bởi thẻ cụ thể
+        const latexTagRegex = /<latex>(.*?)<\/latex>/gs;
+        processedContent = processedContent.replace(latexTagRegex, (match, formula) => {
+            try {
+                const rendered = katex.renderToString(formula.trim(), {
+                    throwOnError: false,
+                    output: 'html',
+                    displayMode: true,
+                    strict: false
+                });
+                return `<div class="katex-display">${rendered}</div>`;
+            } catch (e) {
+                console.error('Error rendering LaTeX from tag:', formula, e);
+                return match;
+            }
+        });
+
         // Cải thiện xử lý các biểu thức trong cặp $ ... $ và $$ ... $$
         const dollarPatterns = [
             /\$\$(.*?)\$\$/g,  // $$ ... $$ (display mode)
@@ -165,6 +233,7 @@ export const renderLatex = (content: string): string => {
             /\\lim_\{.*?\}/g,
             /\\int_\{.*?\}\^\{.*?\}/g,
             /\\oint_\{.*?\}\^\{.*?\}/g,
+            /\\binom\{.*?\}\{.*?\}/g,  // Thêm mẫu cho binom
 
             // Phân số
             /\\frac\{.*?\}\{.*?\}/g,
@@ -248,28 +317,16 @@ export const renderLatex = (content: string): string => {
                 const safePattern = new RegExp(match.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
                 processedContent = processedContent.replace(safePattern, `<span class="katex-formula">${rendered}</span>`);
             } catch (e) {
-                console.error('Error rendering specific LaTeX:', match, e);
-            }
-        });
-
-        // Xử lý đặc biệt cho các công thức cụ thể trong ảnh mà bạn gửi
-        // Mẫu trong \sum_{d}^{adsa}
-        processedContent = processedContent.replace(/\\sum_\{([^}]+)\}\^\{([^}]+)\}/g, (match, lower, upper) => {
-            try {
-                const rendered = katex.renderToString(`\\sum_{${lower}}^{${upper}}`, {
-                    throwOnError: false,
-                    output: 'html',
-                    displayMode: false,
-                });
-                return `<span class="katex-formula">${rendered}</span>`;
-            } catch (e) {
-                return match;
+                console.error(`Error rendering LaTeX pattern: ${match}`, e);
+                // Keep original text if rendering fails
+                return;
             }
         });
 
         return processedContent;
-    } catch (e) {
-        console.error('Error processing LaTeX:', e);
-        return content;
+
+    } catch (error) {
+        console.error('Error in renderLatex:', error);
+        return content; // Return original content in case of error
     }
 };

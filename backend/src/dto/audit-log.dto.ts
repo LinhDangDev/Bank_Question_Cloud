@@ -2,99 +2,99 @@ import { IsDate, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator'
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateAuditLogDto {
-    @ApiProperty({ description: 'Table name being audited' })
+    @ApiProperty({ description: 'Tên bảng được audit' })
     @IsString()
-    TableName: string;
+    TenBang: string;
 
-    @ApiProperty({ description: 'Record ID being audited' })
+    @ApiProperty({ description: 'Mã bản ghi được audit' })
     @IsString()
-    RecordId: string;
+    MaBanGhi: string;
 
-    @ApiProperty({ description: 'Action performed (INSERT, UPDATE, DELETE)' })
+    @ApiProperty({ description: 'Hành động thực hiện (INSERT, UPDATE, DELETE)' })
     @IsString()
-    Action: string;
+    HanhDong: string;
 
-    @ApiPropertyOptional({ description: 'Old values (JSON string)' })
-    @IsString()
-    @IsOptional()
-    OldValues?: string;
-
-    @ApiPropertyOptional({ description: 'New values (JSON string)' })
+    @ApiPropertyOptional({ description: 'Giá trị cũ (JSON string)' })
     @IsString()
     @IsOptional()
-    NewValues?: string;
+    GiaTriCu?: string;
 
-    @ApiPropertyOptional({ description: 'User ID who performed the action' })
+    @ApiPropertyOptional({ description: 'Giá trị mới (JSON string)' })
+    @IsString()
+    @IsOptional()
+    GiaTriMoi?: string;
+
+    @ApiPropertyOptional({ description: 'Mã người dùng thực hiện hành động' })
     @IsUUID()
     @IsOptional()
-    UserId?: string;
+    MaNguoiDung?: string;
 
-    @ApiPropertyOptional({ description: 'Username who performed the action' })
+    @ApiPropertyOptional({ description: 'Tên người dùng thực hiện hành động' })
     @IsString()
     @IsOptional()
-    UserName?: string;
+    TenNguoiDung?: string;
 
-    @ApiPropertyOptional({ description: 'IP address of the user' })
+    @ApiPropertyOptional({ description: 'Địa chỉ IP của người dùng' })
     @IsString()
     @IsOptional()
-    IPAddress?: string;
+    DiaChiIP?: string;
 
     @ApiPropertyOptional({ description: 'User agent string' })
     @IsString()
     @IsOptional()
     UserAgent?: string;
 
-    @ApiPropertyOptional({ description: 'Additional notes' })
+    @ApiPropertyOptional({ description: 'Ghi chú bổ sung' })
     @IsString()
     @IsOptional()
     Notes?: string;
 }
 
 export class AuditLogResponseDto {
-    @ApiProperty({ description: 'Log ID' })
+    @ApiProperty({ description: 'Mã nhật ký' })
     @IsNumber()
-    LogId: number;
+    MaNhatKy: number;
 
-    @ApiProperty({ description: 'Table name being audited' })
+    @ApiProperty({ description: 'Tên bảng được audit' })
     @IsString()
-    TableName: string;
+    TenBang: string;
 
-    @ApiProperty({ description: 'Record ID being audited' })
+    @ApiProperty({ description: 'Mã bản ghi được audit' })
     @IsString()
-    RecordId: string;
+    MaBanGhi: string;
 
-    @ApiProperty({ description: 'Action performed' })
+    @ApiProperty({ description: 'Hành động thực hiện' })
     @IsString()
-    Action: string;
+    HanhDong: string;
 
-    @ApiPropertyOptional({ description: 'Old values (JSON string)' })
-    @IsString()
-    @IsOptional()
-    OldValues?: string;
-
-    @ApiPropertyOptional({ description: 'New values (JSON string)' })
+    @ApiPropertyOptional({ description: 'Giá trị cũ (JSON string)' })
     @IsString()
     @IsOptional()
-    NewValues?: string;
+    GiaTriCu?: string;
 
-    @ApiPropertyOptional({ description: 'User ID who performed the action' })
+    @ApiPropertyOptional({ description: 'Giá trị mới (JSON string)' })
+    @IsString()
+    @IsOptional()
+    GiaTriMoi?: string;
+
+    @ApiPropertyOptional({ description: 'Mã người dùng thực hiện hành động' })
     @IsUUID()
     @IsOptional()
-    UserId?: string;
+    MaNguoiDung?: string;
 
-    @ApiPropertyOptional({ description: 'Username who performed the action' })
+    @ApiPropertyOptional({ description: 'Tên người dùng thực hiện hành động' })
     @IsString()
     @IsOptional()
-    UserName?: string;
+    TenNguoiDung?: string;
 
-    @ApiProperty({ description: 'Timestamp of the action' })
+    @ApiProperty({ description: 'Thời gian thực hiện' })
     @IsDate()
-    Timestamp: Date;
+    ThoiGianThucHien: Date;
 
-    @ApiPropertyOptional({ description: 'IP address of the user' })
+    @ApiPropertyOptional({ description: 'Địa chỉ IP của người dùng' })
     @IsString()
     @IsOptional()
-    IPAddress?: string;
+    DiaChiIP?: string;
 
     @ApiPropertyOptional({ description: 'User agent string' })
     @IsString()

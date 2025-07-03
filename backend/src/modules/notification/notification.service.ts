@@ -15,9 +15,9 @@ export class NotificationService {
     async create(createNotificationDto: CreateNotificationDto): Promise<Notification> {
         const notification = this.notificationRepository.create({
             ...createNotificationDto,
-            NotificationId: uuidv4(),
-            CreatedAt: new Date(),
-            IsRead: createNotificationDto.IsRead || false,
+            MaThongBao: uuidv4(),
+            NgayTao: new Date(),
+            DaDoc: createNotificationDto.DaDoc || false,
         });
 
         return await this.notificationRepository.save(notification);
@@ -26,29 +26,29 @@ export class NotificationService {
     async findAll(): Promise<Notification[]> {
         return await this.notificationRepository.find({
             relations: ['User'],
-            order: { CreatedAt: 'DESC' },
+            order: { NgayTao: 'DESC' },
         });
     }
 
     async findByUserId(userId: string): Promise<Notification[]> {
         return await this.notificationRepository.find({
-            where: { UserId: userId },
+            where: { MaNguoiDung: userId },
             relations: ['User'],
-            order: { CreatedAt: 'DESC' },
+            order: { NgayTao: 'DESC' },
         });
     }
 
     async findUnreadByUserId(userId: string): Promise<Notification[]> {
         return await this.notificationRepository.find({
-            where: { UserId: userId, IsRead: false },
+            where: { MaNguoiDung: userId, DaDoc: false },
             relations: ['User'],
-            order: { CreatedAt: 'DESC' },
+            order: { NgayTao: 'DESC' },
         });
     }
 
     async findOne(id: string): Promise<Notification> {
         const notification = await this.notificationRepository.findOne({
-            where: { NotificationId: id },
+            where: { MaThongBao: id },
             relations: ['User'],
         });
 
@@ -70,11 +70,11 @@ export class NotificationService {
     async markAsRead(id: string, markAsReadDto: MarkAsReadDto): Promise<Notification> {
         const notification = await this.findOne(id);
 
-        notification.IsRead = markAsReadDto.IsRead;
-        if (markAsReadDto.IsRead) {
-            notification.ReadAt = new Date();
+        notification.DaDoc = markAsReadDto.DaDoc;
+        if (markAsReadDto.DaDoc) {
+            notification.NgayDoc = new Date();
         } else {
-            notification.ReadAt = null as unknown as Date;
+            notification.NgayDoc = null as unknown as Date;
         }
 
         return await this.notificationRepository.save(notification);
@@ -82,8 +82,8 @@ export class NotificationService {
 
     async markAllAsReadForUser(userId: string): Promise<void> {
         await this.notificationRepository.update(
-            { UserId: userId, IsRead: false },
-            { IsRead: true, ReadAt: new Date() }
+            { MaNguoiDung: userId, DaDoc: false },
+            { DaDoc: true, NgayDoc: new Date() }
         );
     }
 
@@ -94,7 +94,7 @@ export class NotificationService {
 
     async getUnreadCount(userId: string): Promise<number> {
         return await this.notificationRepository.count({
-            where: { UserId: userId, IsRead: false },
+            where: { MaNguoiDung: userId, DaDoc: false },
         });
     }
 
@@ -107,12 +107,12 @@ export class NotificationService {
         relatedId?: string
     ): Promise<Notification> {
         return await this.create({
-            UserId: userId,
-            Title: title,
-            Message: message,
-            Type: type,
-            RelatedTable: relatedTable,
-            RelatedId: relatedId,
+            MaNguoiDung: userId,
+            TieuDe: title,
+            NoiDung: message,
+            LoaiThongBao: type,
+            BangLienQuan: relatedTable,
+            MaLienQuan: relatedId,
         });
     }
 }

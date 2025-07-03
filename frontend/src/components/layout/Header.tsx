@@ -100,7 +100,7 @@ const Header = ({ isExpanded }: HeaderProps) => {
     >
       <div className="flex items-center gap-4">
         {/* Theme Toggle */}
-        <button
+        {/* <button
           className="rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 p-2"
           onClick={toggleTheme}
           aria-label={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}
@@ -110,7 +110,7 @@ const Header = ({ isExpanded }: HeaderProps) => {
           ) : (
             <Sun className="h-5 w-5 text-gray-300" />
           )}
-        </button>
+        </button> */}
 
         {/* Notifications */}
         <DropdownMenu>

@@ -34,6 +34,18 @@ export class AuthController {
         return req.user;
     }
 
+    @UseGuards(JwtAuthGuard)
+    @Get('profile/detailed')
+    async getDetailedProfile(@Request() req) {
+        return this.authService.getDetailedProfile(req.user.sub);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Post('change-password')
+    async changePassword(@Request() req, @Body() body: { currentPassword: string; newPassword: string }) {
+        return this.authService.changePassword(req.user.sub, body.currentPassword, body.newPassword);
+    }
+
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles('admin')
     @Post('force-logout')

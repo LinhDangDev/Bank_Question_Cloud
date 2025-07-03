@@ -149,7 +149,7 @@ const GroupQuestionsPage = () => {
   };
 
   const handleCreateGroupQuestion = () => {
-    navigate('/questions/group/create');
+    navigate('/questions/create-group');
   };
 
   const handleEditGroupQuestion = (questionId: string) => {

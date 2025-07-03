@@ -185,10 +185,19 @@ export class CauHoiService extends BaseService<CauHoi> {
         includeAnswers: boolean = false,
         answersPagination?: PaginationDto
     ): Promise<{ items: any[]; meta: any }> {
-        const { page = PAGINATION_CONSTANTS.DEFAULT_PAGE, limit = PAGINATION_CONSTANTS.DEFAULT_LIMIT } = paginationDto;
+        const {
+            page = PAGINATION_CONSTANTS.DEFAULT_PAGE,
+            limit = PAGINATION_CONSTANTS.DEFAULT_LIMIT,
+            search = '',
+            isDeleted = 'false',
+            maCLO = '',
+            capDo = '',
+            startDate = '',
+            endDate = ''
+        } = paginationDto as any;
 
         // Generate cache key
-        const cacheKey = `questions:creator:${creatorId}:${page}:${limit}:${includeAnswers}:${answersPagination ? JSON.stringify(answersPagination) : 'all'}`;
+        const cacheKey = `questions:creator:${creatorId}:${page}:${limit}:${includeAnswers}:${search}:${isDeleted}:${maCLO}:${capDo}:${startDate}:${endDate}:${answersPagination ? JSON.stringify(answersPagination) : 'all'}`;
 
         // Try to get from cache first
         const cachedData = await this.cacheManager.get(cacheKey);
@@ -196,12 +205,37 @@ export class CauHoiService extends BaseService<CauHoi> {
             return cachedData as any;
         }
 
+        // Build where conditions
+        const whereConditions: any = {
+            MaCauHoiCha: IsNull(), // Only return parent questions
+            NguoiTao: creatorId // Filter by creator
+        };
+
+        // Handle search
+        if (search && search.trim() !== '') {
+            whereConditions.NoiDung = Like(`%${search.trim()}%`);
+        }
+
+        // Handle isDeleted filter
+        if (isDeleted === 'true') {
+            whereConditions.XoaTamCauHoi = true;
+        } else if (isDeleted === 'false') {
+            whereConditions.XoaTamCauHoi = false;
+        }
+
+        // Handle CLO filter
+        if (maCLO && maCLO !== '') {
+            whereConditions.MaCLO = maCLO;
+        }
+
+        // Handle difficulty filter
+        if (capDo && capDo !== '') {
+            whereConditions.CapDo = parseInt(capDo);
+        }
+
         // Get questions by creator with pagination - only include questions that are NOT child questions
         const [questions, total] = await this.cauHoiRepository.findAndCount({
-            where: {
-                MaCauHoiCha: IsNull(), // Only return parent questions
-                NguoiTao: creatorId // Filter by creator
-            },
+            where: whereConditions,
             relations: ['CLO'], // Include CLO relationship
             skip: (page - 1) * limit,
             take: limit,
@@ -729,7 +763,8 @@ export class CauHoiService extends BaseService<CauHoi> {
 
         // Build where conditions
         const whereConditions: any = {
-            MaCauHoiCha: IsNull() // Only return parent questions
+            MaCauHoiCha: IsNull(), // Only return parent questions
+            SoCauHoiCon: In([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]), // Only group questions (with child questions)
         };
 
         // Handle search
@@ -765,11 +800,8 @@ export class CauHoiService extends BaseService<CauHoi> {
             relations: ['CLO'] // Include CLO relation
         });
 
-        // Filter only questions with SoCauHoiCon > 0
-        const actualGroupQuestions = groupQuestions.filter(q => q.SoCauHoiCon > 0);
-
         // Get parent question IDs
-        const parentQuestionIds = actualGroupQuestions.map(q => q.MaCauHoi);
+        const parentQuestionIds = groupQuestions.map(q => q.MaCauHoi);
 
         // If no group questions found, return empty result
         if (parentQuestionIds.length === 0) {
@@ -825,7 +857,7 @@ export class CauHoiService extends BaseService<CauHoi> {
         }, {});
 
         // Format the result with the structure requested
-        const items = actualGroupQuestions.map(question => {
+        const items = groupQuestions.map(question => {
             // Format parent question
             const formattedQuestion: Record<string, any> = {
                 MaCauHoi: question.MaCauHoi,
@@ -843,7 +875,7 @@ export class CauHoiService extends BaseService<CauHoi> {
                 NgayTao: question.NgayTao,
                 NgaySua: question.NgaySua,
                 MaCLO: question.MaCLO,
-                LaCauHoiNhom: question.SoCauHoiCon > 0,
+                LaCauHoiNhom: true,  // Always true for group questions
                 TenCLO: question.CLO?.TenCLO
             };
 
@@ -959,9 +991,10 @@ export class CauHoiService extends BaseService<CauHoi> {
                 NoiDung: dto.parentQuestion.NoiDung || 'Câu hỏi nhóm',
                 HoanVi: dto.parentQuestion.HoanVi !== undefined ? dto.parentQuestion.HoanVi : true,
                 CapDo: dto.parentQuestion.CapDo || 1,
-                XoaTamCauHoi: false,
-                SoLanDuocThi: 0,
-                SoLanDung: 0
+                XoaTamCauHoi: dto.parentQuestion.XoaTamCauHoi !== undefined ? dto.parentQuestion.XoaTamCauHoi : false,
+                SoLanDuocThi: dto.parentQuestion.SoLanDuocThi !== undefined ? dto.parentQuestion.SoLanDuocThi : 0,
+                SoLanDung: dto.parentQuestion.SoLanDung !== undefined ? dto.parentQuestion.SoLanDung : 0,
+                NguoiTao: dto.parentQuestion.NguoiTao // Đảm bảo NguoiTao được thiết lập đúng
                 // Omit MaCauHoiCha completely for parent question - it will be undefined
             };
 
@@ -992,10 +1025,11 @@ export class CauHoiService extends BaseService<CauHoi> {
                     HoanVi: childQuestionData.HoanVi !== undefined ? childQuestionData.HoanVi : true,
                     CapDo: childQuestionData.CapDo || parentQuestion.CapDo,
                     SoCauHoiCon: 0, // Câu hỏi con không có con
-                    XoaTamCauHoi: false,
-                    SoLanDuocThi: 0,
-                    SoLanDung: 0,
-                    NgayTao: new Date()
+                    XoaTamCauHoi: childQuestionData.XoaTamCauHoi !== undefined ? childQuestionData.XoaTamCauHoi : false,
+                    SoLanDuocThi: childQuestionData.SoLanDuocThi !== undefined ? childQuestionData.SoLanDuocThi : 0,
+                    SoLanDung: childQuestionData.SoLanDung !== undefined ? childQuestionData.SoLanDung : 0,
+                    NgayTao: new Date(),
+                    NguoiTao: parentQuestion.NguoiTao // Sử dụng NguoiTao từ câu hỏi cha
                 };
 
                 console.log(`Dữ liệu câu hỏi con ${childCount} trước khi insert:`, JSON.stringify(childQuestion, null, 2));
@@ -1058,18 +1092,39 @@ export class CauHoiService extends BaseService<CauHoi> {
 
     // Get group questions created by a specific teacher
     async findGroupQuestionsByCreator(creatorId: string, paginationDto: PaginationDto): Promise<{ items: any[]; meta: any }> {
-        const { page = PAGINATION_CONSTANTS.DEFAULT_PAGE, limit = PAGINATION_CONSTANTS.DEFAULT_LIMIT } = paginationDto;
+        const {
+            page = PAGINATION_CONSTANTS.DEFAULT_PAGE,
+            limit = PAGINATION_CONSTANTS.DEFAULT_LIMIT,
+            isDeleted = 'false',
+            search = '',
+        } = paginationDto as any;
 
-        // Find all group questions by the creator (questions with SoCauHoiCon > 0)
+        // Build where conditions
+        const whereConditions: any = {
+            SoCauHoiCon: In([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]), // Questions with child questions
+            NguoiTao: creatorId, // Filter by creator
+            MaCauHoiCha: IsNull() // Only parent questions
+        };
+
+        // Handle isDeleted filter
+        if (isDeleted === 'true') {
+            whereConditions.XoaTamCauHoi = true;
+        } else if (isDeleted === 'false') {
+            whereConditions.XoaTamCauHoi = false;
+        }
+
+        // Handle search
+        if (search && search.trim() !== '') {
+            whereConditions.NoiDung = Like(`%${search.trim()}%`);
+        }
+
+        // Find all group questions by the creator
         const [groupQuestions, total] = await this.cauHoiRepository.findAndCount({
-            where: {
-                SoCauHoiCon: In([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]), // Questions with child questions
-                NguoiTao: creatorId, // Filter by creator
-                MaCauHoiCha: IsNull() // Only parent questions
-            },
+            where: whereConditions,
             skip: (page - 1) * limit,
             take: limit,
-            order: { NgayTao: 'DESC' }
+            order: { NgayTao: 'DESC' },
+            relations: ['CLO'] // Include CLO relation
         });
 
         // If there are no group questions, return empty result
@@ -1106,7 +1161,8 @@ export class CauHoiService extends BaseService<CauHoi> {
         // Get answers for all questions (group and child)
         const allQuestionIds = [...groupQuestionIds, ...childQuestions.map(q => q.MaCauHoi)];
         const answers = await this.dataSource.getRepository(CauTraLoi).find({
-            where: { MaCauHoi: In(allQuestionIds) }
+            where: { MaCauHoi: In(allQuestionIds) },
+            order: { ThuTu: 'ASC' }
         });
 
         // Group answers by question ID
@@ -1119,14 +1175,22 @@ export class CauHoiService extends BaseService<CauHoi> {
         }, {});
 
         // Combine data into final result
-        const items = groupQuestions.map(group => ({
-            ...group,
-            children: (childrenByParent[group.MaCauHoi] || []).map(child => ({
-                ...child,
-                answers: answersByQuestion[child.MaCauHoi] || []
-            })),
-            answers: answersByQuestion[group.MaCauHoi] || []
-        }));
+        const items = groupQuestions.map(group => {
+            // Format parent question
+            const formattedQuestion: Record<string, any> = {
+                ...group,
+                LaCauHoiNhom: true,  // Always true for group questions
+                TenCLO: group.CLO?.TenCLO,
+                CauHoiCon: (childrenByParent[group.MaCauHoi] || []).map(child => ({
+                    MaCauHoi: child.MaCauHoi,
+                    MaSoCauHoi: child.MaSoCauHoi,
+                    NoiDung: child.NoiDung,
+                    CauTraLoi: answersByQuestion[child.MaCauHoi] || []
+                }))
+            };
+
+            return formattedQuestion;
+        });
 
         return {
             items,

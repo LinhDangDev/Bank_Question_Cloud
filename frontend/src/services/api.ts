@@ -28,6 +28,35 @@ api.interceptors.request.use((config) => {
     return Promise.reject(error);
 });
 
+// Add response interceptor to log detailed error information
+api.interceptors.response.use(
+    (response) => {
+        return response;
+    },
+    (error) => {
+        console.error('API response error:', error);
+        if (error.response) {
+            console.error('Error status:', error.response.status);
+            console.error('Error data:', error.response.data);
+            console.error('Error headers:', error.response.headers);
+
+            // Cung cấp thêm thông tin chi tiết cho lỗi
+            if (error.response.data && (typeof error.response.data === 'object')) {
+                if (error.response.data.message) {
+                    error.message = error.response.data.message;
+                }
+                // Thêm chi tiết lỗi vào error object để có thể truy cập dễ dàng
+                error.details = error.response.data;
+            }
+        } else if (error.request) {
+            console.error('Error request:', error.request);
+        } else {
+            console.error('Error message:', error.message);
+        }
+        return Promise.reject(error);
+    }
+);
+
 // Auth API
 export const authApi = {
     login: (credentials: { username: string; password: string }) => {
@@ -42,6 +71,12 @@ export const authApi = {
     },
     getProfile: () => {
         return api.get('/auth/profile');
+    },
+    getDetailedProfile: () => {
+        return api.get('/auth/profile/detailed');
+    },
+    changePassword: (currentPassword: string, newPassword: string) => {
+        return api.post('/auth/change-password', { currentPassword, newPassword });
     },
     logout: () => {
         return api.post('/auth/logout');
@@ -232,6 +267,9 @@ export const questionApi = {
     getChildQuestions: (parentId: string) => {
         return api.get(`/cau-hoi/con/${parentId}`);
     },
+    getGroupQuestion: (id: string) => {
+        return api.get(`/cau-hoi/group/${id}`);
+    },
     create: (questionData: any) => {
         return api.post('/cau-hoi', questionData);
     },
@@ -246,6 +284,9 @@ export const questionApi = {
     },
     updateWithAnswers: (id: string, questionData: any) => {
         return api.put(`/cau-hoi/${id}/with-answers`, questionData);
+    },
+    updateGroupQuestion: (id: string, questionData: any) => {
+        return api.put(`/cau-hoi/group/${id}`, questionData);
     },
     delete: (id: string) => {
         return api.delete(`/cau-hoi/${id}`);
@@ -468,19 +509,31 @@ export const cloApi = {
 export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
     const token = localStorage.getItem('token');
 
-    // Debug logging to check what's happening with the token
-    console.log('Token in fetchWithAuth:', token);
-
     const headers = {
         ...(options.headers || {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         'Content-Type': 'application/json',
     };
 
-    // Debug the headers to see what is being sent
-    console.log('Request headers:', headers);
+    // Add timeout to prevent hanging requests
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-    return fetch(url, { ...options, headers });
+    try {
+        const response = await fetch(url, {
+            ...options,
+            headers,
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        return response;
+    } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+            throw new Error('Request timeout - server took too long to respond');
+        }
+        throw error;
+    }
 };
 
 export default api;

@@ -578,7 +578,7 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
             }
 
             setMessage('Lưu câu hỏi nhóm thành công!');
-            setTimeout(() => navigate('/group-questions'), 1200);
+            setTimeout(() => navigate('/questions'), 1200);
           } catch (error) {
             console.error("Error updating group question:", error);
             setErrorMsg(error instanceof Error ? error.message : 'Lưu câu hỏi nhóm thất bại!');
@@ -637,7 +637,7 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
             }
 
             setMessage('Tạo câu hỏi nhóm thành công!');
-            setTimeout(() => navigate('/group-questions'), 1200);
+            setTimeout(() => navigate('/questions'), 1200);
           } catch (error) {
             console.error("Error creating group question:", error);
             setErrorMsg(error instanceof Error ? error.message : 'Tạo câu hỏi nhóm thất bại!');
