@@ -118,3 +118,7 @@ build/
 
 # Ignore all files in the .cursor directory
 .cursorignore
+
+
+#Ignore all files in the docs directory
+.docs
