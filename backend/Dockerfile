@@ -10,18 +10,19 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 
 # Install dependencies
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 
 # Copy application source
 COPY . .
 
-# Create .env.example if not exists
-RUN if [ ! -f .env.example ]; then \
-    echo "# Database Configuration\nDB_HOST=localhost\nDB_PORT=1433\nDB_USERNAME=username\nDB_PASSWORD=password\nDB_DATABASE=question_bank\n\n# Application Configuration\nPORT=3001\nNODE_ENV=development" > .env.example; \
-    fi
+# Build the application
+RUN pnpm run build
+
+# Create necessary directories
+RUN mkdir -p uploads/questions uploads/temp uploads/audio public
 
 # Expose application port
 EXPOSE 3001
 
-# Start application
-CMD ["pnpm", "run", "start"]
+# Start application in production mode
+CMD ["pnpm", "run", "start:prod"]
