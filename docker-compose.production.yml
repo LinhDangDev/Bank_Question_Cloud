@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+  # Backend (NestJS) - Production
+  backend:
+    image: ${DOCKER_USERNAME}/${IMAGE_NAME}:${IMAGE_TAG:-latest}
+    container_name: question-bank-backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-3001}:3001"
+    environment:
+      - NODE_ENV=production
+      - STORAGE_PROVIDER=${STORAGE_PROVIDER:-digitalocean}
+      - PUBLIC_URL=${PUBLIC_URL:-http://localhost:3001}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-1433}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_DATABASE=${DB_DATABASE}
+      - JWT_SECRET=${JWT_SECRET}
+      - DIGITALOCEAN_SPACES_ENDPOINT=${DIGITALOCEAN_SPACES_ENDPOINT}
+      - DIGITALOCEAN_SPACES_KEY=${DIGITALOCEAN_SPACES_KEY}
+      - DIGITALOCEAN_SPACES_SECRET=${DIGITALOCEAN_SPACES_SECRET}
+      - DIGITALOCEAN_SPACES_BUCKET=${DIGITALOCEAN_SPACES_BUCKET}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_output:/app/output
+      - backend_public:/app/public
+    depends_on:
+      - redis
+    networks:
+      - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Redis (Caching)
+  redis:
+    image: redis:7-alpine
+    container_name: question-bank-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx (Reverse Proxy) - Optional
+  nginx:
+    image: nginx:alpine
+    container_name: question-bank-nginx
+    restart: unless-stopped
+    ports:
+      - "${NGINX_PORT:-80}:80"
+      - "${NGINX_SSL_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+    networks:
+      - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}"
+
+networks:
+  app-network:
+    driver: bridge
+    name: question-bank-network
+
+volumes:
+  backend_uploads:
+    driver: local
+    name: question-bank-uploads
+  backend_output:
+    driver: local
+    name: question-bank-output
+  backend_public:
+    driver: local
+    name: question-bank-public
+  redis_data:
+    driver: local
+    name: question-bank-redis
