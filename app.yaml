@@ -1,0 +1,43 @@
+name: question-bank-backend
+services:
+- name: backend
+  source_dir: backend
+  github:
+    repo: LinhDangDev/graduationproject
+    branch: main
+    deploy_on_push: true
+  build_command: pnpm install --frozen-lockfile && pnpm run build
+  run_command: pnpm run start:prod
+  environment_slug: node-js
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  http_port: 3001
+  envs:
+  - key: NODE_ENV
+    value: production
+  - key: DB_ENV
+    value: server
+  - key: SERVER_DB_HOST
+    value: 103.173.226.35
+  - key: SERVER_DB_PORT
+    value: "1433"
+  - key: SERVER_DB_USERNAME
+    value: sa
+  - key: SERVER_DB_PASSWORD
+    value: Pass123@
+  - key: SERVER_DB_DATABASE
+    value: question_bank
+  - key: SERVER_DB_ENCRYPT
+    value: "false"
+  - key: SERVER_DB_TRUST_SERVER_CERTIFICATE
+    value: "true"
+  - key: JWT_SECRET
+    value: your-super-secure-jwt-secret-here
+  - key: JWT_EXPIRES_IN
+    value: 24h
+  - key: PORT
+    value: "3001"
+  - key: STORAGE_PROVIDER
+    value: local
+  - key: UPLOAD_PATH
+    value: ./uploads
