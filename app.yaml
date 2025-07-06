@@ -1,13 +1,13 @@
 name: question-bank-backend
 services:
 - name: backend
-  source_dir: backend
+  source_dir: .
   github:
     repo: LinhDangDev/graduationproject
     branch: main
     deploy_on_push: true
-  build_command: pnpm install --frozen-lockfile && pnpm run build
-  run_command: pnpm run start:prod
+  build_command: cd backend && pnpm install --frozen-lockfile && pnpm run build
+  run_command: cd backend && pnpm run start:prod
   environment_slug: node-js
   instance_count: 1
   instance_size_slug: basic-xxs

@@ -6,14 +6,19 @@ RUN npm install -g pnpm
 # Create app directory
 WORKDIR /app
 
-# Copy package files
-COPY package.json pnpm-lock.yaml ./
+# Create package.json if it doesn't exist
+RUN echo '{"name":"app","version":"1.0.0"}' > package.json
+
+# Install pnpm globally
+RUN pnpm setup
+RUN mkdir -p /root/.local/share/pnpm
+ENV PATH="/root/.local/share/pnpm:$PATH"
+
+# Copy application files
+COPY . .
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
-
-# Copy application source
-COPY . .
+RUN pnpm install
 
 # Build the application
 RUN pnpm run build
