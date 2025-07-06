@@ -25,9 +25,15 @@ services:
       - ./backend/.env
     environment:
       - NODE_ENV=${NODE_ENV:-development}
+      - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
+      - PUBLIC_URL=${PUBLIC_URL:-http://localhost:3001}
     volumes:
       - ./backend/uploads:/app/uploads
       - ./backend/output:/app/output
+      - ./backend/public:/app/public
+      - question_files:/app/uploads/questions
+      - answer_files:/app/uploads/answers
+      - audio_files:/app/uploads/audio
     depends_on:
       - redis
     networks:
@@ -149,3 +155,11 @@ services:
 networks:
   app-network:
     driver: bridge
+
+volumes:
+  question_files:
+    driver: local
+  answer_files:
+    driver: local
+  audio_files:
+    driver: local

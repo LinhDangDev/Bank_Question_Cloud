@@ -123,3 +123,6 @@ build/
 #Ignore all files in the docs directory
 
 docs/
+
+# Ignore all files in the database directory
+database/

@@ -28,6 +28,7 @@ interface ExamRequest {
     matrix: ExamMatrixItem[];
     hoanViDapAn: boolean;
     nguoiTao?: string;
+    loaiBoChuongPhan?: boolean;
     soLuongDe?: number;
 }
 
@@ -92,6 +93,7 @@ export class ExamService {
             NguoiTao: examRequest.nguoiTao,
             DaDuyet: false, // Exams are not approved by default
             SoCauHoi: questions.length,
+            LoaiBoChuongPhan: examRequest.loaiBoChuongPhan || false, // Add chapter structure flag
         });
         await this.deThiRepository.save(deThi);
         this.logger.log(`Created DeThi package with ID: ${deThi.MaDeThi}`);
@@ -133,17 +135,30 @@ export class ExamService {
 
         this.logger.log(`Starting generation for ${soLuongDe} exam(s) with base title: ${tenDeThi}`);
 
-        // 1. Select questions once
-        const allQuestions = await this.selectQuestionsWithCLOStrategy(examRequest.matrix);
+        // 1. Select a larger pool of questions for better variation
+        const allQuestions = await this.selectQuestionsWithCLOStrategy(examRequest.matrix, soLuongDe);
+
+        // 2. Calculate required questions per exam
+        const totalRequiredPerExam = examRequest.matrix.reduce((sum, item) =>
+            sum + item.clo1 + item.clo2 + item.clo3 + item.clo4 + item.clo5, 0);
+
+        // 3. Pre-distribute questions across all exams to ensure no overlap
+        const examQuestionSets = this.distributeQuestionsAcrossExams(allQuestions, examRequest.matrix, soLuongDe);
 
         for (let i = 0; i < soLuongDe; i++) {
             const examTitle = soLuongDe > 1 ? `${tenDeThi} - Đề ${i + 1}` : tenDeThi;
             this.logger.log(`Generating exam #${i + 1}: ${examTitle}`);
 
-            // 2. Shuffle questions for each exam version
-            const selectedQuestions = this.shuffleQuestions(allQuestions);
+            // 3. Get pre-distributed questions for this exam
+            const selectedQuestions = examQuestionSets[i] || [];
 
-            // 3. Create DeThi record
+            // Validate that we have questions for this exam
+            if (selectedQuestions.length === 0) {
+                this.logger.error(`No questions available for exam ${i + 1}. Skipping this exam.`);
+                continue;
+            }
+
+            // 4. Create DeThi record
             const deThi = this.deThiRepository.create({
                 MaDeThi: uuidv4(),
                 MaMonHoc: examRequest.maMonHoc,
@@ -151,11 +166,13 @@ export class ExamService {
                 NgayTao: new Date(),
                 DaDuyet: false,
                 NguoiTao: examRequest.nguoiTao,
+                SoCauHoi: selectedQuestions.length,
+                LoaiBoChuongPhan: examRequest.loaiBoChuongPhan || false, // Add chapter structure flag
             });
             await this.deThiRepository.save(deThi);
             this.logger.log(`Created exam record with ID: ${deThi.MaDeThi}`);
 
-            // 4. Create ChiTietDeThi records
+            // 5. Create ChiTietDeThi records
             const chiTietDeThiEntities = selectedQuestions.map((question, index) =>
                 this.chiTietDeThiRepository.create({
                     MaDeThi: deThi.MaDeThi,
@@ -167,7 +184,7 @@ export class ExamService {
             await this.chiTietDeThiRepository.save(chiTietDeThiEntities);
             this.logger.log(`Saved ${chiTietDeThiEntities.length} question details for exam ${deThi.MaDeThi}`);
 
-            // 5. Generate DOCX and PDF
+            // 6. Generate DOCX and PDF
             const { docxPath, pdfPath } = await this.generateExamDocuments(deThi, selectedQuestions, examRequest.hoanViDapAn);
 
             deThiIds.push(deThi.MaDeThi);
@@ -285,159 +302,200 @@ export class ExamService {
      * This algorithm ensures balanced distribution across chapters and CLOs
      * with multiple fallback strategies to guarantee question selection
      */
-    private async selectQuestionsWithCLOStrategy(matrix: ExamMatrixItem[]): Promise<CauHoi[]> {
+    private async selectQuestionsWithCLOStrategy(matrix: ExamMatrixItem[], multiplier: number = 1): Promise<CauHoi[]> {
         const selectedQuestions: CauHoi[] = [];
         this.logger.log(`Starting enhanced CLO-Stratified Weighted Random Sampling for ${matrix.length} chapters`);
 
-        // Phase 1: Pre-load all available questions for better performance
-        const allChapterIds = matrix.map(item => item.maPhan);
-        const allQuestions = await this.cauHoiRepository.find({
-            where: {
-                MaPhan: In(allChapterIds),
-                XoaTamCauHoi: false,
-                MaCauHoiCha: IsNull() // Only parent questions
-            },
-            relations: ['CLO', 'Phan', 'CauTraLoi'],
-            select: [
-                'MaCauHoi', 'MaPhan', 'MaSoCauHoi', 'NoiDung', 'HoanVi', 'CapDo', 'SoCauHoiCon',
-                'DoPhanCachCauHoi', 'MaCauHoiCha', 'XoaTamCauHoi', 'SoLanDuocThi', 'SoLanDung',
-                'NgayTao', 'NgaySua', 'MaCLO', 'DoKhoThucTe'
-            ]
-        });
+        try {
+            // Phase 1: Pre-load all available questions for better performance
+            const allChapterIds = matrix.map(item => item.maPhan);
 
-        this.logger.log(`Found ${allQuestions.length} total available questions across all chapters`);
+            // Thay đổi: Lấy câu hỏi theo từng chương riêng biệt thay vì một câu query lớn
+            this.logger.log(`Fetching questions for ${allChapterIds.length} chapters individually`);
 
-        // Group questions by chapter and CLO
-        const questionsByChapter = new Map<string, CauHoi[]>();
-        const questionsByChapterAndCLO = new Map<string, Map<number, CauHoi[]>>();
+            const allQuestions: CauHoi[] = [];
 
-        // Initialize structure
-        for (const item of matrix) {
-            questionsByChapter.set(item.maPhan, []);
-            const cloMap = new Map<number, CauHoi[]>();
-            for (let i = 1; i <= 5; i++) {
-                cloMap.set(i, []);
+            // Lấy câu hỏi cho từng chương một
+            for (const chapterId of allChapterIds) {
+                this.logger.log(`Fetching questions for chapter ID: ${chapterId}`);
+
+                const chapterQuestions = await this.cauHoiRepository.find({
+                    where: {
+                        MaPhan: chapterId,
+                        XoaTamCauHoi: false,
+                        MaCauHoiCha: IsNull() // Only parent questions
+                    },
+                    relations: ['CLO', 'Phan', 'CauTraLoi'],
+                    select: [
+                        'MaCauHoi', 'MaPhan', 'MaSoCauHoi', 'NoiDung', 'HoanVi', 'CapDo', 'SoCauHoiCon',
+                        'DoPhanCachCauHoi', 'MaCauHoiCha', 'XoaTamCauHoi', 'SoLanDuocThi', 'SoLanDung',
+                        'NgayTao', 'NgaySua', 'MaCLO', 'DoKhoThucTe'
+                    ],
+                    take: 500 // Giới hạn số câu hỏi tối đa cho mỗi chương
+                });
+
+                this.logger.log(`Found ${chapterQuestions.length} questions for chapter ID: ${chapterId}`);
+                allQuestions.push(...chapterQuestions);
             }
-            questionsByChapterAndCLO.set(item.maPhan, cloMap);
-        }
 
-        // Populate the structure
-        for (const question of allQuestions) {
-            const chapterQuestions = questionsByChapter.get(question.MaPhan) || [];
-            chapterQuestions.push(question);
-            questionsByChapter.set(question.MaPhan, chapterQuestions);
+            this.logger.log(`Total questions loaded across all chapters: ${allQuestions.length}`);
 
-            const cloOrder = question.CLO?.ThuTu || 0;
-            if (cloOrder >= 1 && cloOrder <= 5) {
-                const cloMap = questionsByChapterAndCLO.get(question.MaPhan);
-                if (cloMap) {
-                    const cloQuestions = cloMap.get(cloOrder) || [];
-                    cloQuestions.push(question);
-                    cloMap.set(cloOrder, cloQuestions);
+            // Debug: Log sample questions to understand CLO structure
+            if (allQuestions.length > 0) {
+                const sampleQuestion = allQuestions[0];
+                this.logger.log(`Sample question structure: MaCauHoi=${sampleQuestion.MaCauHoi}, MaCLO=${sampleQuestion.MaCLO}, CLO.ThuTu=${sampleQuestion.CLO?.ThuTu}`);
+            }
+
+            // Group questions by chapter and CLO
+            const questionsByChapter = new Map<string, CauHoi[]>();
+            const questionsByChapterAndCLO = new Map<string, Map<number, CauHoi[]>>();
+
+            // Initialize structure
+            for (const item of matrix) {
+                questionsByChapter.set(item.maPhan, []);
+                const cloMap = new Map<number, CauHoi[]>();
+                for (let i = 1; i <= 5; i++) {
+                    cloMap.set(i, []);
+                }
+                questionsByChapterAndCLO.set(item.maPhan, cloMap);
+            }
+
+            // Populate the structure
+            for (const question of allQuestions) {
+                const chapterQuestions = questionsByChapter.get(question.MaPhan) || [];
+                chapterQuestions.push(question);
+                questionsByChapter.set(question.MaPhan, chapterQuestions);
+
+                // Map CLO based on ThuTu field from CLO relation
+                const cloOrder = question.CLO?.ThuTu || 0;
+                this.logger.debug(`Question ${question.MaCauHoi} has CLO order: ${cloOrder}, CLO ID: ${question.MaCLO}`);
+
+                if (cloOrder >= 1 && cloOrder <= 5) {
+                    const cloMap = questionsByChapterAndCLO.get(question.MaPhan);
+                    if (cloMap) {
+                        const cloQuestions = cloMap.get(cloOrder) || [];
+                        cloQuestions.push(question);
+                        cloMap.set(cloOrder, cloQuestions);
+                        this.logger.debug(`Added question to CLO ${cloOrder} for chapter ${question.MaPhan}`);
+                    }
+                } else {
+                    this.logger.warn(`Question ${question.MaCauHoi} has invalid CLO order: ${cloOrder}`);
                 }
             }
-        }
 
-        // Phase 2: Select questions for each chapter with multiple strategies
-        for (const item of matrix) {
-            this.logger.log(`Processing chapter ${item.maPhan} with requirements: CLO1=${item.clo1}, CLO2=${item.clo2}, CLO3=${item.clo3}, CLO4=${item.clo4}, CLO5=${item.clo5}`);
+            // Debug: Log CLO distribution after population
+            for (const [chapterId, cloMap] of questionsByChapterAndCLO) {
+                this.logger.log(`Chapter ${chapterId} CLO distribution:`);
+                for (let i = 1; i <= 5; i++) {
+                    const count = cloMap.get(i)?.length || 0;
+                    this.logger.log(`  CLO ${i}: ${count} questions`);
+                }
+            }
 
-            const chapterSelectedQuestions: CauHoi[] = [];
-            const cloMap = questionsByChapterAndCLO.get(item.maPhan);
-            const allChapterQuestions = questionsByChapter.get(item.maPhan) || [];
+            // Phase 2: Select questions for each chapter with multiple strategies
+            for (const item of matrix) {
+                this.logger.log(`Processing chapter ${item.maPhan} with requirements: CLO1=${item.clo1}, CLO2=${item.clo2}, CLO3=${item.clo3}, CLO4=${item.clo4}, CLO5=${item.clo5}`);
 
-            this.logger.log(`Chapter ${item.maPhan} has ${allChapterQuestions.length} total questions`);
+                const chapterSelectedQuestions: CauHoi[] = [];
+                const cloMap = questionsByChapterAndCLO.get(item.maPhan);
+                const allChapterQuestions = questionsByChapter.get(item.maPhan) || [];
 
-            // Strategy 1: Direct CLO matching
-            const cloRequirements = [
-                { clo: 1, count: item.clo1 },
-                { clo: 2, count: item.clo2 },
-                { clo: 3, count: item.clo3 },
-                { clo: 4, count: item.clo4 },
-                { clo: 5, count: item.clo5 }
-            ];
+                this.logger.log(`Chapter ${item.maPhan} has ${allChapterQuestions.length} total questions`);
 
-            for (const req of cloRequirements) {
-                if (req.count > 0) {
-                    const availableQuestions = cloMap?.get(req.clo) || [];
-                    this.logger.log(`CLO ${req.clo} has ${availableQuestions.length} available questions, need ${req.count}`);
+                // Strategy 1: Direct CLO matching (multiply by multiplier for better variation)
+                const cloRequirements = [
+                    { clo: 1, count: Math.ceil(item.clo1 * multiplier) },
+                    { clo: 2, count: Math.ceil(item.clo2 * multiplier) },
+                    { clo: 3, count: Math.ceil(item.clo3 * multiplier) },
+                    { clo: 4, count: Math.ceil(item.clo4 * multiplier) },
+                    { clo: 5, count: Math.ceil(item.clo5 * multiplier) }
+                ];
+
+                for (const req of cloRequirements) {
+                    if (req.count > 0) {
+                        const availableQuestions = cloMap?.get(req.clo) || [];
+                        this.logger.log(`CLO ${req.clo} has ${availableQuestions.length} available questions, need ${req.count}`);
+
+                        if (availableQuestions.length > 0) {
+                            const selected = this.weightedRandomSelection(
+                                availableQuestions.map(q => ({ question: q, weight: this.calculateQuestionWeight(q, req.clo) })),
+                                Math.min(req.count, availableQuestions.length)
+                            );
+                            chapterSelectedQuestions.push(...selected);
+                            req.count -= selected.length;
+
+                            // Remove selected questions from all pools
+                            const selectedIds = new Set(selected.map(q => q.MaCauHoi));
+                            this.removeQuestionsFromPools(questionsByChapterAndCLO, item.maPhan, selectedIds);
+                            this.removeQuestionsFromPool(questionsByChapter, item.maPhan, selectedIds);
+                        }
+                    }
+                }
+
+                // Strategy 2: Fallback to any available questions in the chapter
+                const remainingRequirements = cloRequirements.filter(req => req.count > 0);
+                if (remainingRequirements.length > 0) {
+                    this.logger.log(`Fallback needed for chapter ${item.maPhan}. Remaining requirements:`, remainingRequirements);
+
+                    const totalRemaining = remainingRequirements.reduce((sum, req) => sum + req.count, 0);
+                    const availableQuestions = questionsByChapter.get(item.maPhan) || [];
 
                     if (availableQuestions.length > 0) {
-                        const selected = this.weightedRandomSelection(
-                            availableQuestions.map(q => ({ question: q, weight: this.calculateQuestionWeight(q, req.clo) })),
-                            Math.min(req.count, availableQuestions.length)
+                        const fallbackSelected = this.weightedRandomSelection(
+                            availableQuestions.map(q => ({ question: q, weight: this.calculateQuestionWeight(q) })),
+                            Math.min(totalRemaining, availableQuestions.length)
                         );
-                        chapterSelectedQuestions.push(...selected);
-                        req.count -= selected.length;
+
+                        chapterSelectedQuestions.push(...fallbackSelected);
 
                         // Remove selected questions from all pools
-                        const selectedIds = new Set(selected.map(q => q.MaCauHoi));
+                        const selectedIds = new Set(fallbackSelected.map(q => q.MaCauHoi));
                         this.removeQuestionsFromPools(questionsByChapterAndCLO, item.maPhan, selectedIds);
                         this.removeQuestionsFromPool(questionsByChapter, item.maPhan, selectedIds);
                     }
                 }
-            }
 
-            // Strategy 2: Fallback to any available questions in the chapter
-            const remainingRequirements = cloRequirements.filter(req => req.count > 0);
-            if (remainingRequirements.length > 0) {
-                this.logger.log(`Fallback needed for chapter ${item.maPhan}. Remaining requirements:`, remainingRequirements);
+                // Strategy 3: Cross-chapter fallback if still no questions
+                const finalRequirements = cloRequirements.filter(req => req.count > 0);
+                if (finalRequirements.length > 0) {
+                    this.logger.warn(`Cross-chapter fallback needed for chapter ${item.maPhan}. Final requirements:`, finalRequirements);
 
-                const totalRemaining = remainingRequirements.reduce((sum, req) => sum + req.count, 0);
-                const availableQuestions = questionsByChapter.get(item.maPhan) || [];
+                    const totalFinal = finalRequirements.reduce((sum, req) => sum + req.count, 0);
+                    const allAvailableQuestions = Array.from(questionsByChapter.values()).flat();
 
-                if (availableQuestions.length > 0) {
-                    const fallbackSelected = this.weightedRandomSelection(
-                        availableQuestions.map(q => ({ question: q, weight: this.calculateQuestionWeight(q) })),
-                        Math.min(totalRemaining, availableQuestions.length)
-                    );
+                    if (allAvailableQuestions.length > 0) {
+                        const crossChapterSelected = this.weightedRandomSelection(
+                            allAvailableQuestions.map(q => ({ question: q, weight: this.calculateQuestionWeight(q) })),
+                            Math.min(totalFinal, allAvailableQuestions.length)
+                        );
 
-                    chapterSelectedQuestions.push(...fallbackSelected);
+                        chapterSelectedQuestions.push(...crossChapterSelected);
 
-                    // Remove selected questions from all pools
-                    const selectedIds = new Set(fallbackSelected.map(q => q.MaCauHoi));
-                    this.removeQuestionsFromPools(questionsByChapterAndCLO, item.maPhan, selectedIds);
-                    this.removeQuestionsFromPool(questionsByChapter, item.maPhan, selectedIds);
-                }
-            }
-
-            // Strategy 3: Cross-chapter fallback if still no questions
-            const finalRequirements = cloRequirements.filter(req => req.count > 0);
-            if (finalRequirements.length > 0) {
-                this.logger.warn(`Cross-chapter fallback needed for chapter ${item.maPhan}. Final requirements:`, finalRequirements);
-
-                const totalFinal = finalRequirements.reduce((sum, req) => sum + req.count, 0);
-                const allAvailableQuestions = Array.from(questionsByChapter.values()).flat();
-
-                if (allAvailableQuestions.length > 0) {
-                    const crossChapterSelected = this.weightedRandomSelection(
-                        allAvailableQuestions.map(q => ({ question: q, weight: this.calculateQuestionWeight(q) })),
-                        Math.min(totalFinal, allAvailableQuestions.length)
-                    );
-
-                    chapterSelectedQuestions.push(...crossChapterSelected);
-
-                    // Remove selected questions from all pools
-                    const selectedIds = new Set(crossChapterSelected.map(q => q.MaCauHoi));
-                    for (const chapterId of allChapterIds) {
-                        this.removeQuestionsFromPools(questionsByChapterAndCLO, chapterId, selectedIds);
-                        this.removeQuestionsFromPool(questionsByChapter, chapterId, selectedIds);
+                        // Remove selected questions from all pools
+                        const selectedIds = new Set(crossChapterSelected.map(q => q.MaCauHoi));
+                        for (const chapterId of allChapterIds) {
+                            this.removeQuestionsFromPools(questionsByChapterAndCLO, chapterId, selectedIds);
+                            this.removeQuestionsFromPool(questionsByChapter, chapterId, selectedIds);
+                        }
                     }
                 }
+
+                this.logger.log(`Selected ${chapterSelectedQuestions.length} questions for chapter ${item.maPhan}`);
+                selectedQuestions.push(...chapterSelectedQuestions);
             }
 
-            this.logger.log(`Selected ${chapterSelectedQuestions.length} questions for chapter ${item.maPhan}`);
-            selectedQuestions.push(...chapterSelectedQuestions);
+            this.logger.log(`Total selected questions: ${selectedQuestions.length}`);
+
+            if (selectedQuestions.length === 0) {
+                this.logger.error('No questions were selected! This indicates a serious issue with the question database.');
+                throw new Error('Không thể tìm thấy câu hỏi phù hợp cho ma trận đề thi. Vui lòng kiểm tra lại dữ liệu câu hỏi.');
+            }
+
+            return selectedQuestions;
+        } catch (error) {
+            this.logger.error(`Error selecting questions: ${error.message}`, error.stack);
+            throw new Error(`Lỗi khi chọn câu hỏi cho đề thi: ${error.message}`);
         }
-
-        this.logger.log(`Total selected questions: ${selectedQuestions.length}`);
-
-        if (selectedQuestions.length === 0) {
-            this.logger.error('No questions were selected! This indicates a serious issue with the question database.');
-            throw new Error('Không thể tìm thấy câu hỏi phù hợp cho ma trận đề thi. Vui lòng kiểm tra lại dữ liệu câu hỏi.');
-        }
-
-        return selectedQuestions;
     }
 
     /**
@@ -798,9 +856,10 @@ export class ExamService {
             throw new Error(`Exam with ID ${deThiId} not found`);
         }
 
-        // Get exam questions
+        // Get exam questions with chapter information
         const chiTietDeThi = await this.chiTietDeThiRepository.find({
             where: { MaDeThi: deThiId },
+            relations: ['Phan'], // Include Phan relationship for chapter info
             order: { ThuTu: 'ASC' },
         });
 
@@ -865,6 +924,11 @@ export class ExamService {
                 correctAnswer: correctAnswers.join(', '), // Include correct answer information
                 clo: question?.CLO?.TenCLO || '', // Use CLO name instead of CLO code
                 difficulty: question?.CapDo || 1,
+                // Include chapter information only if not LoaiBoChuongPhan
+                chapter: deThi.LoaiBoChuongPhan ? null : {
+                    name: chiTietDeThi.find(ct => ct.MaCauHoi === question?.MaCauHoi)?.Phan?.TenPhan || '',
+                    id: chiTietDeThi.find(ct => ct.MaCauHoi === question?.MaCauHoi)?.MaPhan || ''
+                }
             };
         });
 
@@ -875,6 +939,7 @@ export class ExamService {
             date: new Date().toLocaleDateString('vi-VN'),
             questions: questionsList,
             hasAnswers: true, // Flag to indicate answers are included
+            hideChapterStructure: deThi.LoaiBoChuongPhan, // Flag to control chapter display
         };
     }
 
@@ -882,6 +947,159 @@ export class ExamService {
         const shuffledQuestions = [...questions];
         shuffledQuestions.sort(() => Math.random() - 0.5);
         return shuffledQuestions;
+    }
+
+    /**
+     * Distribute questions across multiple exams to ensure no overlap and fair distribution
+     */
+    private distributeQuestionsAcrossExams(
+        allQuestions: CauHoi[],
+        matrix: ExamMatrixItem[],
+        numberOfExams: number
+    ): CauHoi[][] {
+        const examQuestionSets: CauHoi[][] = Array.from({ length: numberOfExams }, () => []);
+        const usedQuestionIds = new Set<string>();
+
+        // Group questions by chapter and CLO
+        const questionsByChapterCLO = new Map<string, CauHoi[]>();
+        allQuestions.forEach(question => {
+            const key = `${question.MaPhan}-${question.MaCLO}`;
+            if (!questionsByChapterCLO.has(key)) {
+                questionsByChapterCLO.set(key, []);
+            }
+            questionsByChapterCLO.get(key)!.push(question);
+        });
+
+        // Distribute questions for each matrix requirement
+        matrix.forEach(matrixItem => {
+            const cloRequirements = [
+                { clo: 1, count: matrixItem.clo1 },
+                { clo: 2, count: matrixItem.clo2 },
+                { clo: 3, count: matrixItem.clo3 },
+                { clo: 4, count: matrixItem.clo4 },
+                { clo: 5, count: matrixItem.clo5 }
+            ];
+
+            cloRequirements.forEach(({ clo, count }) => {
+                if (count > 0) {
+                    const key = `${matrixItem.maPhan}-${clo}`;
+                    const availableQuestions = questionsByChapterCLO.get(key) || [];
+
+                    // Filter out already used questions
+                    const unusedQuestions = availableQuestions.filter(q => !usedQuestionIds.has(q.MaCauHoi));
+
+                    if (unusedQuestions.length >= count * numberOfExams) {
+                        // Enough questions for all exams - distribute evenly
+                        const shuffled = this.shuffleQuestions(unusedQuestions);
+
+                        for (let examIndex = 0; examIndex < numberOfExams; examIndex++) {
+                            for (let i = 0; i < count; i++) {
+                                const questionIndex = examIndex * count + i;
+                                if (questionIndex < shuffled.length) {
+                                    const question = shuffled[questionIndex];
+                                    examQuestionSets[examIndex].push(question);
+                                    usedQuestionIds.add(question.MaCauHoi);
+                                }
+                            }
+                        }
+                    } else if (unusedQuestions.length > 0) {
+                        // Not enough questions - distribute what we have
+                        const shuffled = this.shuffleQuestions(unusedQuestions);
+                        let questionIndex = 0;
+
+                        for (let examIndex = 0; examIndex < numberOfExams; examIndex++) {
+                            for (let i = 0; i < count && questionIndex < shuffled.length; i++) {
+                                const question = shuffled[questionIndex % shuffled.length];
+                                examQuestionSets[examIndex].push(question);
+                                usedQuestionIds.add(question.MaCauHoi);
+                                questionIndex++;
+                            }
+                        }
+
+                        this.logger.warn(`Limited questions available for chapter ${matrixItem.maPhan}, CLO ${clo}. Available: ${unusedQuestions.length}, Required: ${count * numberOfExams}`);
+                    } else {
+                        this.logger.error(`No questions available for chapter ${matrixItem.maPhan}, CLO ${clo}`);
+                    }
+                }
+            });
+        });
+
+        // Log distribution results
+        examQuestionSets.forEach((questions, index) => {
+            this.logger.log(`Exam ${index + 1} will have ${questions.length} questions`);
+        });
+
+        return examQuestionSets;
+    }
+
+    /**
+     * Select questions for a specific exam version with better variation
+     * This method ensures different exams have different questions when possible
+     */
+    private selectQuestionsForExamVersion(
+        allQuestions: CauHoi[],
+        matrix: ExamMatrixItem[],
+        examIndex: number,
+        totalExams: number
+    ): CauHoi[] {
+        const selectedQuestions: CauHoi[] = [];
+        const usedQuestionIds = new Set<string>();
+
+        // Group questions by chapter and CLO
+        const questionsByChapterCLO = new Map<string, CauHoi[]>();
+
+        allQuestions.forEach(question => {
+            const key = `${question.MaPhan}-${question.MaCLO}`;
+            if (!questionsByChapterCLO.has(key)) {
+                questionsByChapterCLO.set(key, []);
+            }
+            questionsByChapterCLO.get(key)!.push(question);
+        });
+
+        // For each matrix item, select questions with variation
+        matrix.forEach(matrixItem => {
+            const cloRequirements = [
+                { clo: 1, count: matrixItem.clo1 },
+                { clo: 2, count: matrixItem.clo2 },
+                { clo: 3, count: matrixItem.clo3 },
+                { clo: 4, count: matrixItem.clo4 },
+                { clo: 5, count: matrixItem.clo5 }
+            ];
+
+            cloRequirements.forEach(({ clo, count }) => {
+                if (count > 0) {
+                    const key = `${matrixItem.maPhan}-${clo}`;
+                    const availableQuestions = questionsByChapterCLO.get(key) || [];
+
+                    // Filter out already used questions
+                    const unusedQuestions = availableQuestions.filter(q => !usedQuestionIds.has(q.MaCauHoi));
+
+                    if (unusedQuestions.length > 0) {
+                        // Shuffle and select questions with offset for variation
+                        const shuffled = this.shuffleQuestions(unusedQuestions);
+                        const startIndex = (examIndex * count) % shuffled.length;
+
+                        for (let i = 0; i < count && selectedQuestions.length < count; i++) {
+                            const questionIndex = (startIndex + i) % shuffled.length;
+                            const selectedQuestion = shuffled[questionIndex];
+
+                            if (!usedQuestionIds.has(selectedQuestion.MaCauHoi)) {
+                                selectedQuestions.push(selectedQuestion);
+                                usedQuestionIds.add(selectedQuestion.MaCauHoi);
+                            }
+                        }
+                    } else {
+                        // If no unused questions available, log warning
+                        this.logger.warn(`No unused questions available for chapter ${matrixItem.maPhan}, CLO ${clo} in exam version ${examIndex + 1}`);
+                    }
+                }
+            });
+        });
+
+        this.logger.log(`Selected ${selectedQuestions.length} questions for exam version ${examIndex + 1}`);
+
+        // Final shuffle of selected questions
+        return this.shuffleQuestions(selectedQuestions);
     }
 
     /**

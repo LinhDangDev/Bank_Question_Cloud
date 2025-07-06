@@ -304,6 +304,9 @@ export const examApi = {
     getAll: () => {
         return api.get('/de-thi');
     },
+    getAllExams: () => {
+        return api.get('/de-thi?limit=1000');
+    },
     getExamById: (id: string) => {
         return api.get(`/de-thi/${id}`);
     },
@@ -311,10 +314,10 @@ export const examApi = {
         return api.get(`/chi-tiet-de-thi/de-thi/${id}`);
     },
     getApprovedExams: () => {
-        return api.get('/de-thi?approved=true');
+        return api.get('/de-thi/approved');
     },
     getPendingExams: () => {
-        return api.get('/de-thi?approved=false');
+        return api.get('/de-thi/pending');
     },
     getExamPackages: () => {
         return api.get('/de-thi/packages/all');

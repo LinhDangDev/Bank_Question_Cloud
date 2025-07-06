@@ -41,6 +41,10 @@ interface BackendCauHoi {
   MaCLO?: string;
   CapDo?: number;
   CauTraLoi?: BackendCauTraLoi[];
+  CLO?: {
+    MaCLO: string;
+    TenCLO: string;
+  };
 }
 
 interface ExamDetail {
@@ -406,7 +410,7 @@ const ExamDetail = () => {
     return {
       id: cauHoi.MaCauHoi,
       content: cauHoi.NoiDung || '',
-      clo: cauHoi.MaCLO ? `CLO ${cauHoi.MaCLO}` : null,
+      clo: cauHoi.CLO?.TenCLO || null, // Sử dụng tên CLO thay vì UUID
       type: 'single-choice', // Default, adjust based on your data
       answers: cauHoi.CauTraLoi?.map((answer, idx) => ({
         id: answer.MaCauTraLoi,

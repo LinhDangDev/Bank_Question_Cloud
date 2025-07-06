@@ -138,12 +138,13 @@ export class PdfService {
      * @returns HTML string
      */
     private generateHtmlForPdf(data: any): string {
-        const { title, instructions, questions, subject, date } = data;
+        const { title, instructions, questions, subject, date, hideChapterStructure } = data;
 
         // Default values
         const examDate = date || new Date().toLocaleDateString('vi-VN');
         const examSubject = subject || '';
         const showAnswers = data.hasAnswers !== false; // Show answers by default unless explicitly set to false
+        const shouldHideChapters = hideChapterStructure || false;
 
         // Create HTML for each question
         const questionsHtml = questions.map((question: any, index: number) => {
@@ -182,6 +183,7 @@ export class PdfService {
             const topic = question.topic || '';
             const clo = question.clo || '';
             const difficulty = question.difficulty ? `Độ khó: ${question.difficulty}` : '';
+            const chapterName = question.chapter?.name || '';
 
             // Generate question HTML with table for answers
             return `
@@ -189,6 +191,7 @@ export class PdfService {
                     <div class="question-header">
                         <div class="question-number">Câu ${questionNumber}:</div>
                         <div class="question-meta">
+                            ${!shouldHideChapters && chapterName ? `<span class="question-chapter">Chương: ${chapterName}</span>` : ''}
                             ${topic ? `<span class="question-topic">${topic}</span>` : ''}
                             ${clo ? `<span class="question-clo">CLO: ${clo}</span>` : ''}
                             ${difficulty ? `<span class="question-difficulty">${difficulty}</span>` : ''}
@@ -276,8 +279,12 @@ export class PdfService {
                         font-size: 10pt;
                         color: #666;
                     }
-                    .question-topic, .question-clo, .question-difficulty {
+                    .question-chapter, .question-topic, .question-clo, .question-difficulty {
                         margin-left: 10px;
+                    }
+                    .question-chapter {
+                        color: #0066cc;
+                        font-weight: bold;
                     }
                     .question-content {
                         margin-bottom: 10px;

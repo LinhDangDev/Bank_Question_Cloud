@@ -99,6 +99,15 @@ async function bootstrap() {
 
     app.use(express.static(publicPath));
 
+    // Serve uploaded files (audio, images) as static files
+    const uploadsPath = path.resolve(__dirname, '../uploads');
+    if (!fs.existsSync(uploadsPath)) {
+        fs.mkdirSync(uploadsPath, { recursive: true });
+    }
+
+    // Make uploads accessible via /uploads route
+    app.use('/uploads', express.static(uploadsPath));
+
     // Set global prefix
     app.setGlobalPrefix('api');
 

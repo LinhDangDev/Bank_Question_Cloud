@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { MathRenderer } from './MathRenderer';
 import { getCloColor, getDifficultyColor, getDifficultyText } from '../utils/theme';
+import LazyMediaPlayer from './LazyMediaPlayer';
 
 export interface Answer {
   id: string;
@@ -177,6 +178,11 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({
       <div className="p-4">
         <div className="mb-3 text-gray-800">
           {renderContent(question.content)}
+        </div>
+
+        {/* Multimedia content */}
+        <div className="mb-3">
+          <LazyMediaPlayer maCauHoi={question.id} showFileName={false} />
         </div>
 
         {/* For group questions */}

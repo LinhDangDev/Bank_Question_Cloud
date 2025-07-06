@@ -109,6 +109,7 @@ export class DocxTemplateService {
             date: data.date || new Date().toLocaleDateString('vi-VN'),
             instructions: data.instructions || 'Thời gian làm bài: 90 phút',
             hasAnswers: typeof data.hasAnswers === 'boolean' ? data.hasAnswers : true,
+            hideChapterStructure: data.hideChapterStructure || false,
             questions: []
         };
 
@@ -125,10 +126,15 @@ export class DocxTemplateService {
                     })) : [],
                     correctAnswer: q.correctAnswer || '',
                     clo: q.clo || '',
-                    difficulty: q.difficulty || 1
+                    difficulty: q.difficulty || 1,
+                    // Include chapter info only if not hiding chapter structure
+                    chapter: data.hideChapterStructure ? null : q.chapter
                 };
             });
         }
+
+        // Add flag to control chapter structure display in template
+        // preparedData.hideChapterStructure = data.hideChapterStructure || false;
 
         return preparedData;
     }

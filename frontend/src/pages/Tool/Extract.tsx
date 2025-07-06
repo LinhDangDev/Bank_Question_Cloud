@@ -73,6 +73,7 @@ const Extract = () => {
   const [selectedFaculty, setSelectedFaculty] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
   const [examTitle, setExamTitle] = useState('');
+  const [soLuongDeThi, setSoLuongDeThi] = useState(1);
   const [matrix, setMatrix] = useState<MatrixRow[]>([]);
   const [isPreviewMode, setIsPreviewMode] = useState(true);
   const [importedData, setImportedData] = useState<MatrixRow[] | null>(null);
@@ -371,6 +372,7 @@ const Extract = () => {
       tenDeThi: examTitle,
       maMonHoc: selectedSubject,
       loaiBoChuongPhan: loaiBoChuongPhan,
+      soLuongDe: soLuongDeThi,
       matrix: matrix.map(row => ({
         maPhan: row.chapterId,
         clo1: row.clo1,
@@ -392,21 +394,40 @@ const Extract = () => {
       setLoading(true);
       toast.info('Đang tạo đề thi, vui lòng chờ...');
 
+      console.log('Sending exam data:', examData);
       const response = await examApi.generateExam(examData);
 
       console.log('Exam generation response:', response);
 
       if (response && response.data && response.data.success) {
-        const newExam = response.data.data;
-        toast.success('Tạo gói đề thi thành công!', {
-          description: `Đề thi "${newExam.TenDeThi}" đã được tạo.`
-        });
-        navigate(`/exams/${newExam.MaDeThi}`);
+        const responseData = response.data.data;
+
+        // Xử lý response cho trường hợp tạo nhiều đề thi
+        if (soLuongDeThi > 1 && responseData.deThiIds && Array.isArray(responseData.deThiIds)) {
+          toast.success(`Tạo thành công ${responseData.deThiIds.length} đề thi!`, {
+            description: `Đã tạo ${responseData.deThiIds.length} đề thi khác nhau từ ma trận "${examTitle}"`
+          });
+          // Chuyển đến trang danh sách đề thi
+          navigate('/exams');
+        } else {
+          // Trường hợp tạo 1 đề thi (logic cũ)
+          const newExam = responseData;
+          toast.success('Tạo gói đề thi thành công!', {
+            description: `Đề thi "${newExam.TenDeThi}" đã được tạo.`
+          });
+          navigate(`/exams/${newExam.MaDeThi}`);
+        }
       } else {
         throw new Error(response.data.message || 'Không nhận được dữ liệu hợp lệ từ server');
       }
     } catch (error: any) {
       console.error('Error generating exam:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        request: error.request
+      });
 
       let errorMessage = 'Lỗi khi tạo đề thi';
 
@@ -638,6 +659,23 @@ const Extract = () => {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="soLuongDeThi" className="text-sm font-medium">Số lượng đề thi</Label>
+                <Input
+                  id="soLuongDeThi"
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={soLuongDeThi}
+                  onChange={(e) => setSoLuongDeThi(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                  placeholder="Nhập số lượng đề thi muốn tạo"
+                  className="border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-colors"
+                />
+                <div className="text-xs text-gray-500">
+                  Tạo từ 1-10 đề thi khác nhau từ cùng một ma trận (mỗi đề có câu hỏi và thứ tự khác nhau)
+                </div>
+              </div>
+
+              <div className="space-y-2">
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="loaiBoChuongPhan"
@@ -768,6 +806,68 @@ const Extract = () => {
                   )}
                 </div>
               </div>
+
+              {/* Hiển thị preview data sau khi import Excel */}
+              {importedData && importedData.length > 0 && (
+                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-medium text-blue-800">
+                      Dữ liệu đã import từ Excel ({importedData.length} chương)
+                    </h3>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={applyImportedData}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        size="sm"
+                      >
+                        Áp dụng dữ liệu
+                      </Button>
+                      <Button
+                        onClick={() => setImportedData(null)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Hủy bỏ
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                      <thead>
+                        <tr className="bg-blue-100">
+                          <th className="px-3 py-2 text-left">Chương</th>
+                          <th className="px-3 py-2 text-center">CLO 1</th>
+                          <th className="px-3 py-2 text-center">CLO 2</th>
+                          <th className="px-3 py-2 text-center">CLO 3</th>
+                          <th className="px-3 py-2 text-center">CLO 4</th>
+                          <th className="px-3 py-2 text-center">CLO 5</th>
+                          <th className="px-3 py-2 text-center">Tổng</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importedData.map((row, index) => (
+                          <tr key={index} className="border-b border-blue-200">
+                            <td className="px-3 py-2">
+                              {row.chapter}
+                              {!row.chapterId && (
+                                <span className="ml-2 text-xs text-red-600">(Không tìm thấy trong hệ thống)</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-center">{row.clo1}</td>
+                            <td className="px-3 py-2 text-center">{row.clo2}</td>
+                            <td className="px-3 py-2 text-center">{row.clo3}</td>
+                            <td className="px-3 py-2 text-center">{row.clo4}</td>
+                            <td className="px-3 py-2 text-center">{row.clo5}</td>
+                            <td className="px-3 py-2 text-center font-medium">
+                              {row.clo1 + row.clo2 + row.clo3 + row.clo4 + row.clo5}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {loading ? (
                 <div className="flex justify-center items-center py-12">

@@ -21,6 +21,9 @@ import { CauHoiChoDuyetModule } from './modules/cau-hoi-cho-duyet/cau-hoi-cho-du
 import { UsersModule } from './modules/users/users.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { AuditLogModule } from './modules/audit-log/audit-log.module';
+import { IntegrationModule } from './modules/integration/integration.module';
+import { ExamExportModule } from './modules/exam-export/exam-export.module';
+import { WordMultimediaModule } from './modules/word-import/word-multimedia.module';
 import databaseConfig from './config/database.config';
 import { DbConfigController } from './utils/db-env-switcher';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
@@ -68,6 +71,9 @@ import * as path from 'path';
         UsersModule,
         NotificationModule,
         AuditLogModule,
+        IntegrationModule,
+        ExamExportModule,
+        WordMultimediaModule,
     ],
     controllers: [AppController, DbConfigController],
     providers: [AppService],

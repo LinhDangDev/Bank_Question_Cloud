@@ -28,6 +28,7 @@ import { usePermissions } from '../../hooks/usePermissions';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import LazyMediaPlayer from '../../components/LazyMediaPlayer';
 
 // Interface for parsed question
 interface ParsedQuestion {
@@ -960,6 +961,11 @@ const UploadQuestions = () => {
               {renderContent(childQ.content)}
             </div>
 
+            {/* Multimedia content for child question */}
+            <div className="mb-3">
+              <LazyMediaPlayer maCauHoi={childQ.id} showFileName={false} />
+            </div>
+
             {/* Display answers in 2x2 grid for group child questions */}
             {childQ.answers && childQ.answers.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1484,6 +1490,11 @@ const UploadQuestions = () => {
                         {/* Question content */}
                         {renderContent(question.content)}
 
+                        {/* Multimedia content */}
+                        <div className="mb-3">
+                          <LazyMediaPlayer maCauHoi={question.id} showFileName={false} />
+                        </div>
+
                         {/* Answers for non-group questions */}
                         {question.type !== 'group' && question.answers && question.answers.length > 0 && (
                           renderAnswers(question.answers)
@@ -1567,6 +1578,11 @@ const UploadQuestions = () => {
           <div className="p-4">
             <div className="mb-4">
               {renderContent(viewingQuestion.content)}
+            </div>
+
+            {/* Multimedia content in modal */}
+            <div className="mb-4">
+              <LazyMediaPlayer maCauHoi={viewingQuestion.id} showFileName={false} />
             </div>
             {viewingQuestion.answers && viewingQuestion.answers.length > 0 && (
               <div className="mt-4">

@@ -10,6 +10,7 @@ import * as PizZip from 'pizzip';
 import * as Docxtemplater from 'docxtemplater';
 import { DocxTemplateService } from '../../services/docx-template.service';
 import { PdfService } from '../../services/pdf.service';
+import { StorageService } from '../../services/storage.service';
 
 // Define the file type for Express.Multer.File since it's not recognized
 interface MulterFile {

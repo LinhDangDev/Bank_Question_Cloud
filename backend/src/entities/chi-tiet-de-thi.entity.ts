@@ -1,17 +1,18 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn, Index } from 'typeorm';
 import { CauHoi } from './cau-hoi.entity';
 import { DeThi } from './de-thi.entity';
 import { Phan } from './phan.entity';
 
 @Entity('ChiTietDeThi')
+@Index(["MaDeThi", "MaPhan", "MaCauHoi"], { unique: true })
 export class ChiTietDeThi {
-    @PrimaryGeneratedColumn('uuid')
+    @PrimaryColumn({ type: 'uuid' })
     MaDeThi: string;
 
-    @PrimaryGeneratedColumn('uuid')
+    @PrimaryColumn({ type: 'uuid' })
     MaPhan: string;
 
-    @PrimaryGeneratedColumn('uuid')
+    @PrimaryColumn({ type: 'uuid' })
     MaCauHoi: string;
 
     @Column()

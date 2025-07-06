@@ -236,32 +236,43 @@ export class DeThiService extends BaseService<DeThi> {
         return docxPath;
     }
 
-    async findAll(paginationDto?: PaginationDto) {
-        if (!paginationDto) {
-            return await this.deThiRepository.find({
+    async findAll(paginationDto?: PaginationDto): Promise<DeThi[] | { items: DeThi[]; meta: { total: number; page: number; limit: number; totalPages: number; availableLimits: readonly [5, 10, 20, 50, 100, 1000]; } }> {
+        try {
+            this.logger.log('Finding all exams');
+            if (!paginationDto) {
+                const items = await this.deThiRepository.find({
+                    relations: ['MonHoc', 'ChiTietDeThi'],
+                    order: { NgayTao: 'DESC' },
+                });
+
+                this.logger.log(`Found ${items.length} exams without pagination`);
+                // Trả về mảng trực tiếp để tuân thủ kiểu dữ liệu của BaseService
+                return items;
+            }
+
+            const { page = PAGINATION_CONSTANTS.DEFAULT_PAGE, limit = PAGINATION_CONSTANTS.DEFAULT_LIMIT } = paginationDto;
+            const [items, total] = await this.deThiRepository.findAndCount({
                 relations: ['MonHoc', 'ChiTietDeThi'],
                 order: { NgayTao: 'DESC' },
+                skip: (page - 1) * limit,
+                take: limit,
             });
+
+            this.logger.log(`Found ${items.length} exams with pagination (total: ${total})`);
+            return {
+                items,
+                meta: {
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit),
+                    availableLimits: PAGINATION_CONSTANTS.AVAILABLE_LIMITS
+                }
+            };
+        } catch (error) {
+            this.logger.error(`Error finding all exams: ${error.message}`, error.stack);
+            throw error;
         }
-
-        const { page = PAGINATION_CONSTANTS.DEFAULT_PAGE, limit = PAGINATION_CONSTANTS.DEFAULT_LIMIT } = paginationDto;
-        const [items, total] = await this.deThiRepository.findAndCount({
-            relations: ['MonHoc', 'ChiTietDeThi'],
-            order: { NgayTao: 'DESC' },
-            skip: (page - 1) * limit,
-            take: limit,
-        });
-
-        return {
-            items,
-            meta: {
-                total,
-                page,
-                limit,
-                totalPages: Math.ceil(total / limit),
-                availableLimits: PAGINATION_CONSTANTS.AVAILABLE_LIMITS
-            }
-        };
     }
 
     async deleteDeThi(maDeThi: string): Promise<void> {
@@ -378,6 +389,7 @@ export class DeThiService extends BaseService<DeThi> {
             date: new Date().toLocaleDateString('vi-VN'),
             questions: questions,
             hasAnswers: includeAnswers,
+            hideChapterStructure: exam.LoaiBoChuongPhan, // Add flag to control chapter display
         };
     }
 
@@ -396,7 +408,7 @@ export class DeThiService extends BaseService<DeThi> {
 
         const examDetails = await this.chiTietDeThiRepository.find({
             where: { MaDeThi: examId },
-            relations: ['Phan', 'CauHoi', 'CauHoi.CauTraLoi'],
+            relations: ['Phan', 'CauHoi', 'CauHoi.CauTraLoi', 'CauHoi.CLO'],
             order: { ThuTu: 'ASC' }
         });
 

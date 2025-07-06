@@ -18,6 +18,7 @@ import { fetchWithAuth } from '@/services/api'
 import { useAuth } from '@/context/AuthContext'
 import { usePermissions } from '@/hooks/usePermissions'
 import { PermissionGuard, AdminOnly } from '@/components/PermissionGuard'
+import LazyMediaPlayer from '@/components/LazyMediaPlayer'
 
 // Define the type for the question filter
 type QuestionType = 'single' | 'group';
@@ -481,6 +482,11 @@ const Questions = () => {
               {/* Group question content only shown once */}
               <div className="mb-3 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: renderLatex(question.NoiDung) }}></div>
 
+              {/* Multimedia content for group question */}
+              <div className="mb-3">
+                <LazyMediaPlayer maCauHoi={question.MaCauHoi} showFileName={false} />
+              </div>
+
               {/* Only show child questions if expanded */}
               {isExpanded && question.CauHoiCon && question.CauHoiCon.length > 0 && (
                 <div className="mt-4 space-y-3 border-t pt-3">
@@ -499,6 +505,11 @@ const Questions = () => {
 
                       <div className="mb-3 prose prose-sm max-w-none">
                         <div dangerouslySetInnerHTML={{ __html: renderLatex(childQ.NoiDung) }}></div>
+                      </div>
+
+                      {/* Multimedia content for child question */}
+                      <div className="mb-3">
+                        <LazyMediaPlayer maCauHoi={childQ.MaCauHoi} showFileName={false} />
                       </div>
 
                       {childQ.CauTraLoi && childQ.CauTraLoi.length > 0 && (
@@ -540,6 +551,11 @@ const Questions = () => {
             <>
               {/* Standard question content */}
               <div className="mb-3 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: renderLatex(question.NoiDung) }}></div>
+
+              {/* Multimedia content for standard question */}
+              <div className="mb-3">
+                <LazyMediaPlayer maCauHoi={question.MaCauHoi} showFileName={false} />
+              </div>
 
               {/* Render answers for non-group questions */}
               {question.answers && question.answers.length > 0 && (

@@ -41,6 +41,7 @@ interface ExamGenerateRequest {
     hoanViDapAn: boolean;
     nguoiTao?: string;
     soLuongDe?: number;
+    loaiBoChuongPhan?: boolean;
 }
 
 @Controller('de-thi')
@@ -53,10 +54,29 @@ export class DeThiController {
 
     @Get()
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles('admin')
+    @Roles('admin', 'teacher')
     async findAll(@Query() paginationDto: PaginationDto) {
-        // Chỉ admin mới được xem danh sách đề thi
-        return await this.deThiService.findAll(paginationDto);
+        // Admin và teacher đều được xem danh sách đề thi
+        try {
+            this.logger.log(`Finding all exams with pagination: ${JSON.stringify(paginationDto)}`);
+            const result = await this.deThiService.findAll(paginationDto);
+
+            // Kiểm tra và log kết quả
+            if (Array.isArray(result)) {
+                this.logger.log(`Found ${result.length} exams (array format)`);
+                // Đảm bảo trả về định dạng { items: [...] } để frontend xử lý nhất quán
+                return { items: result };
+            } else if (result && result.items) {
+                this.logger.log(`Found ${result.items.length} exams (paginated format)`);
+                return result;
+            } else {
+                this.logger.warn('No exams found or invalid result format');
+                return { items: [], meta: { total: 0 } };
+            }
+        } catch (error) {
+            this.logger.error(`Error finding all exams: ${error.message}`, error.stack);
+            throw error;
+        }
     }
 
     @Get('packages')
@@ -234,13 +254,29 @@ export class DeThiController {
                 throw new BadRequestException('Ma trận đề thi không hợp lệ hoặc rỗng');
             }
 
-            const deThi = await this.examService.generateExamPackage(examRequest);
+            // Kiểm tra số lượng đề thi
+            const soLuongDe = examRequest.soLuongDe || 1;
+            if (soLuongDe < 1 || soLuongDe > 10) {
+                throw new BadRequestException('Số lượng đề thi phải từ 1 đến 10');
+            }
 
-            return {
-                success: true,
-                message: 'Gói đề thi đã được tạo thành công!',
-                data: deThi,
-            };
+            // Nếu tạo nhiều đề thi, sử dụng generateExam
+            if (soLuongDe > 1) {
+                const result = await this.examService.generateExam(examRequest);
+                return {
+                    success: true,
+                    message: `Đã tạo thành công ${result.deThiIds.length} đề thi!`,
+                    data: result,
+                };
+            } else {
+                // Tạo 1 đề thi (logic cũ)
+                const deThi = await this.examService.generateExamPackage(examRequest);
+                return {
+                    success: true,
+                    message: 'Gói đề thi đã được tạo thành công!',
+                    data: deThi,
+                };
+            }
         } catch (error) {
             this.logger.error(`Failed to generate exam package: ${error.message}`, error.stack);
             if (error instanceof NotFoundException || error instanceof BadRequestException) {
