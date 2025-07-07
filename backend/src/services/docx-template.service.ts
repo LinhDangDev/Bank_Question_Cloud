@@ -8,8 +8,8 @@ import { v4 as uuidv4 } from 'uuid';
 @Injectable()
 export class DocxTemplateService {
     private readonly logger = new Logger(DocxTemplateService.name);
-    private readonly templatesDir = path.join(process.cwd(), '..', 'template');
-    private readonly outputDir = path.join(process.cwd(), '..', 'output');
+    private readonly templatesDir = path.join(process.cwd(), 'template');
+    private readonly outputDir = path.join(process.cwd(), 'output');
 
     constructor() {
         // Ensure output directory exists

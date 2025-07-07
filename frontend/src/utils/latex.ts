@@ -1,6 +1,62 @@
 import 'katex/dist/katex.min.css';
 import katex from 'katex';
 
+/**
+ * Parse group question content and extract summary information
+ * @param content - Raw content with markup [<sg>], [<egc>], {<1>}, etc.
+ * @returns Object with summary and full content
+ */
+export const parseGroupQuestionContent = (content: string): {
+    summary: string;
+    fullContent: string;
+    isGroupQuestion: boolean;
+    questionRange?: string;
+} => {
+    if (!content) return { summary: '', fullContent: '', isGroupQuestion: false };
+
+    // Check if it's a group question
+    const isGroupQuestion = content.includes('[<sg>]') || content.includes('{<') || content.includes('Questions');
+
+    if (!isGroupQuestion) {
+        return { summary: content, fullContent: content, isGroupQuestion: false };
+    }
+
+    // Extract content between [<sg>] and [<egc>]
+    const sgMatch = content.match(/\[<sg>\]([\s\S]*?)\[<egc>\]/);
+    let mainContent = sgMatch ? sgMatch[1].trim() : content;
+
+    // Extract question range from patterns like "Questions {<1>} – {<5>}" or "Questions {<1>} - {<5>}"
+    const rangeMatch = mainContent.match(/Questions\s*\{<(\d+)>\}\s*[–-]\s*\{<(\d+)>\}/i);
+    let questionRange = '';
+    let summary = '';
+
+    if (rangeMatch) {
+        const startNum = rangeMatch[1];
+        const endNum = rangeMatch[2];
+        questionRange = `${startNum}-${endNum}`;
+
+        // Create summary by replacing the range pattern with actual numbers
+        summary = mainContent.replace(/Questions\s*\{<\d+>\}\s*[–-]\s*\{<\d+>\}/i, `Câu hỏi ${startNum}-${endNum}`);
+    } else {
+        // If no range pattern found, use first 100 characters as summary
+        summary = mainContent.length > 100 ? mainContent.substring(0, 100) + '...' : mainContent;
+    }
+
+    // Clean up the summary by removing any remaining markup
+    summary = summary
+        .replace(/\{<\d+>\}/g, '') // Remove {<number>} patterns
+        .replace(/\[<[^>]*>\]/g, '') // Remove [<markup>] patterns
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .trim();
+
+    return {
+        summary,
+        fullContent: mainContent,
+        isGroupQuestion: true,
+        questionRange
+    };
+};
+
 export const renderLatex = (content: string): string => {
     if (!content) return '';
 

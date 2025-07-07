@@ -1,3 +1,6 @@
+// Load crypto polyfill first to fix TypeORM issues in Alpine Linux
+import './crypto-polyfill';
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';

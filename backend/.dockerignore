@@ -24,7 +24,11 @@ test
 *.swo
 *~
 
-# Local environment files
-.env
-.env.*
+# Local environment files (allow .env for Docker build)
+# .env
+.env.local
+.env.development
+.env.test
+.env.production
+!.env
 !.env.example

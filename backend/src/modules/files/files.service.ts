@@ -25,7 +25,7 @@ interface MulterFile {
 @Injectable()
 export class FilesService {
     private readonly templatesDir = join(process.cwd(), '..', 'template');
-    private readonly outputDir = join(process.cwd(), '..', 'output');
+    private readonly outputDir = join(process.cwd(), 'output');
 
     constructor(
         @InjectRepository(Files)

@@ -1,0 +1,157 @@
+version: '3.8'
+
+# ===========================================
+# SIMPLE DOCKER COMPOSE FOR DIGITAL OCEAN
+# ===========================================
+# Copy this file to your droplet and customize the environment variables
+
+services:
+  # Backend Service
+  backend:
+    image: lighthunter15723/question-bank-backend:latest
+    container_name: question-bank-backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      # Application Settings
+      - NODE_ENV=production
+      - PORT=3001
+      
+      # Database Configuration (SQL Server)
+      - DB_HOST=103.173.226.35
+      - DB_PORT=1433
+      - DB_USERNAME=your_db_username_here
+      - DB_PASSWORD=your_db_password_here
+      - DB_DATABASE=question_bank
+      
+      # JWT Configuration
+      - JWT_SECRET=your-super-secret-jwt-key-32-characters-long
+      - JWT_EXPIRES_IN=24h
+      
+      # Storage Configuration (Local)
+      - STORAGE_PROVIDER=local
+      - UPLOAD_PATH=/app/uploads
+      - PUBLIC_URL=http://YOUR_DROPLET_IP:3001
+      
+      # Redis Configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+      
+      # Optional: CORS Settings
+      - CORS_ORIGIN=*
+      - CORS_CREDENTIALS=true
+      
+      # Optional: Rate Limiting
+      - RATE_LIMIT_MAX=100
+      - RATE_LIMIT_WINDOW_MS=60000
+      
+      # Optional: Logging
+      - LOG_LEVEL=info
+      - LOG_FORMAT=combined
+    
+    volumes:
+      # Persistent storage for uploaded files
+      - uploads:/app/uploads
+      - output:/app/output
+      - public:/app/public
+    
+    depends_on:
+      - redis
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Resource limits (optional)
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # Redis Cache Service
+  redis:
+    image: redis:7-alpine
+    container_name: question-bank-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    
+    # Redis configuration
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+    # Resource limits (optional)
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+# Named volumes for data persistence
+volumes:
+  uploads:
+    driver: local
+    name: question-bank-uploads
+  output:
+    driver: local
+    name: question-bank-output
+  public:
+    driver: local
+    name: question-bank-public
+  redis_data:
+    driver: local
+    name: question-bank-redis
+
+# Network configuration (optional)
+networks:
+  default:
+    name: question-bank-network
+    driver: bridge
+
+# ===========================================
+# USAGE INSTRUCTIONS:
+# ===========================================
+# 1. Copy this file to your Digital Ocean droplet
+# 2. Rename to docker-compose.yml: mv docker-compose.simple.yml docker-compose.yml
+# 3. Edit environment variables:
+#    - Replace YOUR_DROPLET_IP with actual IP
+#    - Replace database credentials
+#    - Replace JWT_SECRET with secure key
+# 4. Run: docker-compose up -d
+# 5. Check: docker-compose ps
+# 6. Test: curl http://localhost:3001/api/health
+#
+# ===========================================
+# REQUIRED CHANGES:
+# ===========================================
+# - DB_USERNAME: Your actual database username
+# - DB_PASSWORD: Your actual database password
+# - JWT_SECRET: Generate with: openssl rand -base64 32
+# - PUBLIC_URL: Replace YOUR_DROPLET_IP with actual IP
+#
+# ===========================================
+# MANAGEMENT COMMANDS:
+# ===========================================
+# Start:    docker-compose up -d
+# Stop:     docker-compose down
+# Restart:  docker-compose restart
+# Logs:     docker-compose logs -f
+# Status:   docker-compose ps
+# Update:   docker-compose pull && docker-compose up -d

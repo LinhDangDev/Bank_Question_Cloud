@@ -34,7 +34,11 @@ import * as path from 'path';
     imports: [
         ConfigModule.forRoot({
             isGlobal: true,
-            envFilePath: path.resolve(__dirname, '..', '.env'),
+            envFilePath: [
+                path.resolve(process.cwd(), '.env'),
+                path.resolve(__dirname, '..', '.env'),
+                path.resolve(__dirname, '../..', '.env')
+            ],
             load: [databaseConfig],
         }),
         TypeOrmModule.forRootAsync({

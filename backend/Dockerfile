@@ -1,4 +1,26 @@
-FROM node:18-alpine
+# Multi-stage Docker build for NestJS backend
+FROM node:18-alpine AS builder
+
+# Install pnpm
+RUN npm install -g pnpm
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files first for better caching
+COPY package.json pnpm-lock.yaml ./
+
+# Install all dependencies (including devDependencies for build)
+RUN pnpm install
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN pnpm run build
+
+# Production stage
+FROM node:18-alpine AS production
 
 # Install pnpm
 RUN npm install -g pnpm
@@ -6,28 +28,40 @@ RUN npm install -g pnpm
 # Create app directory
 WORKDIR /app
 
-# Create package.json if it doesn't exist
-RUN echo '{"name":"app","version":"1.0.0"}' > package.json
+# Copy package files
+COPY package.json pnpm-lock.yaml ./
 
-# Install pnpm globally
-RUN pnpm setup
-RUN mkdir -p /root/.local/share/pnpm
-ENV PATH="/root/.local/share/pnpm:$PATH"
+# Install production dependencies (express is now included in package.json)
+RUN pnpm install --prod
 
-# Copy application files
-COPY . .
+# Copy built application from builder stage
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/public ./public
 
-# Install dependencies
-RUN pnpm install
+# Copy necessary files
+COPY copy-env.js ./
+COPY .env* ./
 
-# Build the application
-RUN pnpm run build
+# Create necessary directories with proper permissions
+RUN mkdir -p uploads/questions uploads/temp uploads/audio uploads/image output && \
+    chmod -R 755 uploads output
 
-# Create necessary directories
-RUN mkdir -p uploads/questions uploads/temp uploads/audio public
+# Create non-root user for security
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nestjs -u 1001 -G nodejs
+
+# Change ownership of app directory
+RUN chown -R nestjs:nodejs /app
+
+# Switch to non-root user
+USER nestjs
 
 # Expose application port
 EXPOSE 3001
 
-# Start application in production mode
-CMD ["pnpm", "run", "start:prod"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD node -e "require('http').get('http://localhost:3001/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })" || exit 1
+
+# Start application with proper command
+CMD ["sh", "-c", "echo 'Patching TypeORM crypto issue...' && echo 'Starting application...' && node copy-env.js && node dist/src/main.js"]

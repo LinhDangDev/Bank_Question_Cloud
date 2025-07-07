@@ -13,7 +13,7 @@ import { API_BASE_URL } from '@/config'
 import QuestionItem, { Question as FrontendQuestionType } from '@/components/QuestionItem'
 import PaginationBar from '@/components/PaginationBar'
 import Filters, { FilterOptions } from '@/components/Filters'
-import { renderLatex } from '@/utils/latex'
+import { renderLatex, parseGroupQuestionContent } from '@/utils/latex'
 import { fetchWithAuth } from '@/services/api'
 import { useAuth } from '@/context/AuthContext'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -344,11 +344,25 @@ const Questions = () => {
     }
   };
 
+  // Memoize group content parsing for performance
+  const groupContentCache = useMemo(() => {
+    const cache = new Map();
+    backendQuestions.forEach(q => {
+      if (q.SoCauHoiCon > 0 || q.LaCauHoiNhom) {
+        cache.set(q.MaCauHoi, parseGroupQuestionContent(q.NoiDung));
+      }
+    });
+    return cache;
+  }, [backendQuestions]);
+
   // Function to render a single question
   const renderQuestion = (question: BackendQuestion, index: number) => {
     const isExpanded = expandedGroups.includes(question.MaCauHoi);
     const isGroupQuestion = question.SoCauHoiCon > 0 || question.LaCauHoiNhom;
     const isSelected = selectedQuestions.has(question.MaCauHoi);
+
+    // Get cached group content for better performance
+    const groupContent = isGroupQuestion ? groupContentCache.get(question.MaCauHoi) : null;
 
     return (
       <Card
@@ -358,7 +372,9 @@ const Questions = () => {
             ? 'border-red-200 bg-red-50/30'
             : isSelected
               ? 'border-blue-400 bg-blue-50/30 shadow-md'
-              : 'border-gray-200 hover:border-blue-200 hover:shadow'
+              : isGroupQuestion
+                ? 'border-purple-200 hover:border-purple-300 hover:shadow-md bg-purple-50/20'
+                : 'border-gray-200 hover:border-blue-200 hover:shadow'
         }`}
       >
         <CardHeader className="p-4 pb-2">
@@ -394,7 +410,7 @@ const Questions = () => {
               )}
 
               <Badge variant="outline" className={`text-xs font-medium ${isGroupQuestion ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
-                {isGroupQuestion ? 'Nhóm' : 'Đơn'}
+                {isGroupQuestion ? (groupContent?.questionRange ? `Nhóm ${groupContent.questionRange}` : 'Nhóm') : 'Đơn'}
               </Badge>
 
               <Badge variant="outline" className="text-xs font-medium bg-blue-100 text-blue-700">
@@ -461,14 +477,21 @@ const Questions = () => {
 
               {isGroupQuestion && (
                 <button
-                  className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+                  className="flex items-center gap-1 px-3 py-1 rounded-md hover:bg-purple-50 transition-colors text-purple-700 text-sm font-medium"
                   onClick={() => toggleGroup(question.MaCauHoi)}
-                  title={isExpanded ? "Thu gọn câu hỏi nhóm" : "Mở rộng câu hỏi nhóm"}
+                  title={isExpanded ? "Thu gọn câu hỏi nhóm" : "Mở rộng xem chi tiết"}
                 >
-                  {isExpanded ?
-                    <ChevronDown className="h-4 w-4" /> :
-                    <ChevronRight className="h-4 w-4" />
-                  }
+                  {isExpanded ? (
+                    <>
+                      <ChevronDown className="h-4 w-4" />
+                      Thu gọn
+                    </>
+                  ) : (
+                    <>
+                      <ChevronRight className="h-4 w-4" />
+                      Xem chi tiết
+                    </>
+                  )}
                 </button>
               )}
             </div>
@@ -479,71 +502,96 @@ const Questions = () => {
           {/* Render content differently based on question type */}
           {isGroupQuestion ? (
             <>
-              {/* Group question content only shown once */}
-              <div className="mb-3 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: renderLatex(question.NoiDung) }}></div>
+              {/* Group question summary - always visible */}
+              <div className="mb-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="text-sm font-medium text-purple-700">
+                    {groupContent?.questionRange ? `Câu hỏi nhóm ${groupContent.questionRange}` : 'Câu hỏi nhóm'}
+                  </div>
+                  {question.CauHoiCon && (
+                    <Badge variant="outline" className="text-xs bg-purple-50 text-purple-600">
+                      {question.CauHoiCon.length} câu con
+                    </Badge>
+                  )}
+                </div>
+                <div className="prose prose-sm max-w-none text-gray-700">
+                  <div dangerouslySetInnerHTML={{ __html: renderLatex(groupContent?.summary || question.NoiDung) }}></div>
+                </div>
+              </div>
 
               {/* Multimedia content for group question */}
               <div className="mb-3">
                 <LazyMediaPlayer maCauHoi={question.MaCauHoi} showFileName={false} />
               </div>
 
-              {/* Only show child questions if expanded */}
-              {isExpanded && question.CauHoiCon && question.CauHoiCon.length > 0 && (
-                <div className="mt-4 space-y-3 border-t pt-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="text-sm font-medium text-purple-700">
-                      Câu hỏi nhóm - {question.CauHoiCon.length} câu con
+              {/* Show full content and child questions when expanded */}
+              {isExpanded && (
+                <div className="mt-4 space-y-4 border-t pt-4">
+                  {/* Full group content */}
+                  <div className="bg-purple-50/50 rounded-lg p-4">
+                    <div className="text-sm font-medium text-purple-700 mb-2">Nội dung đầy đủ:</div>
+                    <div className="prose prose-sm max-w-none">
+                      <div dangerouslySetInnerHTML={{ __html: renderLatex(groupContent?.fullContent || question.NoiDung) }}></div>
                     </div>
                   </div>
-                  {question.CauHoiCon.map((childQ, childIdx) => (
-                    <div key={childQ.MaCauHoi} className="border-l-4 border-l-purple-300 rounded-md bg-gray-50/80 p-3 hover:bg-gray-50 transition-colors">
-                      <div className="font-medium mb-2 flex items-center gap-2">
-                        <Badge className="rounded-full text-xs bg-purple-100 text-purple-700">
-                          Câu {childIdx + 1}
-                        </Badge>
-                      </div>
 
-                      <div className="mb-3 prose prose-sm max-w-none">
-                        <div dangerouslySetInnerHTML={{ __html: renderLatex(childQ.NoiDung) }}></div>
+                  {/* Child questions */}
+                  {question.CauHoiCon && question.CauHoiCon.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="text-sm font-medium text-purple-700">
+                        Các câu hỏi con ({question.CauHoiCon.length} câu):
                       </div>
+                      {question.CauHoiCon.map((childQ, childIdx) => (
+                        <div key={childQ.MaCauHoi} className="border-l-4 border-l-purple-300 rounded-md bg-gray-50/80 p-3 hover:bg-gray-50 transition-colors">
+                          <div className="font-medium mb-2 flex items-center gap-2">
+                            <Badge className="rounded-full text-xs bg-purple-100 text-purple-700">
+                              Câu {childIdx + 1}
+                            </Badge>
+                          </div>
 
-                      {/* Multimedia content for child question */}
-                      <div className="mb-3">
-                        <LazyMediaPlayer maCauHoi={childQ.MaCauHoi} showFileName={false} />
-                      </div>
+                          <div className="mb-3 prose prose-sm max-w-none">
+                            <div dangerouslySetInnerHTML={{ __html: renderLatex(childQ.NoiDung) }}></div>
+                          </div>
 
-                      {childQ.CauTraLoi && childQ.CauTraLoi.length > 0 && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {childQ.CauTraLoi.map((answer, idx) => (
-                            <div
-                              key={answer.MaCauTraLoi}
-                              className={`flex items-center p-2 rounded-md transition-colors ${
-                                answer.LaDapAn
-                                  ? 'bg-green-50 border border-green-300 hover:bg-green-100'
-                                  : 'bg-gray-50 border border-gray-200 hover:bg-gray-100'
-                              }`}
-                            >
-                              <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium mr-2 ${
-                                answer.LaDapAn
-                                  ? 'bg-green-100 text-green-700'
-                                  : 'bg-gray-200 text-gray-700'
-                              }`}>
-                                {String.fromCharCode(65 + idx)}
-                              </div>
-                              <div className="flex-1 min-w-0 prose prose-sm max-w-none">
-                                <div dangerouslySetInnerHTML={{ __html: renderLatex(answer.NoiDung) }}></div>
-                              </div>
-                              {answer.LaDapAn && (
-                                <div className="flex-shrink-0 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded ml-2 font-medium">
-                                  Đáp án
+                          {/* Multimedia content for child question */}
+                          <div className="mb-3">
+                            <LazyMediaPlayer maCauHoi={childQ.MaCauHoi} showFileName={false} />
+                          </div>
+
+                          {childQ.CauTraLoi && childQ.CauTraLoi.length > 0 && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {childQ.CauTraLoi.map((answer, idx) => (
+                                <div
+                                  key={answer.MaCauTraLoi}
+                                  className={`flex items-center p-2 rounded-md transition-colors ${
+                                    answer.LaDapAn
+                                      ? 'bg-green-50 border border-green-300 hover:bg-green-100'
+                                      : 'bg-gray-50 border border-gray-200 hover:bg-gray-100'
+                                  }`}
+                                >
+                                  <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium mr-2 ${
+                                    answer.LaDapAn
+                                      ? 'bg-green-100 text-green-700'
+                                      : 'bg-gray-200 text-gray-700'
+                                  }`}>
+                                    {String.fromCharCode(65 + idx)}
+                                  </div>
+                                  <div className="flex-1 min-w-0 prose prose-sm max-w-none">
+                                    <div dangerouslySetInnerHTML={{ __html: renderLatex(answer.NoiDung) }}></div>
+                                  </div>
+                                  {answer.LaDapAn && (
+                                    <div className="flex-shrink-0 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded ml-2 font-medium">
+                                      Đáp án
+                                    </div>
+                                  )}
                                 </div>
-                              )}
+                              ))}
                             </div>
-                          ))}
+                          )}
                         </div>
-                      )}
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
             </>

@@ -126,3 +126,4 @@ docs/
 
 # Ignore all files in the database directory
 database/
+deployment/
