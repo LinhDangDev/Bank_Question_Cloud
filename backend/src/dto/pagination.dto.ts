@@ -54,4 +54,8 @@ export class PaginationDto {
     @IsInt()
     @Min(1)
     answersLimit?: number;
+
+    @IsOptional()
+    @IsString()
+    questionType?: string;
 }

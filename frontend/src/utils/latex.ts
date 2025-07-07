@@ -57,6 +57,58 @@ export const parseGroupQuestionContent = (content: string): {
     };
 };
 
+/**
+ * Clean up unwanted characters and patterns from content
+ * @param content - Raw content to clean
+ * @returns Cleaned content
+ */
+export const cleanContent = (content: string): string => {
+    if (!content) return '';
+
+    return content
+        .replace(/^\s*\[\s*$/, '') // Remove standalone [ at the beginning
+        .replace(/^\s*\]\s*$/, '') // Remove standalone ] at the beginning
+        .replace(/\[\s*\]/g, '') // Remove empty brackets
+        .replace(/^\s*\[\s*/, '') // Remove [ at the very beginning
+        .replace(/\s*\]\s*$/, '') // Remove ] at the very end
+        .trim();
+};
+
+/**
+ * Format child question content by removing (<number>) pattern and cleaning up
+ * @param content - Raw child question content
+ * @param questionNumber - The question number to display
+ * @returns Formatted content
+ */
+export const formatChildQuestionContent = (content: string, questionNumber: number): string => {
+    if (!content) return '';
+
+    // Remove the (<number>) pattern from the beginning and clean up unwanted characters
+    let processedContent = content.replace(/^\s*\(<\d+>\)\s*/, ''); // Remove (<number>) pattern
+    processedContent = cleanContent(processedContent); // Clean up unwanted characters
+
+    return processedContent;
+};
+
+/**
+ * Format parent question content by replacing {<number>} with styled placeholders
+ * @param content - Raw parent question content
+ * @returns Formatted content with styled placeholders
+ */
+export const formatParentQuestionContent = (content: string): string => {
+    if (!content) return '';
+
+    // Clean up unwanted characters first
+    let processedContent = cleanContent(content);
+
+    // Replace {<number>} with styled blank spaces
+    processedContent = processedContent.replace(/\{<(\d+)>\}/g, (match, number) => {
+        return `<span class="inline-block bg-blue-50 border-2 border-dashed border-blue-300 px-3 py-1 mx-1 rounded-md text-blue-600 font-medium min-w-[60px] text-center">Câu ${number}</span>`;
+    });
+
+    return processedContent;
+};
+
 export const renderLatex = (content: string): string => {
     if (!content) return '';
 

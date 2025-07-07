@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, Inject } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, In, IsNull, Like } from 'typeorm';
+import { Repository, DataSource, In, IsNull, Like, MoreThan } from 'typeorm';
 import { Cache } from 'cache-manager';
 import { BaseService } from '../../common/base.service';
 import { CauHoi } from '../../entities/cau-hoi.entity';
@@ -38,11 +38,12 @@ export class CauHoiService extends BaseService<CauHoi> {
             maCLO = '',
             capDo = '',
             startDate = '',
-            endDate = ''
+            endDate = '',
+            questionType = ''
         } = paginationDto as any;
 
         // Generate cache key
-        const cacheKey = `questions:${page}:${limit}:${includeAnswers}:${search}:${isDeleted}:${maCLO}:${capDo}:${startDate}:${endDate}:${answersPagination ? JSON.stringify(answersPagination) : 'all'}`;
+        const cacheKey = `questions:${page}:${limit}:${includeAnswers}:${search}:${isDeleted}:${maCLO}:${capDo}:${startDate}:${endDate}:${questionType}:${answersPagination ? JSON.stringify(answersPagination) : 'all'}`;
 
         // Try to get from cache first
         const cachedData = await this.cacheManager.get(cacheKey);
@@ -75,6 +76,17 @@ export class CauHoiService extends BaseService<CauHoi> {
         // Handle difficulty filter
         if (capDo && capDo !== '') {
             whereConditions.CapDo = parseInt(capDo);
+        }
+
+        // Handle question type filter
+        if (questionType && questionType !== '') {
+            if (questionType === 'single') {
+                // For single questions: SoCauHoiCon = 0 (no child questions)
+                whereConditions.SoCauHoiCon = 0;
+            } else if (questionType === 'group') {
+                // For group questions: SoCauHoiCon > 0 (has child questions)
+                whereConditions.SoCauHoiCon = MoreThan(0);
+            }
         }
 
         // Get questions with pagination - only include questions that are NOT child questions (MaCauHoiCha IS NULL)
@@ -193,11 +205,12 @@ export class CauHoiService extends BaseService<CauHoi> {
             maCLO = '',
             capDo = '',
             startDate = '',
-            endDate = ''
+            endDate = '',
+            questionType = ''
         } = paginationDto as any;
 
         // Generate cache key
-        const cacheKey = `questions:creator:${creatorId}:${page}:${limit}:${includeAnswers}:${search}:${isDeleted}:${maCLO}:${capDo}:${startDate}:${endDate}:${answersPagination ? JSON.stringify(answersPagination) : 'all'}`;
+        const cacheKey = `questions:creator:${creatorId}:${page}:${limit}:${includeAnswers}:${search}:${isDeleted}:${maCLO}:${capDo}:${startDate}:${endDate}:${questionType}:${answersPagination ? JSON.stringify(answersPagination) : 'all'}`;
 
         // Try to get from cache first
         const cachedData = await this.cacheManager.get(cacheKey);
@@ -231,6 +244,17 @@ export class CauHoiService extends BaseService<CauHoi> {
         // Handle difficulty filter
         if (capDo && capDo !== '') {
             whereConditions.CapDo = parseInt(capDo);
+        }
+
+        // Handle question type filter
+        if (questionType && questionType !== '') {
+            if (questionType === 'single') {
+                // For single questions: SoCauHoiCon = 0 (no child questions)
+                whereConditions.SoCauHoiCon = 0;
+            } else if (questionType === 'group') {
+                // For group questions: SoCauHoiCon > 0 (has child questions)
+                whereConditions.SoCauHoiCon = MoreThan(0);
+            }
         }
 
         // Get questions by creator with pagination - only include questions that are NOT child questions

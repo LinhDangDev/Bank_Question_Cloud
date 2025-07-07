@@ -24,6 +24,7 @@ import mammoth from 'mammoth';
 import { MathRenderer } from '../../components/MathRenderer';
 import QuestionItem from '../../components/QuestionItem';
 import { questionsImportApi } from '../../services/api';
+import { formatChildQuestionContent, formatParentQuestionContent, cleanContent } from '../../utils/latex';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-hot-toast';
@@ -793,8 +794,8 @@ const UploadQuestions = () => {
   const renderContent = (content: string) => {
     if (!content) return <div></div>;
 
-    // Replace special tags for better display
-    let processedContent = content;
+    // Clean content first
+    let processedContent = cleanContent(content);
 
     // Handle special tags for group questions with better styling
     processedContent = processedContent
@@ -803,10 +804,12 @@ const UploadQuestions = () => {
       .replace(/\[\<egc\>\]/g, '<hr class="my-3 border-dashed border-gray-300"/>')
       .replace(/\[\<br\>\]/g, '');
 
-    // Replace question number references with nicer styling
+    // Use the new formatting functions for better styling
+    processedContent = formatParentQuestionContent(processedContent);
+
+    // Handle child question patterns
     processedContent = processedContent
-      .replace(/\{<(\d+)>\}/g, '<span class="inline-block bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-medium text-xs">$1</span>')
-      .replace(/\(<(\d+)>\)/g, '<span class="inline-block bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded font-medium text-xs">$1</span>');
+      .replace(/\(<(\d+)>\)/g, '<span class="inline-block bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded font-medium text-xs">Câu $1</span>');
 
     // Process audio tags
     processedContent = processedContent

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Edit } from 'lucide-react';
 import { useThemeStyles, cx } from "../utils/theme";
-import { renderLatex } from '@/utils/latex';
+import { renderLatex, formatChildQuestionContent, cleanContent } from '@/utils/latex';
 import { NavigateFunction } from 'react-router-dom';
 
 
@@ -36,7 +36,9 @@ const ChildQuestionCard = ({ childQuestion, parentId, childIndex, navigate }: Ch
     <div className="border rounded-md p-3 bg-gray-50 dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex justify-between items-center mb-2">
         <div className="font-medium text-sm">
-          Câu {childQuestion.MaSoCauHoi}:
+          <span className="inline-block bg-purple-100 text-purple-700 px-2 py-1 rounded-md text-sm font-semibold mr-2">
+            Câu {childIndex + 1}
+          </span>
         </div>
         <Button
           variant="outline"
@@ -49,7 +51,9 @@ const ChildQuestionCard = ({ childQuestion, parentId, childIndex, navigate }: Ch
       </div>
 
       <div className="text-sm mb-3">
-        <span dangerouslySetInnerHTML={{ __html: renderLatex(childQuestion.NoiDung) }} />
+        <span dangerouslySetInnerHTML={{
+          __html: renderLatex(formatChildQuestionContent(childQuestion.NoiDung, childIndex + 1))
+        }} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">

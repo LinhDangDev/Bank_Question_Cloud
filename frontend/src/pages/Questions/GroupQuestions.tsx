@@ -9,6 +9,7 @@ import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import PageContainer from '@/components/PageContainer';
 import PaginationBar from '@/components/PaginationBar';
+import { formatChildQuestionContent, formatParentQuestionContent, cleanContent } from '@/utils/latex';
 
 // Define the Answer interface
 interface Answer {
@@ -242,7 +243,9 @@ const GroupQuestionsPage = () => {
                           </span>
                         )}
                       </div>
-                      <div className="mb-1">{renderLatex(question.NoiDung)}</div>
+                      <div className="mb-1" dangerouslySetInnerHTML={{
+                        __html: renderLatex(formatParentQuestionContent(question.NoiDung))
+                      }} />
                       <div className="text-sm text-gray-500">
                         <span>{formatDate(question.NgayTao)}</span>
                         <span className="mx-2">•</span>
@@ -287,7 +290,14 @@ const GroupQuestionsPage = () => {
                           'p-4 rounded-lg',
                           isDark ? 'bg-gray-800' : 'bg-white border border-gray-200'
                         )}>
-                          <div className="font-medium mb-2">Câu {index + 1}: {renderLatex(childQuestion.NoiDung)}</div>
+                          <div className="font-medium mb-2">
+                            <span className="inline-block bg-purple-100 text-purple-700 px-2 py-1 rounded-md text-sm font-semibold mr-2">
+                              Câu {index + 1}
+                            </span>
+                            <span dangerouslySetInnerHTML={{
+                              __html: renderLatex(formatChildQuestionContent(childQuestion.NoiDung, index + 1))
+                            }} />
+                          </div>
                           <div className="pl-4 space-y-2">
                             {childQuestion.CauTraLoi.map((answer) => (
                               <div key={answer.MaCauTraLoi} className={cx(

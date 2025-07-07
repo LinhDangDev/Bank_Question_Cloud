@@ -10,6 +10,8 @@ import { toast } from 'react-toastify';
 import QuestionItem from '@/components/QuestionItem';
 import { useAuth } from '@/context/AuthContext';
 import { Switch } from '@/components/ui/switch';
+import { convertMediaMarkupToHtml } from '@/utils/mediaMarkup';
+import { processMediaContent } from '@/utils/mediaContentProcessor';
 import { Label } from '@/components/ui/label';
 
 interface Exam {
@@ -257,14 +259,16 @@ const ExamDetail = () => {
 
         ${sortedQuestions.map((detail, index) => {
           const question = detail.CauHoi;
+          const processedContent = processMediaContent(question.NoiDung || '');
           return `
             <div class="question">
-              <div class="question-number">Câu ${index + 1}: ${question.NoiDung || ''}</div>
+              <div class="question-number">Câu ${index + 1}: ${processedContent}</div>
               ${question.CauTraLoi ? question.CauTraLoi.map((answer, idx) => {
                 const letter = String.fromCharCode(65 + idx);
+                const processedAnswer = processMediaContent(answer.NoiDung || '');
                 return `
                   <div class="answer ${answer.LaDapAn ? 'correct-answer' : ''}">
-                    <span class="answer-letter">${letter}.</span> ${answer.NoiDung || ''}
+                    <span class="answer-letter">${letter}.</span> ${processedAnswer}
                   </div>
                 `;
               }).join('') : ''}
@@ -409,12 +413,12 @@ const ExamDetail = () => {
   const transformQuestion = (cauHoi: BackendCauHoi, showAnswers: boolean): CauHoi => {
     return {
       id: cauHoi.MaCauHoi,
-      content: cauHoi.NoiDung || '',
+      content: cauHoi.NoiDung || '', // Keep original markup, let QuestionItem handle conversion
       clo: cauHoi.CLO?.TenCLO || null, // Sử dụng tên CLO thay vì UUID
       type: 'single-choice', // Default, adjust based on your data
       answers: cauHoi.CauTraLoi?.map((answer, idx) => ({
         id: answer.MaCauTraLoi,
-        content: answer.NoiDung || '',
+        content: answer.NoiDung || '', // Keep original markup, let QuestionItem handle conversion
         isCorrect: showAnswers ? answer.LaDapAn : false, // Ẩn đáp án nếu không hiển thị
         order: answer.ThuTu || idx
       })) || [],

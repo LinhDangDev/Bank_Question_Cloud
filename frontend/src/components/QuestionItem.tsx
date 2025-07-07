@@ -3,6 +3,9 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { MathRenderer } from './MathRenderer';
 import { getCloColor, getDifficultyColor, getDifficultyText } from '../utils/theme';
 import LazyMediaPlayer from './LazyMediaPlayer';
+import { formatChildQuestionContent, formatParentQuestionContent, cleanContent } from '../utils/latex';
+import { convertMediaMarkupToHtml, hasMediaMarkup } from '../utils/mediaMarkup';
+import { processMediaContent, detectMediaFormat } from '../utils/mediaContentProcessor';
 
 export interface Answer {
   id: string;
@@ -37,11 +40,46 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({
 }) => {
   const [expanded, setExpanded] = useState(false);
 
-  // Render content with LaTeX
-  const renderContent = (content: string) => {
-    // Preprocess the content to properly format LaTeX expressions
-    const preprocessedContent = preprocessLatex(content);
-    return <MathRenderer content={preprocessedContent} />;
+  // Render content with LaTeX and media (supports both HTML tags and markup)
+  const renderContent = (content: string, isChildQuestion = false, questionNumber = 0) => {
+    let processedContent = content;
+
+    // Detect media format and check if content has any media
+    const mediaFormat = detectMediaFormat(content);
+    const hasMedia = mediaFormat.formatType !== 'none';
+
+    if (hasMedia) {
+      // Process media content (handles both HTML tags and markup)
+      processedContent = processMediaContent(processedContent);
+
+      // Then apply LaTeX formatting
+      if (isChildQuestion) {
+        processedContent = formatChildQuestionContent(processedContent, questionNumber);
+      } else if (question.isGroup) {
+        processedContent = formatParentQuestionContent(processedContent);
+      } else {
+        processedContent = cleanContent(processedContent);
+      }
+
+      // Render HTML directly for media content
+      return (
+        <div
+          className="question-content prose prose-sm max-w-none"
+          dangerouslySetInnerHTML={{ __html: processedContent }}
+        />
+      );
+    } else {
+      // For content without media, use MathRenderer as before
+      if (isChildQuestion) {
+        processedContent = formatChildQuestionContent(processedContent, questionNumber);
+      } else if (question.isGroup) {
+        processedContent = formatParentQuestionContent(processedContent);
+      } else {
+        processedContent = cleanContent(processedContent);
+      }
+
+      return <MathRenderer content={processedContent} />;
+    }
   };
 
   // Function to preprocess content for better LaTeX rendering
@@ -120,7 +158,7 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({
         </div>
 
         <div className="mb-3">
-          {renderContent(childQuestion.content)}
+          {renderContent(childQuestion.content, true, childIdx + 1)}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

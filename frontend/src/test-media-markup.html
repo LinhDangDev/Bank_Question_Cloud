@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media Markup Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .media-container {
+            margin: 12px 0;
+        }
+        .audio-container {
+            background-color: #dbeafe;
+            border: 1px solid #93c5fd;
+            border-radius: 8px;
+            padding: 12px;
+        }
+        .image-container {
+            background-color: #f9fafb;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 12px;
+        }
+        .media-filename {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+        }
+        .media-error {
+            font-size: 14px;
+            color: #ef4444;
+            font-style: italic;
+            padding: 8px;
+            background-color: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 4px;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body class="p-8 bg-gray-100">
+    <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
+        <h1 class="text-2xl font-bold mb-6">Media Markup Conversion Test</h1>
+        
+        <div class="space-y-6">
+            <!-- Test Case 1: Audio Only -->
+            <div class="border rounded-lg p-4">
+                <h3 class="font-semibold mb-2">Test Case 1: Audio Only</h3>
+                <div class="bg-gray-50 p-3 rounded mb-3">
+                    <strong>Input:</strong> Listen to this audio: [AUDIO: sample_audio.mp3] and answer the question.
+                </div>
+                <div class="bg-blue-50 p-3 rounded">
+                    <strong>Output:</strong>
+                    <div id="test1-output"></div>
+                </div>
+            </div>
+
+            <!-- Test Case 2: Image Only -->
+            <div class="border rounded-lg p-4">
+                <h3 class="font-semibold mb-2">Test Case 2: Image Only</h3>
+                <div class="bg-gray-50 p-3 rounded mb-3">
+                    <strong>Input:</strong> Look at this image: [IMAGE: er_diagram.webp] and identify the components.
+                </div>
+                <div class="bg-blue-50 p-3 rounded">
+                    <strong>Output:</strong>
+                    <div id="test2-output"></div>
+                </div>
+            </div>
+
+            <!-- Test Case 3: Mixed Media -->
+            <div class="border rounded-lg p-4">
+                <h3 class="font-semibold mb-2">Test Case 3: Mixed Media</h3>
+                <div class="bg-gray-50 p-3 rounded mb-3">
+                    <strong>Input:</strong> Study the diagram [IMAGE: flowchart.jpg] and listen to the explanation [AUDIO: explanation.wav] before answering.
+                </div>
+                <div class="bg-blue-50 p-3 rounded">
+                    <strong>Output:</strong>
+                    <div id="test3-output"></div>
+                </div>
+            </div>
+
+            <!-- Test Case 4: Multiple Same Type -->
+            <div class="border rounded-lg p-4">
+                <h3 class="font-semibold mb-2">Test Case 4: Multiple Same Type</h3>
+                <div class="bg-gray-50 p-3 rounded mb-3">
+                    <strong>Input:</strong> Compare these images: [IMAGE: before.png] and [IMAGE: after.png]. Also listen to [AUDIO: intro.mp3] and [AUDIO: conclusion.mp3].
+                </div>
+                <div class="bg-blue-50 p-3 rounded">
+                    <strong>Output:</strong>
+                    <div id="test4-output"></div>
+                </div>
+            </div>
+
+            <!-- Test Case 5: No Media -->
+            <div class="border rounded-lg p-4">
+                <h3 class="font-semibold mb-2">Test Case 5: No Media</h3>
+                <div class="bg-gray-50 p-3 rounded mb-3">
+                    <strong>Input:</strong> This is a regular question without any media content.
+                </div>
+                <div class="bg-blue-50 p-3 rounded">
+                    <strong>Output:</strong>
+                    <div id="test5-output"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Media Markup Conversion Function (JavaScript version)
+        const AUDIO_CDN_BASE = 'https://datauploads.sgp1.digitaloceanspaces.com/audio/';
+        const IMAGE_CDN_BASE = 'https://datauploads.sgp1.digitaloceanspaces.com/images/';
+
+        function buildAudioUrl(filename) {
+            const cleanFilename = filename.replace(/[\\\/]/g, '').trim();
+            const audioExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac'];
+            const lowerFilename = cleanFilename.toLowerCase();
+            const hasExtension = audioExtensions.some(ext => lowerFilename.endsWith(ext));
+            
+            if (!hasExtension) {
+                return AUDIO_CDN_BASE + cleanFilename + '.mp3';
+            }
+            return AUDIO_CDN_BASE + cleanFilename;
+        }
+
+        function buildImageUrl(filename) {
+            const cleanFilename = filename.replace(/[\\\/]/g, '').trim();
+            const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
+            const lowerFilename = cleanFilename.toLowerCase();
+            const hasExtension = imageExtensions.some(ext => lowerFilename.endsWith(ext));
+            
+            if (!hasExtension) {
+                return IMAGE_CDN_BASE + cleanFilename + '.jpg';
+            }
+            return IMAGE_CDN_BASE + cleanFilename;
+        }
+
+        function convertMediaMarkupToHtml(content) {
+            if (!content) return content;
+
+            let processedContent = content;
+
+            // Convert [AUDIO: filename] to <audio> tags
+            processedContent = processedContent.replace(
+                /\[AUDIO:\s*([^\]]+)\]/gi,
+                (match, filename) => {
+                    const cleanFilename = filename.trim();
+                    const audioUrl = buildAudioUrl(cleanFilename);
+                    return `<div class="media-container audio-container my-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                        <audio controls style="width: 100%; max-width: 400px; margin: 4px 0;">
+                            <source src="${audioUrl}" type="audio/mpeg">
+                            <source src="${audioUrl}" type="audio/wav">
+                            <source src="${audioUrl}" type="audio/ogg">
+                            Your browser does not support the audio element.
+                        </audio>
+                        <div class="media-filename text-xs text-gray-600 mt-2 flex items-center">
+                            <span class="mr-1">🔊</span>
+                            <span>${cleanFilename}</span>
+                        </div>
+                    </div>`;
+                }
+            );
+
+            // Convert [IMAGE: filename] to <img> tags
+            processedContent = processedContent.replace(
+                /\[IMAGE:\s*([^\]]+)\]/gi,
+                (match, filename) => {
+                    const cleanFilename = filename.trim();
+                    const imageUrl = buildImageUrl(cleanFilename);
+                    return `<div class="media-container image-container my-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <img 
+                            src="${imageUrl}" 
+                            alt="${cleanFilename}" 
+                            style="max-width: 100%; height: auto; max-height: 400px; object-fit: contain; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+                            onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
+                        >
+                        <div class="media-error text-sm text-red-500 italic hidden p-2 bg-red-50 rounded border border-red-200 mt-2">
+                            📷 Image not found: ${cleanFilename}
+                        </div>
+                        <div class="media-filename text-xs text-gray-600 mt-2 flex items-center">
+                            <span class="mr-1">📷</span>
+                            <span>${cleanFilename}</span>
+                        </div>
+                    </div>`;
+                }
+            );
+
+            return processedContent;
+        }
+
+        // Test cases
+        const testCases = [
+            {
+                id: 'test1-output',
+                input: 'Listen to this audio: [AUDIO: sample_audio.mp3] and answer the question.'
+            },
+            {
+                id: 'test2-output',
+                input: 'Look at this image: [IMAGE: er_diagram.webp] and identify the components.'
+            },
+            {
+                id: 'test3-output',
+                input: 'Study the diagram [IMAGE: flowchart.jpg] and listen to the explanation [AUDIO: explanation.wav] before answering.'
+            },
+            {
+                id: 'test4-output',
+                input: 'Compare these images: [IMAGE: before.png] and [IMAGE: after.png]. Also listen to [AUDIO: intro.mp3] and [AUDIO: conclusion.mp3].'
+            },
+            {
+                id: 'test5-output',
+                input: 'This is a regular question without any media content.'
+            }
+        ];
+
+        // Run tests
+        testCases.forEach(testCase => {
+            const outputElement = document.getElementById(testCase.id);
+            const convertedContent = convertMediaMarkupToHtml(testCase.input);
+            outputElement.innerHTML = convertedContent;
+        });
+
+        // Add some logging
+        console.log('Media Markup Conversion Test completed');
+        console.log('Check the page to see if images and audio elements are rendered correctly');
+    </script>
+</body>
+</html>

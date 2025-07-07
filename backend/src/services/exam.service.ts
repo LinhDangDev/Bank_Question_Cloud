@@ -10,6 +10,8 @@ import { Phan } from '../entities/phan.entity';
 import { Files } from '../entities/files.entity';
 import { DocxTemplateService } from './docx-template.service';
 import { PdfService } from './pdf.service';
+import { MediaMarkupUtil } from '../utils/media-markup.util';
+import { MediaContentProcessor } from '../utils/media-content-processor.util';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 
@@ -98,15 +100,8 @@ export class ExamService {
         await this.deThiRepository.save(deThi);
         this.logger.log(`Created DeThi package with ID: ${deThi.MaDeThi}`);
 
-        // Create ChiTietDeThi entries
-        const chiTietDeThiEntries = questions.map((question, index) => {
-            return this.chiTietDeThiRepository.create({
-                MaDeThi: deThi.MaDeThi,
-                MaPhan: question.MaPhan,
-                MaCauHoi: question.MaCauHoi,
-                ThuTu: index + 1,
-            });
-        });
+        // Create ChiTietDeThi entries with proper ordering for group questions
+        const chiTietDeThiEntries = this.createChiTietDeThiEntries(deThi.MaDeThi, questions);
         await this.chiTietDeThiRepository.save(chiTietDeThiEntries);
         this.logger.log(`Saved ${chiTietDeThiEntries.length} entries to ChiTietDeThi.`);
 
@@ -172,15 +167,8 @@ export class ExamService {
             await this.deThiRepository.save(deThi);
             this.logger.log(`Created exam record with ID: ${deThi.MaDeThi}`);
 
-            // 5. Create ChiTietDeThi records
-            const chiTietDeThiEntities = selectedQuestions.map((question, index) =>
-                this.chiTietDeThiRepository.create({
-                    MaDeThi: deThi.MaDeThi,
-                    MaCauHoi: question.MaCauHoi,
-                    MaPhan: question.MaPhan,
-                    ThuTu: index + 1,
-                }),
-            );
+            // 5. Create ChiTietDeThi records with proper ordering for group questions
+            const chiTietDeThiEntities = this.createChiTietDeThiEntries(deThi.MaDeThi, selectedQuestions);
             await this.chiTietDeThiRepository.save(chiTietDeThiEntities);
             this.logger.log(`Saved ${chiTietDeThiEntities.length} question details for exam ${deThi.MaDeThi}`);
 
@@ -298,9 +286,109 @@ export class ExamService {
     }
 
     /**
+     * Get child questions for selected parent questions
+     * @param parentQuestions Array of parent questions
+     * @returns Map of parent question ID to child questions array
+     */
+    private async getChildQuestionsForParents(parentQuestions: CauHoi[]): Promise<Map<string, CauHoi[]>> {
+        const parentIds = parentQuestions
+            .filter(q => q.SoCauHoiCon && q.SoCauHoiCon > 0)
+            .map(q => q.MaCauHoi);
+
+        if (parentIds.length === 0) {
+            return new Map();
+        }
+
+        this.logger.log(`Fetching child questions for ${parentIds.length} parent questions`);
+
+        const childQuestions = await this.cauHoiRepository.find({
+            where: {
+                MaCauHoiCha: In(parentIds),
+                XoaTamCauHoi: false
+            },
+            relations: ['CLO', 'Phan', 'CauTraLoi'],
+            select: [
+                'MaCauHoi', 'MaPhan', 'MaSoCauHoi', 'NoiDung', 'HoanVi', 'CapDo', 'SoCauHoiCon',
+                'DoPhanCachCauHoi', 'MaCauHoiCha', 'XoaTamCauHoi', 'SoLanDuocThi', 'SoLanDung',
+                'NgayTao', 'NgaySua', 'MaCLO', 'DoKhoThucTe'
+            ]
+        });
+
+        // Group child questions by parent ID
+        const childQuestionsMap = new Map<string, CauHoi[]>();
+        childQuestions.forEach(child => {
+            if (!childQuestionsMap.has(child.MaCauHoiCha)) {
+                childQuestionsMap.set(child.MaCauHoiCha, []);
+            }
+            childQuestionsMap.get(child.MaCauHoiCha)!.push(child);
+        });
+
+        this.logger.log(`Found child questions for ${childQuestionsMap.size} parent questions`);
+        return childQuestionsMap;
+    }
+
+    /**
+     * Adjust question count for group questions
+     * When a parent question is selected, we need to account for its child questions
+     * @param selectedQuestions Array of selected questions (including parents)
+     * @param childQuestionsMap Map of parent ID to child questions
+     * @returns Total effective question count
+     */
+    private calculateEffectiveQuestionCount(selectedQuestions: CauHoi[], childQuestionsMap: Map<string, CauHoi[]>): number {
+        let totalCount = 0;
+
+        selectedQuestions.forEach(question => {
+            if (question.SoCauHoiCon && question.SoCauHoiCon > 0) {
+                // This is a parent question - count it as 1 + number of children
+                const childCount = childQuestionsMap.get(question.MaCauHoi)?.length || 0;
+                totalCount += 1 + childCount; // Parent + children
+                this.logger.log(`Parent question ${question.MaCauHoi} contributes ${1 + childCount} questions`);
+            } else {
+                // Regular single question
+                totalCount += 1;
+            }
+        });
+
+        return totalCount;
+    }
+
+    /**
+     * Validate group question integrity
+     * Ensure that selected parent questions have their required child questions
+     * @param parentQuestions Array of parent questions
+     * @param childQuestionsMap Map of parent ID to child questions
+     * @returns Validation result with warnings
+     */
+    private validateGroupQuestionIntegrity(parentQuestions: CauHoi[], childQuestionsMap: Map<string, CauHoi[]>): {
+        isValid: boolean;
+        warnings: string[];
+    } {
+        const warnings: string[] = [];
+        let isValid = true;
+
+        parentQuestions.forEach(parent => {
+            if (parent.SoCauHoiCon && parent.SoCauHoiCon > 0) {
+                const childQuestions = childQuestionsMap.get(parent.MaCauHoi) || [];
+                const expectedChildCount = parent.SoCauHoiCon;
+                const actualChildCount = childQuestions.length;
+
+                if (actualChildCount !== expectedChildCount) {
+                    isValid = false;
+                    warnings.push(
+                        `Parent question ${parent.MaCauHoi} expects ${expectedChildCount} children but has ${actualChildCount}`
+                    );
+                }
+            }
+        });
+
+        return { isValid, warnings };
+    }
+
+    /**
      * Enhanced CLO-Stratified Weighted Random Sampling Algorithm
      * This algorithm ensures balanced distribution across chapters and CLOs
      * with multiple fallback strategies to guarantee question selection
+     * Now supports group questions (parent-child relationships)
      */
     private async selectQuestionsWithCLOStrategy(matrix: ExamMatrixItem[], multiplier: number = 1): Promise<CauHoi[]> {
         const selectedQuestions: CauHoi[] = [];
@@ -484,18 +572,119 @@ export class ExamService {
                 selectedQuestions.push(...chapterSelectedQuestions);
             }
 
-            this.logger.log(`Total selected questions: ${selectedQuestions.length}`);
+            this.logger.log(`Total selected parent questions: ${selectedQuestions.length}`);
 
             if (selectedQuestions.length === 0) {
                 this.logger.error('No questions were selected! This indicates a serious issue with the question database.');
                 throw new Error('Không thể tìm thấy câu hỏi phù hợp cho ma trận đề thi. Vui lòng kiểm tra lại dữ liệu câu hỏi.');
             }
 
-            return selectedQuestions;
+            // ENHANCED: Handle group questions - get child questions for selected parents
+            this.logger.log('Processing group questions...');
+            const childQuestionsMap = await this.getChildQuestionsForParents(selectedQuestions);
+
+            // Validate group question integrity
+            const parentQuestions = selectedQuestions.filter(q => q.SoCauHoiCon && q.SoCauHoiCon > 0);
+            if (parentQuestions.length > 0) {
+                const validation = this.validateGroupQuestionIntegrity(parentQuestions, childQuestionsMap);
+                if (!validation.isValid) {
+                    this.logger.warn('Group question integrity issues found:', validation.warnings);
+                    // Log warnings but continue - we'll work with available child questions
+                    validation.warnings.forEach(warning => this.logger.warn(warning));
+                }
+            }
+
+            // Combine parent questions with their child questions
+            const allQuestionsWithChildren: CauHoi[] = [];
+            selectedQuestions.forEach(question => {
+                // Add the parent/single question
+                allQuestionsWithChildren.push(question);
+
+                // Add child questions if this is a group question
+                if (question.SoCauHoiCon && question.SoCauHoiCon > 0) {
+                    const childQuestions = childQuestionsMap.get(question.MaCauHoi) || [];
+                    allQuestionsWithChildren.push(...childQuestions);
+                    this.logger.log(`Added ${childQuestions.length} child questions for parent ${question.MaCauHoi}`);
+                }
+            });
+
+            // Calculate effective question count for logging
+            const effectiveCount = this.calculateEffectiveQuestionCount(selectedQuestions, childQuestionsMap);
+            this.logger.log(`Total questions including children: ${allQuestionsWithChildren.length}`);
+            this.logger.log(`Effective question count: ${effectiveCount}`);
+
+            return allQuestionsWithChildren;
         } catch (error) {
             this.logger.error(`Error selecting questions: ${error.message}`, error.stack);
             throw new Error(`Lỗi khi chọn câu hỏi cho đề thi: ${error.message}`);
         }
+    }
+
+    /**
+     * Create ChiTietDeThi entries with proper ordering for group questions
+     * This method ensures that parent questions and their children maintain proper sequence
+     * @param examId The exam ID
+     * @param questions Array of questions (including both parent and child questions)
+     * @returns Array of ChiTietDeThi entities ready to be saved
+     */
+    private createChiTietDeThiEntries(examId: string, questions: CauHoi[]): any[] {
+        const entries: any[] = [];
+        let currentOrder = 1;
+
+        // Group questions by parent-child relationship
+        const parentQuestions: CauHoi[] = [];
+        const childQuestionsMap = new Map<string, CauHoi[]>();
+
+        questions.forEach(question => {
+            if (!question.MaCauHoiCha) {
+                // This is a parent question (or single question)
+                parentQuestions.push(question);
+            } else {
+                // This is a child question
+                if (!childQuestionsMap.has(question.MaCauHoiCha)) {
+                    childQuestionsMap.set(question.MaCauHoiCha, []);
+                }
+                childQuestionsMap.get(question.MaCauHoiCha)!.push(question);
+            }
+        });
+
+        // Sort child questions by their original order (MaSoCauHoi or creation date)
+        childQuestionsMap.forEach((children, parentId) => {
+            children.sort((a, b) => {
+                // Sort by MaSoCauHoi if available, otherwise by creation date
+                if (a.MaSoCauHoi && b.MaSoCauHoi) {
+                    return a.MaSoCauHoi - b.MaSoCauHoi;
+                }
+                return new Date(a.NgayTao).getTime() - new Date(b.NgayTao).getTime();
+            });
+        });
+
+        // Create entries in proper order: parent first, then its children
+        parentQuestions.forEach(parent => {
+            // Add parent question
+            entries.push(this.chiTietDeThiRepository.create({
+                MaDeThi: examId,
+                MaPhan: parent.MaPhan,
+                MaCauHoi: parent.MaCauHoi,
+                ThuTu: currentOrder++,
+            }));
+
+            // Add child questions if this is a group question
+            const childQuestions = childQuestionsMap.get(parent.MaCauHoi);
+            if (childQuestions && childQuestions.length > 0) {
+                childQuestions.forEach(child => {
+                    entries.push(this.chiTietDeThiRepository.create({
+                        MaDeThi: examId,
+                        MaPhan: child.MaPhan,
+                        MaCauHoi: child.MaCauHoi,
+                        ThuTu: currentOrder++,
+                    }));
+                });
+            }
+        });
+
+        this.logger.log(`Created ${entries.length} ChiTietDeThi entries with proper ordering`);
+        return entries;
     }
 
     /**
@@ -802,7 +991,7 @@ export class ExamService {
             return {
                 id: question?.MaCauHoi,
                 number: index + 1,
-                content: question?.NoiDung || 'Question content not available',
+                content: MediaMarkupUtil.convertMediaMarkupToHtml(question?.NoiDung || 'Question content not available'),
                 chapter: item.Phan?.TenPhan || 'Unknown Chapter',
                 chapterId: item.MaPhan,
                 clo: question?.CLO?.TenCLO || 'No CLO',
@@ -919,8 +1108,11 @@ export class ExamService {
 
             return {
                 number: index + 1,
-                text: question?.NoiDung || 'Không có nội dung',
-                answers: formattedAnswers,
+                text: MediaContentProcessor.processMediaContentForDocument(question?.NoiDung || 'Không có nội dung'),
+                answers: formattedAnswers.map(answer => ({
+                    ...answer,
+                    text: MediaContentProcessor.processMediaContentForDocument(answer.text)
+                })),
                 correctAnswer: correctAnswers.join(', '), // Include correct answer information
                 clo: question?.CLO?.TenCLO || '', // Use CLO name instead of CLO code
                 difficulty: question?.CapDo || 1,
@@ -1391,10 +1583,10 @@ export class ExamService {
 
             return {
                 number: index + 1,
-                text: question?.NoiDung || 'Nội dung câu hỏi không có sẵn',
+                text: MediaMarkupUtil.convertMediaMarkupToHtml(question?.NoiDung || 'Nội dung câu hỏi không có sẵn'),
                 answers: questionAnswers.map((answer, idx) => ({
                     label: String.fromCharCode(65 + idx), // A, B, C, D...
-                    text: answer.NoiDung,
+                    text: MediaMarkupUtil.convertMediaMarkupToHtml(answer.NoiDung),
                     isCorrect: answer.LaDapAn
                 })),
                 correctAnswer: correctAnswers.join(', '),

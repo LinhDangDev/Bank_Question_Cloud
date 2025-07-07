@@ -9,6 +9,7 @@ import CreateGroupQuestion from '@/pages/Questions/CreateGroupQuestion'
 import EditGroupQuestion from '@/pages/Questions/EditGroupQuestion'
 import UploadQuestions from '@/pages/Questions/UploadQuestions'
 import QuestionsApproval from '@/pages/Questions/QuestionsApproval'
+
 import Faculty from '@/pages/Subject/Faculty'
 import SubjectList from '@/pages/Subject/SubjectList'
 import ChapterList from '@/pages/Subject/ChapterList'
@@ -32,6 +33,7 @@ import ExamDetail from '@/pages/Tool/ExamDetail/ExamDetail'
 import EditUser from '@/pages/Users/EditUser'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
 import FirstTimePassword from '@/pages/Auth/FirstTimePassword'
+import MediaMarkupTest from '@/test/MediaMarkupTest'
 
 // RequireAuth component
 function RequireAuth() {
@@ -119,6 +121,7 @@ function AppRoutes() {
           <Route path="questions/upload" element={<UploadQuestions />} />
           <Route path="questions/approval" element={<QuestionsApproval />} />
           <Route path="questions/chapter/:chapterId" element={<ChapterQuestions />} />
+
           <Route path="extract" element={<Extract />} />
           <Route path="pdf" element={<PDF />} />
           <Route path="pdf/:id" element={<PDF />} />

@@ -6,14 +6,16 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { useThemeStyles, cx } from "../../utils/theme"
 import { useNavigate } from 'react-router-dom'
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import 'katex/dist/katex.min.css'
 import katex from 'katex'
 import { API_BASE_URL } from '@/config'
 import QuestionItem, { Question as FrontendQuestionType } from '@/components/QuestionItem'
 import PaginationBar from '@/components/PaginationBar'
 import Filters, { FilterOptions } from '@/components/Filters'
-import { renderLatex, parseGroupQuestionContent } from '@/utils/latex'
+import { renderLatex, parseGroupQuestionContent, formatChildQuestionContent, formatParentQuestionContent, cleanContent } from '@/utils/latex'
+import { convertMediaMarkupToHtml } from '@/utils/mediaMarkup'
+import { processMediaContent } from '@/utils/mediaContentProcessor'
 import { fetchWithAuth } from '@/services/api'
 import { useAuth } from '@/context/AuthContext'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -142,6 +144,7 @@ const Questions = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
   const [selectedQuestions, setSelectedQuestions] = useState<Set<string>>(new Set());
   const [questionType, setQuestionType] = useState<QuestionType>('single');
+  const [groupContentCache, setGroupContentCache] = useState<Map<string, any>>(new Map());
   const { token } = useAuth();
   const { isAdmin, isTeacher } = usePermissions();
 
@@ -166,6 +169,9 @@ const Questions = () => {
         if (filters.startDate) queryParams.append('startDate', filters.startDate);
         if (filters.endDate) queryParams.append('endDate', filters.endDate);
         if (filters.difficulty) queryParams.append('capDo', filters.difficulty.toString());
+
+        // Add questionType parameter
+        queryParams.append('questionType', questionType);
 
         const endpoint = questionType === 'group' ? '/cau-hoi/group' : '/cau-hoi';
         const response = await fetchWithAuth(`${API_BASE_URL}${endpoint}?${queryParams.toString()}`);
@@ -192,6 +198,16 @@ const Questions = () => {
 
         setBackendQuestions(processedQuestions);
         setProcessedGroupIds(newProcessedIds);
+
+        // Process group questions for better display
+        const processedCache = new Map();
+        processedQuestions.forEach((question: BackendQuestion) => {
+          if (question.SoCauHoiCon > 0 || question.LaCauHoiNhom) {
+            const groupContent = parseGroupQuestionContent(question.NoiDung);
+            processedCache.set(question.MaCauHoi, groupContent);
+          }
+        });
+        setGroupContentCache(processedCache);
 
         if (processedQuestions.length === 0) {
             setError('Không tìm thấy câu hỏi nào phù hợp.');
@@ -344,21 +360,12 @@ const Questions = () => {
     }
   };
 
-  // Memoize group content parsing for performance
-  const groupContentCache = useMemo(() => {
-    const cache = new Map();
-    backendQuestions.forEach(q => {
-      if (q.SoCauHoiCon > 0 || q.LaCauHoiNhom) {
-        cache.set(q.MaCauHoi, parseGroupQuestionContent(q.NoiDung));
-      }
-    });
-    return cache;
-  }, [backendQuestions]);
+
 
   // Function to render a single question
   const renderQuestion = (question: BackendQuestion, index: number) => {
     const isExpanded = expandedGroups.includes(question.MaCauHoi);
-    const isGroupQuestion = question.SoCauHoiCon > 0 || question.LaCauHoiNhom;
+    const isGroupQuestion = (question.SoCauHoiCon > 0 || question.LaCauHoiNhom) && question.MaCauHoiCha === null;
     const isSelected = selectedQuestions.has(question.MaCauHoi);
 
     // Get cached group content for better performance
@@ -515,7 +522,7 @@ const Questions = () => {
                   )}
                 </div>
                 <div className="prose prose-sm max-w-none text-gray-700">
-                  <div dangerouslySetInnerHTML={{ __html: renderLatex(groupContent?.summary || question.NoiDung) }}></div>
+                  <div dangerouslySetInnerHTML={{ __html: renderLatex(processMediaContent(cleanContent(groupContent?.summary || question.NoiDung))) }}></div>
                 </div>
               </div>
 
@@ -531,7 +538,9 @@ const Questions = () => {
                   <div className="bg-purple-50/50 rounded-lg p-4">
                     <div className="text-sm font-medium text-purple-700 mb-2">Nội dung đầy đủ:</div>
                     <div className="prose prose-sm max-w-none">
-                      <div dangerouslySetInnerHTML={{ __html: renderLatex(groupContent?.fullContent || question.NoiDung) }}></div>
+                      <div dangerouslySetInnerHTML={{
+                        __html: renderLatex(formatParentQuestionContent(groupContent?.fullContent || question.NoiDung))
+                      }}></div>
                     </div>
                   </div>
 
@@ -550,7 +559,9 @@ const Questions = () => {
                           </div>
 
                           <div className="mb-3 prose prose-sm max-w-none">
-                            <div dangerouslySetInnerHTML={{ __html: renderLatex(childQ.NoiDung) }}></div>
+                            <div dangerouslySetInnerHTML={{
+                              __html: renderLatex(formatChildQuestionContent(childQ.NoiDung, childIdx + 1))
+                            }}></div>
                           </div>
 
                           {/* Multimedia content for child question */}
@@ -577,7 +588,7 @@ const Questions = () => {
                                     {String.fromCharCode(65 + idx)}
                                   </div>
                                   <div className="flex-1 min-w-0 prose prose-sm max-w-none">
-                                    <div dangerouslySetInnerHTML={{ __html: renderLatex(answer.NoiDung) }}></div>
+                                    <div dangerouslySetInnerHTML={{ __html: renderLatex(processMediaContent(answer.NoiDung)) }}></div>
                                   </div>
                                   {answer.LaDapAn && (
                                     <div className="flex-shrink-0 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded ml-2 font-medium">
@@ -598,7 +609,7 @@ const Questions = () => {
           ) : (
             <>
               {/* Standard question content */}
-              <div className="mb-3 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: renderLatex(question.NoiDung) }}></div>
+              <div className="mb-3 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: renderLatex(processMediaContent(cleanContent(question.NoiDung))) }}></div>
 
               {/* Multimedia content for standard question */}
               <div className="mb-3">
@@ -625,7 +636,7 @@ const Questions = () => {
                         {String.fromCharCode(65 + idx)}
                       </div>
                       <div className="flex-1 min-w-0 prose prose-sm max-w-none">
-                        <div dangerouslySetInnerHTML={{ __html: renderLatex(answer.NoiDung) }}></div>
+                        <div dangerouslySetInnerHTML={{ __html: renderLatex(processMediaContent(answer.NoiDung)) }}></div>
                       </div>
                       {answer.LaDapAn && (
                         <div className="flex-shrink-0 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded ml-2 font-medium">

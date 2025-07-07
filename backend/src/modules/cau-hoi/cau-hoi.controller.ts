@@ -24,6 +24,7 @@ export class CauHoiController {
         @Query('includeAnswers') includeAnswers?: string,
         @Query('answersPage') answersPage?: number,
         @Query('answersLimit') answersLimit?: number,
+        @Query('questionType') questionType?: string,
         @Request() req?: any
     ) {
         try {
@@ -34,6 +35,11 @@ export class CauHoiController {
 
             const user = req.user;
             const includeAnswersBool = includeAnswers === 'true';
+
+            // Add questionType to paginationDto
+            if (questionType) {
+                paginationDto.questionType = questionType;
+            }
 
             // Nếu là teacher, chỉ lấy câu hỏi của mình
             if (user.role === 'teacher') {
