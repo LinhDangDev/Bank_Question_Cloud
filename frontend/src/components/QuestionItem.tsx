@@ -48,7 +48,10 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({
     const mediaFormat = detectMediaFormat(content);
     const hasMedia = mediaFormat.formatType !== 'none';
 
-    if (hasMedia) {
+    // Check if content has [<br>] tags that need HTML rendering
+    const hasBrTags = content.includes('[<br>]');
+
+    if (hasMedia || hasBrTags) {
       // Process media content (handles both HTML tags and markup)
       processedContent = processMediaContent(processedContent);
 
@@ -61,7 +64,7 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({
         processedContent = cleanContent(processedContent);
       }
 
-      // Render HTML directly for media content
+      // Render HTML directly for media content or content with br tags
       return (
         <div
           className="question-content prose prose-sm max-w-none"
@@ -69,7 +72,7 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({
         />
       );
     } else {
-      // For content without media, use MathRenderer as before
+      // For content without media or br tags, use MathRenderer as before
       if (isChildQuestion) {
         processedContent = formatChildQuestionContent(processedContent, questionNumber);
       } else if (question.isGroup) {
@@ -142,31 +145,7 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({
     );
   };
 
-  // Render a child question (for group questions)
-  const renderChildQuestion = (childQuestion: Question, childIdx: number) => {
-    return (
-      <div key={childQuestion.id} className="border rounded-md bg-gray-50 p-3 mb-3">
-        <div className="font-medium mb-2 flex items-center gap-2">
-          <div className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs">
-            Câu {childIdx + 1}
-          </div>
-          {childQuestion.clo && (
-            <span className={`${getCloColor(childQuestion.clo)} text-xs rounded px-2 py-0.5`}>
-              {childQuestion.clo}
-            </span>
-          )}
-        </div>
 
-        <div className="mb-3">
-          {renderContent(childQuestion.content, true, childIdx + 1)}
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {childQuestion.answers.map((answer, idx) => renderAnswer(answer, idx))}
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="border rounded-lg overflow-hidden shadow-sm bg-white mb-4">
@@ -214,48 +193,72 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({
 
       {/* Question content */}
       <div className="p-4">
-        <div className="mb-3 text-gray-800">
-          {renderContent(question.content)}
-        </div>
-
         {/* Multimedia content */}
         <div className="mb-3">
           <LazyMediaPlayer maCauHoi={question.id} showFileName={false} />
         </div>
 
-        {/* For group questions */}
-        {question.type === 'group' && (
-          <>
-            {question.groupContent && (
-              <div className="bg-gray-50 p-3 rounded-md border border-gray-200 mb-3">
-                {renderContent(question.groupContent)}
+        {/* For non-group questions - show content directly */}
+        {question.type !== 'group' && (
+          <div className="mb-3 text-gray-800">
+            {renderContent(question.content)}
           </div>
         )}
 
-            {/* Button to toggle showing child questions */}
-            <button
-              onClick={() => setExpanded(!expanded)}
-              className="w-full border border-gray-200 flex items-center justify-between p-2 rounded-md bg-white hover:bg-gray-50 mb-3"
-          >
-              <span className="text-sm">
-                {expanded ? 'Ẩn câu hỏi con' : `Xem ${question.childQuestions?.length || 0} câu hỏi con`}
-              </span>
-              {expanded ? (
-                <ChevronDown className="h-4 w-4" />
-              ) : (
-                <ChevronRight className="h-4 w-4" />
-              )}
-            </button>
+        {/* For group questions */}
+        {question.type === 'group' && (
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+            {/* Group question content */}
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                <span className="text-sm font-semibold text-purple-700">Nội dung đầy đủ</span>
+              </div>
+              <div className="bg-white p-3 rounded border">
+                {renderContent(question.content)}
+              </div>
+            </div>
 
-            {/* Child questions */}
-            {expanded && question.childQuestions && (
-              <div className="space-y-2">
-                {question.childQuestions.map((childQuestion, idx) =>
-                  renderChildQuestion(childQuestion, idx)
-          )}
-        </div>
+            {/* Child questions section */}
+            {question.childQuestions && question.childQuestions.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <span className="text-sm font-semibold text-blue-700">
+                    Các câu hỏi con ({question.childQuestions.length} câu)
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {question.childQuestions.map((childQuestion, idx) => (
+                    <div key={childQuestion.id} className="bg-white border border-gray-200 rounded-lg p-3">
+                      {/* Child question header */}
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-sm font-medium">
+                          Câu {idx + 1}
+                        </div>
+                        {childQuestion.clo && (
+                          <span className={`${getCloColor(childQuestion.clo)} text-xs rounded px-2 py-0.5`}>
+                            {childQuestion.clo}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Child question content */}
+                      <div className="mb-3 text-gray-800">
+                        {renderContent(childQuestion.content, true, idx + 1)}
+                      </div>
+
+                      {/* Child question answers */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {childQuestion.answers.map((answer, ansIdx) => renderAnswer(answer, ansIdx))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
-          </>
+          </div>
         )}
 
         {/* For non-group questions */}

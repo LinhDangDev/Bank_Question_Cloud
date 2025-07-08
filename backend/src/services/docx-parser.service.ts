@@ -24,6 +24,7 @@ export interface ParsedQuestion {
     groupId?: string;
     has_latex?: boolean;
     clo?: string;
+    hoanVi?: boolean;
 }
 
 export interface ParsedAnswer {
@@ -31,6 +32,7 @@ export interface ParsedAnswer {
     content: string;
     isCorrect: boolean;
     order: number;
+    hasUnderline?: boolean;
 }
 
 interface ParseOptions {
@@ -185,9 +187,10 @@ export class DocxParserService {
             }
             // Check if this is an answer (starting with A., B., etc.)
             else if (currentQuestion && /^[A-D]\./.test(text)) {
-                const isCorrect = paragraph.includes('<u>') ||
+                const hasUnderline = paragraph.includes('<u>') ||
                     paragraph.includes('underline') ||
                     paragraph.includes('text-decoration');
+                const isCorrect = hasUnderline;
 
                 if (!currentQuestion.answers) {
                     currentQuestion.answers = [];
@@ -197,6 +200,7 @@ export class DocxParserService {
                     id: randomUUID(),
                     content: text.substring(2).trim(), // Remove the A., B., etc.
                     isCorrect,
+                    hasUnderline,
                     order: currentQuestion.answers.length
                 });
 
@@ -218,10 +222,30 @@ export class DocxParserService {
 
         // Don't forget the last question
         if (currentQuestion) {
+            // Determine HoanVi value based on underline formatting
+            currentQuestion.hoanVi = this.determineHoanViValue(currentQuestion);
             questions.push(currentQuestion);
         }
 
         return questions;
+    }
+
+    /**
+     * Determine HoanVi value based on underline formatting in answers
+     * HoanVi = false (no shuffling) if any answer has underline
+     * HoanVi = true (allow shuffling) if no answers have underline
+     */
+    private determineHoanViValue(question: ParsedQuestion): boolean {
+        if (!question.answers || question.answers.length === 0) {
+            return true; // Default to allow shuffling if no answers
+        }
+
+        // Check if any answer has underline formatting
+        const hasUnderlinedAnswers = question.answers.some(answer => answer.hasUnderline);
+
+        // If any answer is underlined, don't allow shuffling (HoanVi = false)
+        // If no answers are underlined, allow shuffling (HoanVi = true)
+        return !hasUnderlinedAnswers;
     }
 
     /**
@@ -336,7 +360,7 @@ export class DocxParserService {
 
             // Read and parse the output file
             const jsonData = fs.readFileSync(outputFile, 'utf8');
-            let result;
+            let result: any;
 
             try {
                 result = JSON.parse(jsonData);
@@ -344,6 +368,9 @@ export class DocxParserService {
 
                 // Post-process to ensure LaTeX expressions are properly formatted
                 result = this.postProcessLatex(result);
+
+                // Post-process to determine HoanVi values based on underline formatting
+                result = this.postProcessHoanVi(result);
             } catch (jsonError) {
                 this.logger.error(`Failed to parse JSON output: ${jsonError.message}`);
                 throw new Error('Failed to parse output from Python parser');
@@ -361,6 +388,23 @@ export class DocxParserService {
             this.logger.error(`Python parsing failed: ${error.message}`, error.stack);
             throw error;
         }
+    }
+
+    /**
+     * Post-process questions to determine HoanVi values based on underline formatting
+     */
+    private postProcessHoanVi(questions: ParsedQuestion[]): ParsedQuestion[] {
+        return questions.map(question => {
+            // Determine HoanVi value for this question
+            question.hoanVi = this.determineHoanViValue(question);
+
+            // Process child questions recursively
+            if (question.childQuestions) {
+                question.childQuestions = this.postProcessHoanVi(question.childQuestions);
+            }
+
+            return question;
+        });
     }
 
     /**

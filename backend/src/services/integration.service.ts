@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, IsNull } from 'typeorm';
 import { DeThi } from '../entities/de-thi.entity';
 import { CauHoi } from '../entities/cau-hoi.entity';
 import { CauTraLoi } from '../entities/cau-tra-loi.entity';
@@ -15,7 +15,11 @@ import {
     PhanIntegrationDto,
     CauHoiIntegrationDto,
     CauTraLoiIntegrationDto,
-    ApiResponseDto
+    ApiResponseDto,
+    ExamDetailsNewResponseDto,
+    PhanNewDto,
+    CauHoiNewDto,
+    CauTraLoiNewDto
 } from '../dto/integration.dto';
 
 @Injectable()
@@ -376,5 +380,205 @@ export class IntegrationService {
         const seconds = d.getSeconds().toString().padStart(2, '0');
 
         return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+    }
+
+    /**
+     * New method for improved exam details with group questions support
+     */
+    async getExamDetailsNew(maDeThi: string): Promise<ApiResponseDto<ExamDetailsNewResponseDto>> {
+        try {
+            this.logger.log(`Getting new exam details for: ${maDeThi}`);
+
+            // 1. Lấy thông tin đề thi (chỉ đề thi đã duyệt)
+            const deThi = await this.deThiRepository.findOne({
+                where: {
+                    MaDeThi: maDeThi,
+                    DaDuyet: true
+                },
+                relations: ['MonHoc']
+            });
+
+            if (!deThi) {
+                throw new NotFoundException(`Không tìm thấy đề thi đã duyệt với mã: ${maDeThi}`);
+            }
+
+            // 2. Lấy chi tiết đề thi (danh sách câu hỏi)
+            const chiTietDeThi = await this.chiTietDeThiRepository.find({
+                where: { MaDeThi: maDeThi },
+                order: { ThuTu: 'ASC' }
+            });
+
+            if (chiTietDeThi.length === 0) {
+                throw new NotFoundException(`Không tìm thấy câu hỏi nào cho đề thi: ${maDeThi}`);
+            }
+
+            // 3. Lấy danh sách phần
+            const maPhanList = [...new Set(chiTietDeThi.map(item => item.MaPhan))];
+            const phans = await this.phanRepository.find({
+                where: { MaPhan: In(maPhanList) },
+                order: { ThuTu: 'ASC' }
+            });
+
+            // 4. Lấy tất cả câu hỏi (bao gồm cả parent và child questions)
+            const maCauHoiList = chiTietDeThi.map(item => item.MaCauHoi);
+            const cauHois = await this.cauHoiRepository.find({
+                where: { MaCauHoi: In(maCauHoiList) }
+            });
+
+            // 5. Lấy tất cả child questions cho các parent questions
+            const parentQuestionIds = cauHois
+                .filter(ch => ch.SoCauHoiCon > 0 && !ch.MaCauHoiCha)
+                .map(ch => ch.MaCauHoi);
+
+            let childQuestions: CauHoi[] = [];
+            if (parentQuestionIds.length > 0) {
+                childQuestions = await this.cauHoiRepository.find({
+                    where: { MaCauHoiCha: In(parentQuestionIds) },
+                    order: { MaSoCauHoi: 'ASC' }
+                });
+            }
+
+            // 6. Combine all questions
+            const allQuestions = [...cauHois, ...childQuestions];
+            const allQuestionIds = allQuestions.map(q => q.MaCauHoi);
+
+            // 7. Lấy câu trả lời cho tất cả câu hỏi
+            const cauTraLois = await this.cauTraLoiRepository.find({
+                where: { MaCauHoi: In(allQuestionIds) },
+                order: { ThuTu: 'ASC' }
+            });
+
+            // 8. Transform data theo format mới
+            const examDetails = this.transformToNewExamDetails(deThi, phans, allQuestions, cauTraLois, chiTietDeThi);
+
+            this.logger.log(`Successfully retrieved new exam details for: ${maDeThi}`);
+            return {
+                success: true,
+                message: 'Lấy thông tin đề thi thành công',
+                data: examDetails
+            };
+
+        } catch (error) {
+            this.logger.error(`Error getting new exam details for ${maDeThi}:`, error);
+
+            if (error instanceof NotFoundException) {
+                return {
+                    success: false,
+                    message: error.message,
+                    error: 'EXAM_NOT_FOUND'
+                };
+            }
+
+            return {
+                success: false,
+                message: 'Lỗi hệ thống khi lấy thông tin đề thi',
+                error: 'INTERNAL_SERVER_ERROR'
+            };
+        }
+    }
+
+    /**
+     * Transform data to new exam details format with group questions support
+     */
+    private transformToNewExamDetails(
+        deThi: DeThi,
+        phans: Phan[],
+        allQuestions: CauHoi[],
+        cauTraLois: CauTraLoi[],
+        chiTietDeThi: ChiTietDeThi[]
+    ): ExamDetailsNewResponseDto {
+
+        // Group câu trả lời theo câu hỏi
+        const cauTraLoiMap = new Map<string, CauTraLoi[]>();
+        cauTraLois.forEach(ctl => {
+            if (!cauTraLoiMap.has(ctl.MaCauHoi)) {
+                cauTraLoiMap.set(ctl.MaCauHoi, []);
+            }
+            cauTraLoiMap.get(ctl.MaCauHoi)!.push(ctl);
+        });
+
+        // Group questions theo parent-child relationship
+        const parentQuestions = allQuestions.filter(q => !q.MaCauHoiCha);
+        const childQuestionsMap = new Map<string, CauHoi[]>();
+
+        allQuestions.filter(q => q.MaCauHoiCha).forEach(childQ => {
+            if (!childQuestionsMap.has(childQ.MaCauHoiCha!)) {
+                childQuestionsMap.set(childQ.MaCauHoiCha!, []);
+            }
+            childQuestionsMap.get(childQ.MaCauHoiCha!)!.push(childQ);
+        });
+
+        // Group câu hỏi theo phần (chỉ parent questions từ chiTietDeThi)
+        const cauHoiMap = new Map<string, CauHoi[]>();
+        chiTietDeThi.forEach(ctdt => {
+            const cauHoi = parentQuestions.find(ch => ch.MaCauHoi === ctdt.MaCauHoi);
+            if (cauHoi) {
+                if (!cauHoiMap.has(ctdt.MaPhan)) {
+                    cauHoiMap.set(ctdt.MaPhan, []);
+                }
+                cauHoiMap.get(ctdt.MaPhan)!.push(cauHoi);
+            }
+        });
+
+        // Transform phần
+        const transformedPhans: PhanNewDto[] = phans.map(phan => {
+            const cauHoisOfPhan = cauHoiMap.get(phan.MaPhan) || [];
+            const transformedCauHois: CauHoiNewDto[] = [];
+
+            cauHoisOfPhan.forEach(parentQuestion => {
+                // Add parent question
+                const parentCauTraLois = cauTraLoiMap.get(parentQuestion.MaCauHoi) || [];
+                const transformedParentCauTraLois: CauTraLoiNewDto[] = parentCauTraLois.map(ctl => ({
+                    MaCauTraLoi: ctl.MaCauTraLoi,
+                    NoiDung: ctl.NoiDung || '',
+                    LaDapAn: ctl.LaDapAn.toString()
+                }));
+
+                transformedCauHois.push({
+                    MaCauHoi: parentQuestion.MaCauHoi,
+                    NoiDung: parentQuestion.NoiDung || '',
+                    CauTraLois: transformedParentCauTraLois,
+                    IsParentQuestion: parentQuestion.SoCauHoiCon > 0,
+                    MaCauHoiCha: parentQuestion.MaCauHoiCha || undefined
+                });
+
+                // Add child questions if any
+                const childQuestions = childQuestionsMap.get(parentQuestion.MaCauHoi) || [];
+                childQuestions.forEach(childQuestion => {
+                    const childCauTraLois = cauTraLoiMap.get(childQuestion.MaCauHoi) || [];
+                    const transformedChildCauTraLois: CauTraLoiNewDto[] = childCauTraLois.map(ctl => ({
+                        MaCauTraLoi: ctl.MaCauTraLoi,
+                        NoiDung: ctl.NoiDung || '',
+                        LaDapAn: ctl.LaDapAn.toString()
+                    }));
+
+                    transformedCauHois.push({
+                        MaCauHoi: childQuestion.MaCauHoi,
+                        NoiDung: childQuestion.NoiDung || '',
+                        CauTraLois: transformedChildCauTraLois,
+                        IsParentQuestion: false,
+                        MaCauHoiCha: childQuestion.MaCauHoiCha
+                    });
+                });
+            });
+
+            return {
+                MaPhan: phan.MaPhan,
+                MaPhanCha: phan.MaPhanCha || null,
+                TenPhan: phan.TenPhan,
+                KieuNoiDung: this.determineContentType(phan),
+                NoiDung: phan.NoiDung || '',
+                SoLuongCauHoi: transformedCauHois.length.toString(),
+                LaCauHoiNhom: phan.LaCauHoiNhom.toString(),
+                CauHois: transformedCauHois
+            };
+        });
+
+        return {
+            MaDeThi: deThi.MaDeThi,
+            TenDeThi: deThi.TenDeThi,
+            NgayTao: this.formatDate(deThi.NgayTao),
+            Phans: transformedPhans
+        };
     }
 }

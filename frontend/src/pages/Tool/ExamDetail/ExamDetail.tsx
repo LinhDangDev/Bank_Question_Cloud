@@ -47,6 +47,18 @@ interface BackendCauHoi {
     MaCLO: string;
     TenCLO: string;
   };
+  // Group question properties
+  SoCauHoiCon?: number;
+  MaCauHoiCha?: string | null;
+  LaCauHoiNhom?: boolean;
+  CauHoiCon?: BackendChildQuestion[];
+}
+
+interface BackendChildQuestion {
+  MaCauHoi: string;
+  MaSoCauHoi: number;
+  NoiDung: string;
+  CauTraLoi: BackendCauTraLoi[];
 }
 
 interface ExamDetail {
@@ -223,6 +235,25 @@ const ExamDetail = () => {
           .question-number {
             font-weight: bold;
           }
+          .group-question {
+            border-left: 3px solid #8B5CF6;
+            padding-left: 15px;
+            margin-bottom: 20px;
+          }
+          .group-content {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #F8F9FA;
+            border-radius: 5px;
+          }
+          .child-question {
+            margin: 10px 0;
+            padding-left: 20px;
+          }
+          .child-question-number {
+            font-weight: bold;
+            margin-bottom: 5px;
+          }
           .answer {
             margin-left: 20px;
             margin-bottom: 5px;
@@ -259,21 +290,56 @@ const ExamDetail = () => {
 
         ${sortedQuestions.map((detail, index) => {
           const question = detail.CauHoi;
-          const processedContent = processMediaContent(question.NoiDung || '');
-          return `
-            <div class="question">
-              <div class="question-number">Câu ${index + 1}: ${processedContent}</div>
-              ${question.CauTraLoi ? question.CauTraLoi.map((answer, idx) => {
-                const letter = String.fromCharCode(65 + idx);
-                const processedAnswer = processMediaContent(answer.NoiDung || '');
-                return `
-                  <div class="answer ${answer.LaDapAn ? 'correct-answer' : ''}">
-                    <span class="answer-letter">${letter}.</span> ${processedAnswer}
-                  </div>
-                `;
-              }).join('') : ''}
-            </div>
-          `;
+          const isGroupQuestion = (question.SoCauHoiCon && question.SoCauHoiCon > 0) ||
+                                 question.LaCauHoiNhom ||
+                                 (question.CauHoiCon && question.CauHoiCon.length > 0);
+
+          if (isGroupQuestion) {
+            // Handle group questions - clean parent content
+            const cleanedParentContent = cleanGroupQuestionParentContent(question.NoiDung || '', question.CauHoiCon);
+
+            return `
+              <div class="question group-question">
+                <div class="question-number">Câu ${index + 1} - ${index + (question.CauHoiCon?.length || question.SoCauHoiCon || 5)}: Câu hỏi nhóm</div>
+                <div class="group-content">${processMediaContent(cleanedParentContent)}</div>
+
+                ${question.CauHoiCon ? question.CauHoiCon.map((childQ, childIdx) => {
+                  const cleanedChildContent = cleanChildQuestionContent(childQ.NoiDung || '');
+                  return `
+                    <div class="child-question">
+                      <div class="child-question-number">Câu ${index + childIdx + 1}: ${processMediaContent(cleanedChildContent)}</div>
+                      ${childQ.CauTraLoi ? childQ.CauTraLoi.map((answer, ansIdx) => {
+                        const letter = String.fromCharCode(65 + ansIdx);
+                        const processedAnswer = processMediaContent(answer.NoiDung || '');
+                        return `
+                          <div class="answer ${answer.LaDapAn ? 'correct-answer' : ''}">
+                            <span class="answer-letter">${letter}.</span> ${processedAnswer}
+                          </div>
+                        `;
+                      }).join('') : ''}
+                    </div>
+                  `;
+                }).join('') : ''}
+              </div>
+            `;
+          } else {
+            // Handle regular questions
+            const processedContent = processMediaContent(question.NoiDung || '');
+            return `
+              <div class="question">
+                <div class="question-number">Câu ${index + 1}: ${processedContent}</div>
+                ${question.CauTraLoi ? question.CauTraLoi.map((answer, idx) => {
+                  const letter = String.fromCharCode(65 + idx);
+                  const processedAnswer = processMediaContent(answer.NoiDung || '');
+                  return `
+                    <div class="answer ${answer.LaDapAn ? 'correct-answer' : ''}">
+                      <span class="answer-letter">${letter}.</span> ${processedAnswer}
+                    </div>
+                  `;
+                }).join('') : ''}
+              </div>
+            `;
+          }
         }).join('')}
       </body>
       </html>
@@ -406,21 +472,90 @@ const ExamDetail = () => {
       isCorrect: boolean;
       order: number;
     }[];
+    childQuestions?: CauHoi[];
     capDo?: number;
   }
 
+  // Helper function to clean group question parent content
+  const cleanGroupQuestionParentContent = (content: string, childQuestions?: BackendChildQuestion[]): string => {
+    if (!content) return '';
+
+    // Extract content between [<sg>] and [<egc>] - this is the parent question content only
+    const sgMatch = content.match(/\[<sg>\]([\s\S]*?)\[<egc>\]/);
+    let parentContent = sgMatch ? sgMatch[1].trim() : content;
+
+    // Remove all markup tags
+    parentContent = parentContent
+      .replace(/\[<[^>]*>\]/g, '') // Remove [<markup>] patterns
+      .replace(/\[<\/[^>]*>\]/g, '') // Remove [</markup>] patterns
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim();
+
+    // Handle fill-in-blank: Replace {<1>}, {<2>}, etc. with question numbers
+    if (childQuestions && childQuestions.length > 0) {
+      childQuestions.forEach((_, index) => {
+        const questionNumber = index + 1;
+        const pattern = new RegExp(`\\{<${questionNumber}>\\}`, 'g');
+        parentContent = parentContent.replace(pattern, `_____(${questionNumber})_____`);
+      });
+    }
+
+    return parentContent;
+  };
+
+  // Helper function to clean child question content
+  const cleanChildQuestionContent = (content: string): string => {
+    if (!content) return '';
+
+    // Remove the (<number>) pattern from the beginning
+    let cleanContent = content.replace(/^\s*\(<\d+>\)\s*/, '');
+
+    // Remove any remaining markup
+    cleanContent = cleanContent
+      .replace(/\[<[^>]*>\]/g, '') // Remove [<markup>] patterns
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim();
+
+    return cleanContent;
+  };
+
   // Transform CauHoi to the format expected by QuestionItem
   const transformQuestion = (cauHoi: BackendCauHoi, showAnswers: boolean): CauHoi => {
+    // Determine if this is a group question
+    const isGroupQuestion = (cauHoi.SoCauHoiCon && cauHoi.SoCauHoiCon > 0) ||
+                           cauHoi.LaCauHoiNhom ||
+                           (cauHoi.CauHoiCon && cauHoi.CauHoiCon.length > 0);
+
+    // Clean content based on question type
+    let cleanedContent = cauHoi.NoiDung || '';
+    if (isGroupQuestion) {
+      cleanedContent = cleanGroupQuestionParentContent(cleanedContent, cauHoi.CauHoiCon);
+    }
+
     return {
       id: cauHoi.MaCauHoi,
-      content: cauHoi.NoiDung || '', // Keep original markup, let QuestionItem handle conversion
-      clo: cauHoi.CLO?.TenCLO || null, // Sử dụng tên CLO thay vì UUID
-      type: 'single-choice', // Default, adjust based on your data
+      content: cleanedContent,
+      clo: cauHoi.CLO?.TenCLO || null,
+      type: isGroupQuestion ? 'group' : 'single-choice',
       answers: cauHoi.CauTraLoi?.map((answer, idx) => ({
         id: answer.MaCauTraLoi,
-        content: answer.NoiDung || '', // Keep original markup, let QuestionItem handle conversion
-        isCorrect: showAnswers ? answer.LaDapAn : false, // Ẩn đáp án nếu không hiển thị
+        content: answer.NoiDung || '',
+        isCorrect: showAnswers ? answer.LaDapAn : false,
         order: answer.ThuTu || idx
+      })) || [],
+      // Transform child questions for group questions
+      childQuestions: cauHoi.CauHoiCon?.map((childQ) => ({
+        id: childQ.MaCauHoi,
+        content: cleanChildQuestionContent(childQ.NoiDung || ''),
+        clo: null,
+        type: 'single-choice' as const,
+        answers: childQ.CauTraLoi?.map((answer, idx) => ({
+          id: answer.MaCauTraLoi,
+          content: answer.NoiDung || '',
+          isCorrect: showAnswers ? answer.LaDapAn : false,
+          order: answer.ThuTu || idx
+        })) || [],
+        capDo: cauHoi.CapDo
       })) || [],
       capDo: cauHoi.CapDo
     };
@@ -498,7 +633,35 @@ const ExamDetail = () => {
                 <p className="text-sm text-gray-500">Số câu hỏi</p>
                 <div className="flex items-center">
                   <Book size={16} className="mr-2 text-gray-500" />
-                  <p>{examDetails.length} câu</p>
+                  <div>
+                    {(() => {
+                      const detailsArray = Array.isArray(examDetails) ? examDetails : [];
+                      const groupQuestions = detailsArray.filter(q =>
+                        (q.CauHoi.SoCauHoiCon && q.CauHoi.SoCauHoiCon > 0) ||
+                        q.CauHoi.LaCauHoiNhom ||
+                        (q.CauHoi.CauHoiCon && q.CauHoi.CauHoiCon.length > 0)
+                      );
+                      const singleQuestions = detailsArray.filter(q =>
+                        !((q.CauHoi.SoCauHoiCon && q.CauHoi.SoCauHoiCon > 0) ||
+                          q.CauHoi.LaCauHoiNhom ||
+                          (q.CauHoi.CauHoiCon && q.CauHoi.CauHoiCon.length > 0))
+                      );
+                      const totalChildQuestions = groupQuestions.reduce((sum, q) =>
+                        sum + (q.CauHoi.CauHoiCon?.length || q.CauHoi.SoCauHoiCon || 0), 0
+                      );
+
+                      return (
+                        <div>
+                          <p className="font-medium">{detailsArray.length} câu tổng</p>
+                          {groupQuestions.length > 0 && (
+                            <p className="text-xs text-gray-500">
+                              ({singleQuestions.length} đơn + {groupQuestions.length} nhóm = {totalChildQuestions} câu con)
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
                 </div>
               </div>
 
@@ -573,12 +736,40 @@ const ExamDetail = () => {
 
               <TabsContent value="summary">
                 <div className="space-y-4">
-                  {Object.values(groupedQuestions).map((group, index) => (
-                    <div key={group.phan.MaPhan || index} className="p-4 border rounded-md">
-                      <h3 className="font-semibold">{group.phan.TenPhan || 'Chương không xác định'}</h3>
-                      <p className="text-sm text-gray-600">Số câu hỏi: {group.questions.length}</p>
-                    </div>
-                  ))}
+                  {Object.values(groupedQuestions).map((group, index) => {
+                    const groupQuestions = group.questions.filter(q =>
+                      (q.CauHoi.SoCauHoiCon && q.CauHoi.SoCauHoiCon > 0) ||
+                      q.CauHoi.LaCauHoiNhom ||
+                      (q.CauHoi.CauHoiCon && q.CauHoi.CauHoiCon.length > 0)
+                    );
+                    const singleQuestions = group.questions.filter(q =>
+                      !((q.CauHoi.SoCauHoiCon && q.CauHoi.SoCauHoiCon > 0) ||
+                        q.CauHoi.LaCauHoiNhom ||
+                        (q.CauHoi.CauHoiCon && q.CauHoi.CauHoiCon.length > 0))
+                    );
+
+                    return (
+                      <div key={group.phan.MaPhan || index} className="p-4 border rounded-md">
+                        <h3 className="font-semibold">{group.phan.TenPhan || 'Chương không xác định'}</h3>
+                        <div className="mt-2 space-y-1">
+                          <p className="text-sm text-gray-600">Tổng số câu hỏi: {group.questions.length}</p>
+                          {singleQuestions.length > 0 && (
+                            <p className="text-sm text-blue-600">Câu hỏi đơn: {singleQuestions.length}</p>
+                          )}
+                          {groupQuestions.length > 0 && (
+                            <div className="text-sm text-purple-600">
+                              <p>Câu hỏi nhóm: {groupQuestions.length}</p>
+                              <p className="text-xs text-gray-500 ml-2">
+                                (Tổng câu con: {groupQuestions.reduce((sum, q) =>
+                                  sum + (q.CauHoi.CauHoiCon?.length || q.CauHoi.SoCauHoiCon || 0), 0
+                                )})
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </TabsContent>
             </Tabs>

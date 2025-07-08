@@ -4,7 +4,8 @@ import { IntegrationService } from '../../services/integration.service';
 import {
     ExamDetailsResponseDto,
     ExamStatusResponseDto,
-    ApiResponseDto
+    ApiResponseDto,
+    ExamDetailsNewResponseDto
 } from '../../dto/integration.dto';
 
 @ApiTags('Integration API')

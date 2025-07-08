@@ -125,6 +125,83 @@ export class ExamStatusResponseDto {
     tenMonHoc?: string;
 }
 
+// New DTOs for improved exam details endpoint
+export class CauTraLoiNewDto {
+    @IsString()
+    MaCauTraLoi: string;
+
+    @IsString()
+    NoiDung: string;
+
+    @IsString()
+    LaDapAn: string; // "true" or "false" as string
+}
+
+export class CauHoiNewDto {
+    @IsString()
+    MaCauHoi: string;
+
+    @IsString()
+    NoiDung: string;
+
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => CauTraLoiNewDto)
+    CauTraLois: CauTraLoiNewDto[];
+
+    @IsBoolean()
+    IsParentQuestion: boolean;
+
+    @IsString()
+    @IsOptional()
+    MaCauHoiCha?: string;
+}
+
+export class PhanNewDto {
+    @IsString()
+    MaPhan: string;
+
+    @IsString()
+    @IsOptional()
+    MaPhanCha?: string | null;
+
+    @IsString()
+    TenPhan: string;
+
+    @IsString()
+    KieuNoiDung: string;
+
+    @IsString()
+    NoiDung: string;
+
+    @IsString()
+    SoLuongCauHoi: string;
+
+    @IsString()
+    LaCauHoiNhom: string; // "true" or "false" as string
+
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => CauHoiNewDto)
+    CauHois: CauHoiNewDto[];
+}
+
+export class ExamDetailsNewResponseDto {
+    @IsString()
+    MaDeThi: string;
+
+    @IsString()
+    TenDeThi: string;
+
+    @IsString()
+    NgayTao: string;
+
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => PhanNewDto)
+    Phans: PhanNewDto[];
+}
+
 export class ApiResponseDto<T> {
     @IsBoolean()
     success: boolean;

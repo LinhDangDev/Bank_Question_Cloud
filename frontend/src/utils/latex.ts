@@ -85,6 +85,10 @@ export const formatChildQuestionContent = (content: string, questionNumber: numb
 
     // Remove the (<number>) pattern from the beginning and clean up unwanted characters
     let processedContent = content.replace(/^\s*\(<\d+>\)\s*/, ''); // Remove (<number>) pattern
+
+    // Handle [<br>] tags - convert to HTML line breaks
+    processedContent = processedContent.replace(/\[<br>\]/g, '<br/>');
+
     processedContent = cleanContent(processedContent); // Clean up unwanted characters
 
     return processedContent;
@@ -101,8 +105,11 @@ export const formatParentQuestionContent = (content: string): string => {
     // Clean up unwanted characters first
     let processedContent = cleanContent(content);
 
+    // Handle [<br>] tags - convert to HTML line breaks
+    processedContent = processedContent.replace(/\[<br>\]/g, '<br/>');
+
     // Replace {<number>} with styled blank spaces
-    processedContent = processedContent.replace(/\{<(\d+)>\}/g, (match, number) => {
+    processedContent = processedContent.replace(/\{<(\d+)>\}/g, (_, number) => {
         return `<span class="inline-block bg-blue-50 border-2 border-dashed border-blue-300 px-3 py-1 mx-1 rounded-md text-blue-600 font-medium min-w-[60px] text-center">Câu ${number}</span>`;
     });
 

@@ -8,12 +8,15 @@ import { Response } from 'express';
 import { createReadStream } from 'fs';
 import * as path from 'path';
 import { ExamService } from '../../services/exam.service';
+import { IntegrationService } from '../../services/integration.service';
 import { NotFoundException } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { diskStorage } from 'multer';
 import * as fs from 'fs';
+import { ApiResponseDto, ExamDetailsNewResponseDto } from '../../dto/integration.dto';
+import { ApiTags, ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
 
 interface ExamPackage {
     examId: string;
@@ -49,7 +52,8 @@ export class DeThiController {
     private readonly logger = new Logger(DeThiController.name);
     constructor(
         private readonly deThiService: DeThiService,
-        private readonly examService: ExamService
+        private readonly examService: ExamService,
+        private readonly integrationService: IntegrationService
     ) { }
 
     @Get()
@@ -431,5 +435,61 @@ export class DeThiController {
     @Roles('admin', 'teacher')
     async getHierarchicalQuestions(@Param('id') id: string) {
         return await this.deThiService.getHierarchicalQuestions(id);
+    }
+
+    @Get(':examId/details')
+    @ApiOperation({
+        summary: 'Lấy chi tiết đề thi với hỗ trợ group questions',
+        description: 'API để lấy thông tin chi tiết đề thi bao gồm câu hỏi đơn và câu hỏi nhóm với format JSON cải tiến. API này không cần authentication.'
+    })
+    @ApiParam({
+        name: 'examId',
+        description: 'Mã đề thi cần lấy thông tin',
+        example: '6A429A3A-97AB-4043-8F8A-476BEDB7476B'
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Lấy thông tin đề thi thành công',
+        type: ApiResponseDto<ExamDetailsNewResponseDto>
+    })
+    @ApiResponse({
+        status: 404,
+        description: 'Không tìm thấy đề thi'
+    })
+    async getExamDetails(@Param('examId') examId: string): Promise<ApiResponseDto<ExamDetailsNewResponseDto>> {
+        try {
+            this.logger.log(`API call: GET /api/de-thi/${examId}/details`);
+
+            if (!examId || examId.trim() === '') {
+                throw new HttpException({
+                    success: false,
+                    message: 'Mã đề thi không được để trống',
+                    error: 'INVALID_EXAM_ID'
+                }, HttpStatus.BAD_REQUEST);
+            }
+
+            const result = await this.integrationService.getExamDetailsNew(examId.trim());
+
+            if (!result.success) {
+                const statusCode = result.error === 'EXAM_NOT_FOUND' ? HttpStatus.NOT_FOUND : HttpStatus.INTERNAL_SERVER_ERROR;
+                throw new HttpException(result, statusCode);
+            }
+
+            this.logger.log(`Successfully returned exam details for: ${examId}`);
+            return result;
+
+        } catch (error) {
+            this.logger.error(`Error in getExamDetails for ${examId}:`, error);
+
+            if (error instanceof HttpException) {
+                throw error;
+            }
+
+            throw new HttpException({
+                success: false,
+                message: 'Lỗi hệ thống khi lấy thông tin đề thi',
+                error: 'INTERNAL_SERVER_ERROR'
+            }, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 }

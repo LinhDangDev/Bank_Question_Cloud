@@ -25,6 +25,7 @@ import { IntegrationModule } from './modules/integration/integration.module';
 import { ExamExportModule } from './modules/exam-export/exam-export.module';
 import { WordMultimediaModule } from './modules/word-import/word-multimedia.module';
 import { MultimediaExamModule } from './modules/multimedia-exam/multimedia-exam.module';
+import { ExamPackageModule } from './modules/exam-package/exam-package.module';
 import databaseConfig from './config/database.config';
 import { DbConfigController } from './utils/db-env-switcher';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
@@ -80,6 +81,7 @@ import * as path from 'path';
         ExamExportModule,
         WordMultimediaModule,
         MultimediaExamModule,
+        ExamPackageModule,
     ],
     controllers: [AppController, DbConfigController],
     providers: [AppService],
