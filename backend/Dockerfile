@@ -42,6 +42,11 @@ COPY --from=builder /app/public ./public
 COPY copy-env.js ./
 COPY .env* ./
 
+# Set environment variables for production
+ENV DB_ENV=server
+ENV NODE_ENV=production
+ENV PORT=3001
+
 # Create necessary directories with proper permissions
 RUN mkdir -p uploads/questions uploads/temp uploads/audio uploads/image output && \
     chmod -R 755 uploads output

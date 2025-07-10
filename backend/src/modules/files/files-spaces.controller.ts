@@ -1,12 +1,12 @@
-import { 
-    Controller, 
-    Post, 
-    Get, 
-    Delete, 
-    Param, 
-    UseInterceptors, 
-    UploadedFile, 
-    Body, 
+import {
+    Controller,
+    Post,
+    Get,
+    Delete,
+    Param,
+    UseInterceptors,
+    UploadedFile,
+    Body,
     UseGuards,
     HttpStatus,
     HttpCode
@@ -30,7 +30,7 @@ interface MulterFile {
 @ApiTags('files-spaces')
 @Controller('files-spaces')
 export class FilesSpacesController {
-    constructor(private readonly filesSpacesService: FilesSpacesService) {}
+    constructor(private readonly filesSpacesService: FilesSpacesService) { }
 
     @Post('upload')
     @UseGuards(JwtAuthGuard, RolesGuard)

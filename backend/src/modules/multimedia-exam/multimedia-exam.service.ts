@@ -64,7 +64,7 @@ export class MultimediaExamService {
         private readonly cauTraLoiRepository: Repository<CauTraLoi>,
         @InjectRepository(Files)
         private readonly filesRepository: Repository<Files>,
-    ) {}
+    ) { }
 
     /**
      * Lấy đề thi đã duyệt với multimedia theo format yêu cầu
@@ -200,30 +200,23 @@ export class MultimediaExamService {
         if (phan.LaCauHoiNhom) {
             return '-1'; // Normal group
         }
-        
+
         // Check nếu có audio files trong phan này
         // TODO: Implement logic check audio content
         // if (hasAudioContent) return '2';
-        
+
         // Check nếu có fill-in-blank questions
         // TODO: Implement logic check fill-in-blank
         // if (hasFillInBlank) return '1';
-        
+
         return '-1'; // Default: normal group
     }
 
     /**
-     * Format date theo DD/MM/YYYY H:mm:ss
+     * Format date theo ISO format: 2025-07-08T02:42:01
      */
     private formatDate(date: Date): string {
         const d = new Date(date);
-        const day = d.getDate().toString().padStart(2, '0');
-        const month = (d.getMonth() + 1).toString().padStart(2, '0');
-        const year = d.getFullYear();
-        const hours = d.getHours().toString().padStart(2, '0');
-        const minutes = d.getMinutes().toString().padStart(2, '0');
-        const seconds = d.getSeconds().toString().padStart(2, '0');
-        
-        return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+        return d.toISOString().slice(0, 19); // Remove milliseconds and Z
     }
 }

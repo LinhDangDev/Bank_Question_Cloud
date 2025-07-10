@@ -256,7 +256,7 @@ export class IntegrationService {
                         return {
                             MaCauTraLoi: ctl.MaCauTraLoi,
                             NoiDung: ctl.NoiDung || '',
-                            LaDapAn: ctl.LaDapAn.toString(),
+                            LaDapAn: ctl.LaDapAn,
                             ...(multimedia.length > 0 && { MultimediaFiles: multimedia })
                         };
                     });
@@ -279,10 +279,10 @@ export class IntegrationService {
                 MaPhan: 'combined-section',
                 MaPhanCha: null,
                 TenPhan: '', // Không hiển thị tên phần
-                KieuNoiDung: '(-1) nhom thuong',
+                KieuNoiDung: -1, // nhom thuong
                 NoiDung: '',
-                SoLuongCauHoi: allCauHois.length.toString(),
-                LaCauHoiNhom: 'false',
+                SoLuongCauHoi: allCauHois.length,
+                LaCauHoiNhom: false,
                 CauHois: allCauHois
             });
         } else {
@@ -300,7 +300,7 @@ export class IntegrationService {
                         return {
                             MaCauTraLoi: ctl.MaCauTraLoi,
                             NoiDung: ctl.NoiDung || '',
-                            LaDapAn: ctl.LaDapAn.toString(),
+                            LaDapAn: ctl.LaDapAn,
                             ...(multimedia.length > 0 && { MultimediaFiles: multimedia })
                         };
                     });
@@ -321,10 +321,10 @@ export class IntegrationService {
                     MaPhan: phan.MaPhan,
                     MaPhanCha: phan.MaPhanCha || undefined,
                     TenPhan: phan.TenPhan,
-                    KieuNoiDung: this.determineContentType(phan),
+                    KieuNoiDung: parseInt(this.determineContentType(phan), 10),
                     NoiDung: phan.NoiDung || '',
-                    SoLuongCauHoi: cauHoisOfPhan.length.toString(),
-                    LaCauHoiNhom: phan.LaCauHoiNhom.toString(),
+                    SoLuongCauHoi: cauHoisOfPhan.length,
+                    LaCauHoiNhom: phan.LaCauHoiNhom,
                     CauHois: transformedCauHois
                 });
             });
@@ -531,14 +531,13 @@ export class IntegrationService {
                 const transformedParentCauTraLois: CauTraLoiNewDto[] = parentCauTraLois.map(ctl => ({
                     MaCauTraLoi: ctl.MaCauTraLoi,
                     NoiDung: ctl.NoiDung || '',
-                    LaDapAn: ctl.LaDapAn.toString()
+                    LaDapAn: ctl.LaDapAn // Keep as boolean
                 }));
 
                 transformedCauHois.push({
                     MaCauHoi: parentQuestion.MaCauHoi,
                     NoiDung: parentQuestion.NoiDung || '',
                     CauTraLois: transformedParentCauTraLois,
-                    IsParentQuestion: parentQuestion.SoCauHoiCon > 0,
                     MaCauHoiCha: parentQuestion.MaCauHoiCha || undefined
                 });
 
@@ -549,14 +548,13 @@ export class IntegrationService {
                     const transformedChildCauTraLois: CauTraLoiNewDto[] = childCauTraLois.map(ctl => ({
                         MaCauTraLoi: ctl.MaCauTraLoi,
                         NoiDung: ctl.NoiDung || '',
-                        LaDapAn: ctl.LaDapAn.toString()
+                        LaDapAn: ctl.LaDapAn
                     }));
 
                     transformedCauHois.push({
                         MaCauHoi: childQuestion.MaCauHoi,
                         NoiDung: childQuestion.NoiDung || '',
                         CauTraLois: transformedChildCauTraLois,
-                        IsParentQuestion: false,
                         MaCauHoiCha: childQuestion.MaCauHoiCha
                     });
                 });
@@ -566,10 +564,10 @@ export class IntegrationService {
                 MaPhan: phan.MaPhan,
                 MaPhanCha: phan.MaPhanCha || null,
                 TenPhan: phan.TenPhan,
-                KieuNoiDung: this.determineContentType(phan),
+                KieuNoiDung: parseInt(this.determineContentType(phan), 10),
                 NoiDung: phan.NoiDung || '',
-                SoLuongCauHoi: transformedCauHois.length.toString(),
-                LaCauHoiNhom: phan.LaCauHoiNhom.toString(),
+                SoLuongCauHoi: transformedCauHois.length,
+                LaCauHoiNhom: phan.LaCauHoiNhom,
                 CauHois: transformedCauHois
             };
         });

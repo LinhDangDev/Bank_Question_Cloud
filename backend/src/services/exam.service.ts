@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, IsNull } from 'typeorm';
+import { Repository, In, IsNull, MoreThan } from 'typeorm';
 import * as path from 'path';
 import { CauHoi } from '../entities/cau-hoi.entity';
 import { CauTraLoi } from '../entities/cau-tra-loi.entity';
@@ -389,13 +389,18 @@ export class ExamService {
      * This algorithm ensures balanced distribution across chapters and CLOs
      * with multiple fallback strategies to guarantee question selection
      * Now supports group questions (parent-child relationships)
+     * UPDATED: Added duplicate prevention across different exam extractions
      */
     private async selectQuestionsWithCLOStrategy(matrix: ExamMatrixItem[], multiplier: number = 1): Promise<CauHoi[]> {
         const selectedQuestions: CauHoi[] = [];
-        this.logger.log(`Starting enhanced CLO-Stratified Weighted Random Sampling for ${matrix.length} chapters`);
+        this.logger.log(`Starting enhanced CLO-Stratified Weighted Random Sampling for ${matrix.length} chapters with duplicate prevention`);
 
         try {
-            // Phase 1: Pre-load all available questions for better performance
+            // Phase 1: Get recently used questions to avoid duplicates
+            const recentlyUsedQuestions = await this.getRecentlyUsedQuestions();
+            this.logger.log(`Found ${recentlyUsedQuestions.size} recently used questions to avoid`);
+
+            // Phase 2: Pre-load all available questions for better performance
             const allChapterIds = matrix.map(item => item.maPhan);
 
             // Thay đổi: Lấy câu hỏi theo từng chương riêng biệt thay vì một câu query lớn
@@ -422,11 +427,24 @@ export class ExamService {
                     take: 500 // Giới hạn số câu hỏi tối đa cho mỗi chương
                 });
 
-                this.logger.log(`Found ${chapterQuestions.length} questions for chapter ID: ${chapterId}`);
-                allQuestions.push(...chapterQuestions);
+                // Filter out recently used questions to avoid duplicates
+                const availableQuestions = chapterQuestions.filter(q => !recentlyUsedQuestions.has(q.MaCauHoi));
+                this.logger.log(`Found ${chapterQuestions.length} total questions, ${availableQuestions.length} available (not recently used) for chapter ID: ${chapterId}`);
+                allQuestions.push(...availableQuestions);
             }
 
             this.logger.log(`Total questions loaded across all chapters: ${allQuestions.length}`);
+
+            // Check if we have enough questions for the requested matrix
+            const totalRequested = matrix.reduce((sum, item) => sum + item.clo1 + item.clo2 + item.clo3 + item.clo4 + item.clo5, 0) * multiplier;
+            if (allQuestions.length < totalRequested * 0.5) { // If less than 50% of required questions available
+                this.logger.warn(`Low question availability: ${allQuestions.length} available vs ${totalRequested} requested. Expanding search to include older questions.`);
+
+                // Fallback: Include questions from last 60 days if not enough available
+                const expandedQuestions = await this.getExpandedQuestionPool(allChapterIds, recentlyUsedQuestions);
+                allQuestions.push(...expandedQuestions);
+                this.logger.log(`Expanded question pool to ${allQuestions.length} questions`);
+            }
 
             // Debug: Log sample questions to understand CLO structure
             if (allQuestions.length > 0) {
@@ -617,6 +635,115 @@ export class ExamService {
         } catch (error) {
             this.logger.error(`Error selecting questions: ${error.message}`, error.stack);
             throw new Error(`Lỗi khi chọn câu hỏi cho đề thi: ${error.message}`);
+        }
+    }
+
+    /**
+     * Get recently used questions to avoid duplicates in new exam extractions
+     * Returns Set of question IDs that have been used in exams created within the last 30 days
+     */
+    private async getRecentlyUsedQuestions(): Promise<Set<string>> {
+        try {
+            // Get exams created in the last 30 days
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+            const recentExams = await this.deThiRepository.find({
+                where: {
+                    NgayTao: MoreThan(thirtyDaysAgo)
+                },
+                select: ['MaDeThi']
+            });
+
+            if (recentExams.length === 0) {
+                this.logger.log('No recent exams found, no questions to exclude');
+                return new Set<string>();
+            }
+
+            const recentExamIds = recentExams.map(exam => exam.MaDeThi);
+            this.logger.log(`Found ${recentExamIds.length} recent exams to check for used questions`);
+
+            // Get all questions used in these recent exams
+            const usedQuestionDetails = await this.chiTietDeThiRepository.find({
+                where: {
+                    MaDeThi: In(recentExamIds)
+                },
+                select: ['MaCauHoi']
+            });
+
+            const usedQuestionIds = new Set(usedQuestionDetails.map(detail => detail.MaCauHoi));
+            this.logger.log(`Found ${usedQuestionIds.size} unique questions used in recent exams`);
+
+            return usedQuestionIds;
+        } catch (error) {
+            this.logger.error(`Error getting recently used questions: ${error.message}`, error.stack);
+            // Return empty set on error to avoid blocking exam generation
+            return new Set<string>();
+        }
+    }
+
+    /**
+     * Get expanded question pool when not enough fresh questions are available
+     * Includes questions used in the last 60 days but prioritizes less recently used ones
+     */
+    private async getExpandedQuestionPool(chapterIds: string[], recentlyUsedQuestions: Set<string>): Promise<CauHoi[]> {
+        try {
+            const expandedQuestions: CauHoi[] = [];
+
+            // Get questions from last 60 days (but older than 30 days)
+            const sixtyDaysAgo = new Date();
+            sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+            const olderExams = await this.deThiRepository.find({
+                where: {
+                    NgayTao: MoreThan(sixtyDaysAgo)
+                },
+                select: ['MaDeThi', 'NgayTao']
+            });
+
+            if (olderExams.length > 0) {
+                const olderExamIds = olderExams.map(exam => exam.MaDeThi);
+
+                const olderUsedQuestions = await this.chiTietDeThiRepository.find({
+                    where: {
+                        MaDeThi: In(olderExamIds)
+                    },
+                    select: ['MaCauHoi']
+                });
+
+                const olderUsedQuestionIds = new Set(olderUsedQuestions.map(detail => detail.MaCauHoi));
+
+                // Get these older questions with full details
+                for (const chapterId of chapterIds) {
+                    const chapterQuestions = await this.cauHoiRepository.find({
+                        where: {
+                            MaPhan: chapterId,
+                            XoaTamCauHoi: false,
+                            MaCauHoiCha: IsNull(),
+                            MaCauHoi: In(Array.from(olderUsedQuestionIds))
+                        },
+                        relations: ['CLO', 'Phan', 'CauTraLoi'],
+                        select: [
+                            'MaCauHoi', 'MaPhan', 'MaSoCauHoi', 'NoiDung', 'HoanVi', 'CapDo', 'SoCauHoiCon',
+                            'DoPhanCachCauHoi', 'MaCauHoiCha', 'XoaTamCauHoi', 'SoLanDuocThi', 'SoLanDung',
+                            'NgayTao', 'NgaySua', 'MaCLO', 'DoKhoThucTe'
+                        ],
+                        take: 100
+                    });
+
+                    // Filter out questions used in the last 30 days
+                    const availableOlderQuestions = chapterQuestions.filter(q => !recentlyUsedQuestions.has(q.MaCauHoi));
+                    expandedQuestions.push(...availableOlderQuestions);
+                }
+            }
+
+            this.logger.log(`Found ${expandedQuestions.length} additional questions from expanded search`);
+            return expandedQuestions;
+        } catch (error) {
+            this.logger.error(`Error getting expanded question pool: ${error.message}`, error.stack);
+            return [];
         }
     }
 

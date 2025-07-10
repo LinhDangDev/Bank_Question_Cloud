@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Logger, HttpStatus, HttpException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { MultimediaExamService, MultimediaExamResponse } from './multimedia-exam.service';
+import { ApiResponseDto, ApprovedExamDto } from '../../dto/integration.dto';
 
 @ApiTags('Multimedia Exam API')
 @Controller('multimedia-exam')
@@ -18,20 +19,34 @@ export class MultimediaExamController {
     })
     @ApiResponse({
         status: 200,
-        description: 'Lấy danh sách đề thi đã duyệt thành công'
+        description: 'Lấy danh sách đề thi đã duyệt thành công',
+        type: ApiResponseDto<ApprovedExamDto[]>
     })
-    async getApprovedExams(): Promise<{ MaDeThi: string; TenDeThi: string; NgayTao: string }[]> {
+    async getApprovedExams(): Promise<ApiResponseDto<ApprovedExamDto[]>> {
         try {
             this.logger.log('API call: GET /api/multimedia-exam/approved-exams');
-            
+
             const exams = await this.multimediaExamService.getApprovedExams();
-            
-            this.logger.log(`Successfully returned ${exams.length} approved exams`);
-            return exams;
+
+            // Transform to match .NET DeThiMock model
+            const transformedExams: ApprovedExamDto[] = exams.map(exam => ({
+                TenDeThi: exam.TenDeThi,
+                KyHieuDe: undefined, // Not available in current data
+                MaDeThi: exam.MaDeThi,
+                NgayTao: exam.NgayTao
+            }));
+
+            this.logger.log(`Successfully returned ${transformedExams.length} approved exams`);
+
+            return {
+                success: true,
+                message: 'Lấy danh sách đề thi đã duyệt thành công',
+                data: transformedExams
+            };
 
         } catch (error) {
             this.logger.error('Error in getApprovedExams:', error);
-            
+
             throw new HttpException({
                 success: false,
                 message: 'Lỗi hệ thống khi lấy danh sách đề thi đã duyệt',
@@ -139,7 +154,7 @@ export class MultimediaExamController {
                 message: 'Test completed successfully',
                 timestamp: new Date().toISOString(),
                 results: {
-                    approvedExamsCount: examList.length,
+                    approvedExamsCount: examList.data?.length || 0,
                     examDetailsFound: !!examDetails,
                     maDeThi: maDeThi
                 }

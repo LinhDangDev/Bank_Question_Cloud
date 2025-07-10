@@ -1,5 +1,5 @@
 import { IsString, IsBoolean, IsOptional, IsArray, ValidateNested, IsNumber } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 export class MultimediaFileDto {
     @IsString()
@@ -25,8 +25,9 @@ export class CauTraLoiIntegrationDto {
     @IsString()
     NoiDung: string;
 
-    @IsString()
-    LaDapAn: string;
+    @IsBoolean()
+    @Transform(({ value }) => value === 'true' || value === true)
+    LaDapAn: boolean;
 
     @IsArray()
     @IsOptional()
@@ -65,18 +66,21 @@ export class PhanIntegrationDto {
     @IsString()
     TenPhan: string;
 
-    @IsString()
-    KieuNoiDung: string;
+    @IsNumber()
+    @Transform(({ value }) => parseInt(value, 10))
+    KieuNoiDung: number;
 
     @IsString()
     @IsOptional()
     NoiDung?: string;
 
-    @IsString()
-    SoLuongCauHoi: string;
+    @IsNumber()
+    @Transform(({ value }) => parseInt(value, 10))
+    SoLuongCauHoi: number;
 
-    @IsString()
-    LaCauHoiNhom: string;
+    @IsBoolean()
+    @Transform(({ value }) => value === 'true' || value === true)
+    LaCauHoiNhom: boolean;
 
     @IsArray()
     @ValidateNested({ each: true })
@@ -133,8 +137,9 @@ export class CauTraLoiNewDto {
     @IsString()
     NoiDung: string;
 
-    @IsString()
-    LaDapAn: string; // "true" or "false" as string
+    @IsBoolean()
+    @Transform(({ value }) => value === 'true' || value === true)
+    LaDapAn: boolean; // Convert string to boolean
 }
 
 export class CauHoiNewDto {
@@ -148,9 +153,6 @@ export class CauHoiNewDto {
     @ValidateNested({ each: true })
     @Type(() => CauTraLoiNewDto)
     CauTraLois: CauTraLoiNewDto[];
-
-    @IsBoolean()
-    IsParentQuestion: boolean;
 
     @IsString()
     @IsOptional()
@@ -168,17 +170,20 @@ export class PhanNewDto {
     @IsString()
     TenPhan: string;
 
-    @IsString()
-    KieuNoiDung: string;
+    @IsNumber()
+    @Transform(({ value }) => parseInt(value, 10))
+    KieuNoiDung: number;
 
     @IsString()
     NoiDung: string;
 
-    @IsString()
-    SoLuongCauHoi: string;
+    @IsNumber()
+    @Transform(({ value }) => parseInt(value, 10))
+    SoLuongCauHoi: number;
 
-    @IsString()
-    LaCauHoiNhom: string; // "true" or "false" as string
+    @IsBoolean()
+    @Transform(({ value }) => value === 'true' || value === true)
+    LaCauHoiNhom: boolean;
 
     @IsArray()
     @ValidateNested({ each: true })
@@ -220,4 +225,20 @@ export class ApiResponseDto<T> {
     @IsString()
     @IsOptional()
     code?: string;
+}
+
+// DTO for approved exams list to match .NET DeThiMock model
+export class ApprovedExamDto {
+    @IsString()
+    TenDeThi: string;
+
+    @IsString()
+    @IsOptional()
+    KyHieuDe?: string | undefined;
+
+    @IsString()
+    MaDeThi: string; // Maps to Guid in .NET
+
+    @IsString()
+    NgayTao: string; // ISO format: 2025-07-08T02:42:01
 }
