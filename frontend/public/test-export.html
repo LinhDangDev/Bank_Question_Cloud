@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Export - Linh Dang Dev</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 5px;
+            height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info { color: #17a2b8; }
+        .warning { color: #ffc107; }
+        h1 { color: #333; text-align: center; }
+        h2 { color: #666; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Test Export Word - Debug Tool</h1>
+        <p><strong>Author:</strong> Linh Dang Dev</p>
+        
+        <h2>📋 Test Export</h2>
+        <button onclick="testExport()" id="testBtn">Test Export Word</button>
+        <button onclick="clearLog()">Clear Log</button>
+        
+        <h2>📋 Debug Log</h2>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        const EXAM_ID = 'D5311678-1D22-40A3-8124-D6CDC34512AE';
+        const API_BASE = '/api';
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type;
+            logDiv.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        async function testExport() {
+            const btn = document.getElementById('testBtn');
+            btn.disabled = true;
+            btn.textContent = 'Đang test...';
+
+            log('🚀 Starting export test...', 'info');
+            log(`📋 Exam ID: ${EXAM_ID}`, 'info');
+
+            try {
+                const exportOptions = {
+                    examTitle: 'ĐỀ THI TEST FRONTEND',
+                    subject: 'Cơ sở dữ liệu',
+                    course: 'Khoa CNTT',
+                    semester: 'Học kỳ 1',
+                    academicYear: '2024-2025',
+                    examDate: new Date().toLocaleDateString('vi-VN'),
+                    duration: '90 phút',
+                    instructions: 'Thời gian làm bài: 90 phút. Không được sử dụng tài liệu.',
+                    allowMaterials: false,
+                    showAnswers: false,
+                    separateAnswerSheet: false,
+                    studentInfo: {
+                        studentId: '',
+                        studentName: '',
+                        className: ''
+                    }
+                };
+
+                log('📋 Export options:', 'info');
+                log(JSON.stringify(exportOptions, null, 2), 'info');
+
+                log('🌐 Sending request...', 'info');
+                const response = await fetch(`${API_BASE}/exam-word-export/${EXAM_ID}/export`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(exportOptions)
+                });
+
+                log(`📡 Response status: ${response.status}`, response.ok ? 'success' : 'error');
+                log(`📡 Response headers:`, 'info');
+                for (const [key, value] of response.headers.entries()) {
+                    log(`   ${key}: ${value}`, 'info');
+                }
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    log(`❌ Export failed: ${errorText}`, 'error');
+                    return;
+                }
+
+                // Download file
+                const blob = await response.blob();
+                log(`📁 File blob size: ${blob.size} bytes`, 'success');
+                log(`📁 File blob type: ${blob.type}`, 'info');
+
+                if (blob.size === 0) {
+                    log('⚠️ File is empty!', 'warning');
+                    return;
+                }
+
+                // Create download
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `test_export_${Date.now()}.docx`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+
+                log('✅ Export successful! File downloaded.', 'success');
+
+            } catch (error) {
+                log(`💥 Error: ${error.message}`, 'error');
+                console.error('Export error:', error);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Test Export Word';
+            }
+        }
+
+        // Auto-run on load
+        window.onload = function() {
+            log('🔧 Test page loaded', 'info');
+            log('📍 Ready to test export', 'info');
+        };
+    </script>
+</body>
+</html>

@@ -1,7 +1,6 @@
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { CauTraLoi } from './cau-tra-loi.entity';
 import { ChiTietDeThi } from './chi-tiet-de-thi.entity';
-import { Files } from './files.entity';
 import { Phan } from './phan.entity';
 import { CLO } from './clo.entity';
 import { User } from './user.entity';
@@ -59,6 +58,7 @@ export class CauHoi {
     @Column({ type: 'uuid', nullable: true })
     NguoiTao: string;
 
+
     @ManyToOne(() => User)
     @JoinColumn({ name: 'NguoiTao' })
     Creator: User;
@@ -77,6 +77,6 @@ export class CauHoi {
     @OneToMany(() => ChiTietDeThi, chiTietDeThi => chiTietDeThi.CauHoi)
     ChiTietDeThi: ChiTietDeThi[];
 
-    @OneToMany(() => Files, files => files.CauHoi)
-    Files: Files[];
+    @OneToMany('Files', 'CauHoi')
+    Files: any[];
 }

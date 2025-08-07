@@ -6,7 +6,7 @@ import PageContainer from "../../components/ui/PageContainer"
 import { useThemeStyles, cx } from "../../utils/theme"
 import { File, Upload, ChevronRight, Edit, Check, X, Trash } from "lucide-react"
 import { useLocation, useNavigate } from "react-router-dom"
-import { questionApi } from "@/services/api"
+import { cauHoiApi } from "@/services/api"
 
 interface QuestionTypeCardProps {
   icon: React.ReactNode
@@ -291,36 +291,36 @@ const CreateQuestion = () => {
       description: 'Câu hỏi có nhiều lựa chọn với 1 đáp án đúng',
       icon: <div className="text-blue-500">A</div>
     },
-    {
-      id: 'multi-choice',
-      title: 'Trắc nghiệm nhiều đáp án',
-      description: 'Câu hỏi có nhiều lựa chọn với nhiều đáp án đúng',
-      icon: <div className="text-green-500">A+</div>
-    },
-    {
-      id: 'fill-blank',
-      title: 'Điền khuyết',
-      description: 'Câu hỏi yêu cầu điền từ vào chỗ trống',
-      icon: <div className="text-amber-500">_</div>
-    },
-    {
-      id: 'essay',
-      title: 'Tự luận',
-      description: 'Câu hỏi yêu cầu viết câu trả lời dài',
-      icon: <div className="text-purple-500">¶</div>
-    },
-    {
-      id: 'image',
-      title: 'Câu hỏi ảnh',
-      description: 'Câu hỏi kèm hình ảnh minh họa',
-      icon: <div className="text-indigo-500">🖼️</div>
-    },
-    {
-      id: 'audio',
-      title: 'Câu hỏi âm thanh',
-      description: 'Câu hỏi kèm tệp âm thanh',
-      icon: <div className="text-pink-500">🔊</div>
-    },
+    // {
+    //   id: 'multi-choice',
+    //   title: 'Trắc nghiệm nhiều đáp án',
+    //   description: 'Câu hỏi có nhiều lựa chọn với nhiều đáp án đúng',
+    //   icon: <div className="text-green-500">A+</div>
+    // },
+    // {
+    //   id: 'fill-blank',
+    //   title: 'Điền khuyết',
+    //   description: 'Câu hỏi yêu cầu điền từ vào chỗ trống',
+    //   icon: <div className="text-amber-500">_</div>
+    // },
+    // {
+    //   id: 'essay',
+    //   title: 'Tự luận',
+    //   description: 'Câu hỏi yêu cầu viết câu trả lời dài',
+    //   icon: <div className="text-purple-500">¶</div>
+    // },
+    // {
+    //   id: 'image',
+    //   title: 'Câu hỏi ảnh',
+    //   description: 'Câu hỏi kèm hình ảnh minh họa',
+    //   icon: <div className="text-indigo-500">🖼️</div>
+    // },
+    // {
+    //   id: 'audio',
+    //   title: 'Câu hỏi âm thanh',
+    //   description: 'Câu hỏi kèm tệp âm thanh',
+    //   icon: <div className="text-pink-500">🔊</div>
+    // },
     {
       id: 'group',
       title: 'Câu hỏi nhóm',

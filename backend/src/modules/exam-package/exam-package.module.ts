@@ -13,6 +13,7 @@ import { Files } from '../../entities/files.entity';
 import { CauHoi } from '../../entities/cau-hoi.entity';
 import { CauTraLoi } from '../../entities/cau-tra-loi.entity';
 import spacesConfig from '../../config/spaces.config';
+import { StorageService } from '../../services/storage.service';
 
 @Module({
     imports: [
@@ -32,12 +33,15 @@ import spacesConfig from '../../config/spaces.config';
         ContentReplacementService,
         DocxParserService,
         SpacesService,
-        FilesSpacesService
+        FilesSpacesService,
+        StorageService
     ],
     exports: [
         ExamPackageService,
         MediaProcessingService,
-        ContentReplacementService
+        ContentReplacementService,
+        DocxParserService,
+        StorageService
     ]
 })
-export class ExamPackageModule {}
+export class ExamPackageModule { }

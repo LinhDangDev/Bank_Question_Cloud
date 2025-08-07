@@ -5,8 +5,8 @@ interface MediaMarkupTestProps {
   content?: string;
 }
 
-const MediaMarkupTest: React.FC<MediaMarkupTestProps> = ({ 
-  content = "Test content with [IMAGE: er_diagram.webp] and [AUDIO: sample.mp3]" 
+const MediaMarkupTest: React.FC<MediaMarkupTestProps> = ({
+  content = "Test content with [IMAGE: er_diagram.webp] and [AUDIO: sample.mp3]"
 }) => {
   const [testContent, setTestContent] = useState(content);
   const [showRaw, setShowRaw] = useState(false);
@@ -17,7 +17,7 @@ const MediaMarkupTest: React.FC<MediaMarkupTestProps> = ({
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <h2 className="text-2xl font-bold mb-4">Media Markup Test Component</h2>
-      
+
       {/* Input Section */}
       <div className="mb-6">
         <label className="block text-sm font-medium mb-2">Test Content:</label>
@@ -65,7 +65,7 @@ const MediaMarkupTest: React.FC<MediaMarkupTestProps> = ({
           <div>
             <h3 className="text-lg font-semibold mb-2">Rendered Output:</h3>
             <div className="p-4 bg-white border rounded-lg">
-              <div 
+              <div
                 className="prose prose-sm max-w-none"
                 dangerouslySetInnerHTML={{ __html: convertedContent }}
               />
@@ -80,7 +80,7 @@ const MediaMarkupTest: React.FC<MediaMarkupTestProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[
             "Listen to [AUDIO: sample.mp3]",
-            "View [IMAGE: diagram.png]", 
+            "View [IMAGE: diagram.png]",
             "Study [IMAGE: chart.jpg] and listen to [AUDIO: explanation.wav]",
             "No media content here",
             "Multiple images: [IMAGE: before.png] and [IMAGE: after.png]"
@@ -109,7 +109,7 @@ const MediaMarkupTest: React.FC<MediaMarkupTestProps> = ({
       </div>
 
       {/* CSS Styles for Media */}
-      <style jsx>{`
+      <style>{`
         .media-container {
           margin: 12px 0;
         }

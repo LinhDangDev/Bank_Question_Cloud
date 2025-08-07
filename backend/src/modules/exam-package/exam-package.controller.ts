@@ -29,15 +29,15 @@ export class ExamPackageController {
     @Post('upload')
     @Roles('admin', 'teacher')
     @ApiOperation({
-        summary: 'Upload and process exam package (ZIP file with Word document and media files)',
+        summary: 'Upload and process exam package (ZIP or RAR file with Word document and media files)',
         description: `
-        Upload a ZIP file containing:
+        Upload a ZIP or RAR file containing:
         - One Word document (.docx) with questions
         - Optional audio folder with audio files (.mp3, .wav, .m4a)
         - Optional images folder with image files (.jpg, .png, .gif, .bmp)
 
         The system will:
-        - Extract and parse the Word document
+        - Extract and parse the Word document from ZIP or RAR
         - Upload audio files to Digital Ocean Spaces
         - Convert images to WebP format and upload to Digital Ocean Spaces
         - Replace local media paths with full URLs
@@ -103,11 +103,12 @@ export class ExamPackageController {
     })
     @UseInterceptors(FileInterceptor('file', {
         limits: {
-            fileSize: 100 * 1024 * 1024, // 100MB limit for ZIP files
+            fileSize: 100 * 1024 * 1024, // 100MB limit for archive files
         },
         fileFilter: (req, file, callback) => {
-            if (!file.originalname.toLowerCase().endsWith('.zip')) {
-                return callback(new BadRequestException('Only ZIP files are allowed'), false);
+            const fileName = file.originalname.toLowerCase();
+            if (!fileName.endsWith('.zip')) {
+                return callback(new BadRequestException('Only ZIP files are currently supported'), false);
             }
             callback(null, true);
         }
@@ -121,12 +122,13 @@ export class ExamPackageController {
         @Body('saveToDatabase') saveToDatabase?: string
     ): Promise<ExamPackageUploadResponseDto> {
         if (!file) {
-            throw new BadRequestException('No ZIP file provided');
+            throw new BadRequestException('No archive file provided');
         }
 
-        // Validate file type
-        if (!file.originalname.toLowerCase().endsWith('.zip')) {
-            throw new BadRequestException('Only ZIP files are allowed');
+        // Validate file type - temporarily only ZIP until RAR is fully implemented
+        const fileName = file.originalname.toLowerCase();
+        if (!fileName.endsWith('.zip')) {
+            throw new BadRequestException('Only ZIP files are currently supported. RAR support coming soon.');
         }
 
         // Validate file size
@@ -139,7 +141,8 @@ export class ExamPackageController {
             throw new BadRequestException('maPhan is required when saveToDatabase is true');
         }
 
-        this.logger.log(`Processing exam package upload: ${file.originalname} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+        const fileType = fileName.endsWith('.rar') ? 'RAR' : 'ZIP';
+        this.logger.log(`Processing ${fileType} exam package upload: ${file.originalname} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
 
         try {
             // Convert Express.Multer.File to MulterFile interface

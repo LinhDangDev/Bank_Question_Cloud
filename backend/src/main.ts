@@ -58,6 +58,10 @@ async function bootstrap() {
         logger: ['error', 'warn', 'log', 'debug', 'verbose'],
     });
 
+    // Configure body parser with larger limits for image uploads
+    app.use(express.json({ limit: '50mb' }));
+    app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
     // Enable CORS
     app.enableCors({
         origin: "*",

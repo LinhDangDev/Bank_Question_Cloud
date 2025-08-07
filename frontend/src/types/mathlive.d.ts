@@ -11,3 +11,10 @@ declare global {
     }
 }
 export { };
+
+// Add MathJax global variable type definition
+interface Window {
+    MathJax?: {
+        typeset: (elements: HTMLElement[]) => void;
+    };
+}

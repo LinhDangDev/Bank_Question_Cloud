@@ -1,11 +1,67 @@
+# Prometheus Configuration for Question Bank System
+# Author: Linh Dang Dev
+# Advanced monitoring with custom metrics and alerting rules
+
 global:
   scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'question-bank-production'
+    environment: 'production'
+
+rule_files:
+  - "rules/*.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
 
 scrape_configs:
+  # Prometheus self-monitoring
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
+    scrape_interval: 30s
+    metrics_path: /metrics
 
-  - job_name: 'backend'
+  # Question Bank Backend - Main Application
+  - job_name: 'question-bank-backend'
     static_configs:
       - targets: ['backend:3001']
+    scrape_interval: 15s
+    metrics_path: /metrics
+    scrape_timeout: 10s
+    honor_labels: true
+    params:
+      format: ['prometheus']
+
+  # Question Bank Backend - Advanced Metrics
+  - job_name: 'question-bank-advanced-metrics'
+    static_configs:
+      - targets: ['backend:3001']
+    scrape_interval: 30s
+    metrics_path: /monitoring/metrics
+    scrape_timeout: 15s
+
+  # Node Exporter - System Metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 15s
+    metrics_path: /metrics
+
+  # cAdvisor - Container Metrics
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    scrape_interval: 15s
+    metrics_path: /metrics
+
+  # Redis Exporter - Redis Metrics
+  - job_name: 'redis-exporter'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    scrape_interval: 15s
+    metrics_path: /metrics

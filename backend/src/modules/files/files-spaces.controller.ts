@@ -9,7 +9,8 @@ import {
     Body,
     UseGuards,
     HttpStatus,
-    HttpCode
+    HttpCode,
+    BadRequestException
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiConsumes, ApiOperation, ApiBody, ApiResponse } from '@nestjs/swagger';
@@ -91,8 +92,92 @@ export class FilesSpacesController {
         },
     })
     async getFileUrl(@Param('maFile') maFile: string) {
+        // Validate GUID format
+        const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (!guidRegex.test(maFile)) {
+            throw new BadRequestException('Invalid file ID format');
+        }
+
         const url = await this.filesSpacesService.getFileUrl(maFile);
         return { url };
+    }
+
+    @Get('test-upload')
+    @ApiOperation({ summary: 'Test upload endpoint' })
+    async testUpload() {
+        return {
+            message: 'Upload endpoint is working',
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    @Post('upload-editor-image')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
+    @ApiOperation({ summary: 'Upload image for TinyMCE editor' })
+    @ApiConsumes('multipart/form-data')
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                file: {
+                    type: 'string',
+                    format: 'binary',
+                },
+            },
+        },
+    })
+    @ApiResponse({
+        status: 201,
+        description: 'Image uploaded successfully for editor',
+        schema: {
+            type: 'object',
+            properties: {
+                location: { type: 'string', description: 'Public URL of uploaded image' },
+            },
+        },
+    })
+    @UseInterceptors(FileInterceptor('file'))
+    async uploadEditorImage(@UploadedFile() file: MulterFile) {
+        try {
+            console.log('📸 TinyMCE upload request received:', {
+                hasFile: !!file,
+                filename: file?.originalname,
+                mimetype: file?.mimetype,
+                size: file?.size
+            });
+
+            if (!file) {
+                throw new BadRequestException('No file provided');
+            }
+
+            // Validate file type
+            const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+            if (!allowedTypes.includes(file.mimetype)) {
+                console.error('❌ Invalid file type:', file.mimetype, 'Allowed:', allowedTypes);
+                throw new BadRequestException(`Only image files are allowed (JPEG, PNG, GIF, WebP). Received: ${file.mimetype}`);
+            }
+
+            // Validate file size (max 5MB)
+            const maxSize = 5 * 1024 * 1024; // 5MB
+            if (file.size > maxSize) {
+                throw new BadRequestException('File size must be less than 5MB');
+            }
+
+            console.log('📤 Uploading to Spaces...');
+            const result = await this.filesSpacesService.uploadFile(file);
+
+            const publicUrl = (result as any).publicUrl;
+            console.log('✅ Upload successful:', publicUrl);
+
+            // Return in format expected by TinyMCE
+            return {
+                location: publicUrl
+            };
+        } catch (error) {
+            console.error('❌ TinyMCE upload error:', error);
+            throw error;
+        }
     }
 
     @Get('question/:maCauHoi')

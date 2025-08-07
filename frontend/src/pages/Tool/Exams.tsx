@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { Search, Filter, Plus, FileText, Download, Edit, Trash2, Eye, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { Search, Filter, Plus, FileText, Download, Edit, Trash2, Eye, CheckCircle, XCircle, AlertCircle, ChevronDown, ChevronUp, List } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { examApi } from '@/services/api'
+import { examApi, cauHoiApi } from '@/services/api'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { useAuth } from '../../context/AuthContext'
@@ -13,16 +13,14 @@ const Exams = () => {
   const [loading, setLoading] = useState(false)
   const [approvedExams, setApprovedExams] = useState<any[]>([])
   const [pendingExams, setPendingExams] = useState<any[]>([])
+  const [examQuestionsMap, setExamQuestionsMap] = useState<Record<string, any[]>>({})
+  const [expandedExams, setExpandedExams] = useState<string[]>([])
+  const [loadingQuestions, setLoadingQuestions] = useState<Record<string, boolean>>({})
 
   const [selectedExams, setSelectedExams] = useState<string[]>([])
   const navigate = useNavigate()
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
-
-  const subjects = ['Tất cả', 'Lập trình Web', 'Mạng máy tính', 'Hệ điều hành', 'Cơ sở dữ liệu']
-  const semesters = ['Tất cả', 'HK1 2022-2023', 'HK2 2022-2023', 'HK1 2023-2024', 'HK2 2023-2024']
-
-
 
   const fetchExams = async () => {
     try {
@@ -62,6 +60,8 @@ const Exams = () => {
       setApprovedExams(approved)
       setPendingExams(pending)
       setSelectedExams([]) // Reset selected exams
+      setExpandedExams([]) // Reset expanded exams
+      setExamQuestionsMap({}) // Reset questions
 
     } catch (error: any) {
       console.error('Error fetching exams:', error);
@@ -80,6 +80,58 @@ const Exams = () => {
   useEffect(() => {
     fetchExams()
   }, [])
+
+  const fetchExamQuestions = async (examId: string) => {
+    // Skip if already loaded
+    if (examQuestionsMap[examId] && examQuestionsMap[examId].length > 0) {
+      return;
+    }
+
+    try {
+      setLoadingQuestions(prev => ({ ...prev, [examId]: true }));
+
+      // Fetch exam details (question list)
+      const examDetailsResponse = await examApi.getExamDetails(examId);
+      const examDetails = examDetailsResponse.data;
+
+      if (!examDetails || !examDetails.length) {
+        setExamQuestionsMap(prev => ({ ...prev, [examId]: [] }));
+        return;
+      }
+
+      // Fetch full details for each question including answers
+      const questionsWithDetails = await Promise.all(
+        examDetails.map(async (detail: any) => {
+          try {
+            const questionResponse = await cauHoiApi.getWithAnswers(detail.MaCauHoi);
+            return questionResponse.data;
+          } catch (error) {
+            console.error(`Error fetching question ${detail.MaCauHoi}:`, error);
+            return null;
+          }
+        })
+      );
+
+      // Filter out null values and set the questions
+      const validQuestions = questionsWithDetails.filter(q => q !== null);
+      setExamQuestionsMap(prev => ({ ...prev, [examId]: validQuestions }));
+
+    } catch (error) {
+      console.error('Error fetching exam questions:', error);
+      toast.error('Không thể tải câu hỏi cho đề thi này');
+    } finally {
+      setLoadingQuestions(prev => ({ ...prev, [examId]: false }));
+    }
+  };
+
+  const toggleExamExpand = (examId: string) => {
+    if (expandedExams.includes(examId)) {
+      setExpandedExams(expandedExams.filter(id => id !== examId));
+    } else {
+      setExpandedExams([...expandedExams, examId]);
+      fetchExamQuestions(examId);
+    }
+  };
 
   const filterExams = (exams: any) => {
     return exams.filter((exam: any) => {
@@ -175,6 +227,63 @@ const Exams = () => {
     }
   }
 
+  const renderQuestionContent = (question: any) => {
+    if (!question) return null;
+
+    // Get CLO information
+    const cloInfo = question.CLO ? (
+      <div className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded inline-block mr-2 mb-2">
+        CLO: {question.CLO}
+      </div>
+    ) : null;
+
+    // Get correct answers
+    const correctAnswers = question.CauTraLoi
+      ? question.CauTraLoi
+          .filter((answer: any) => answer.Dung)
+          .map((answer: any) => (
+            <div key={answer.MaCauTraLoi} className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded inline-block mr-2 mb-2">
+              Đáp án đúng: {answer.NoiDung}
+            </div>
+          ))
+      : null;
+
+    return (
+      <div className="bg-gray-50 p-3 my-1 rounded-md border border-gray-200">
+        <div className="flex items-start gap-2 mb-2">
+          <div className="bg-indigo-100 text-indigo-800 px-2 py-1 rounded text-xs">
+            {question.LoaiCauHoi || "SINGLE_CHOICE"}
+          </div>
+          {cloInfo}
+        </div>
+
+        <div className="mb-2 text-sm" dangerouslySetInnerHTML={{ __html: question.NoiDung || "" }} />
+
+        {question.CauTraLoi && question.CauTraLoi.length > 0 && (
+          <div className="mt-2">
+            <div className="text-xs font-medium mb-1">Các lựa chọn:</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {question.CauTraLoi.map((answer: any) => (
+                <div
+                  key={answer.MaCauTraLoi}
+                  className={`text-xs p-2 rounded border ${answer.Dung ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}
+                >
+                  {answer.NoiDung}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {correctAnswers && correctAnswers.length > 0 && (
+          <div className="mt-2 flex flex-wrap">
+            {correctAnswers}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderExamTable = (exams: any, isApproved = false) => {
     const filteredExams = filterExams(exams)
 
@@ -220,112 +329,160 @@ const Exams = () => {
               </tr>
             ) : filteredExams.length > 0 ? (
               filteredExams.map((exam: any) => (
-                <tr key={exam.MaDeThi} className="border-b border-gray-200 hover:bg-gray-50">
-                  {isAdmin && (
-                    <td className="py-3 px-3 text-center">
-                      <input
-                        type="checkbox"
-                        checked={selectedExams.includes(exam.MaDeThi)}
-                        onChange={() => toggleExamSelection(exam.MaDeThi)}
-                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                      />
+                <React.Fragment key={exam.MaDeThi}>
+                  <tr className={`border-b border-gray-200 hover:bg-gray-50 ${expandedExams.includes(exam.MaDeThi) ? 'bg-gray-50' : ''}`}>
+                    {isAdmin && (
+                      <td className="py-3 px-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedExams.includes(exam.MaDeThi)}
+                          onChange={() => toggleExamSelection(exam.MaDeThi)}
+                          className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                      </td>
+                    )}
+                    <td className="py-3 px-6 text-left">
+                      <div className="flex items-center">
+                        <button
+                          onClick={() => toggleExamExpand(exam.MaDeThi)}
+                          className="mr-2 text-gray-500 hover:text-gray-700"
+                        >
+                          {expandedExams.includes(exam.MaDeThi) ? (
+                            <ChevronUp size={16} />
+                          ) : (
+                            <ChevronDown size={16} />
+                          )}
+                        </button>
+                        <FileText size={16} className="mr-2 text-blue-500" />
+                        <span>{exam.TenDeThi}</span>
+                        {!exam.ChiTietDeThi && (
+                          <AlertCircle size={14} className="ml-2 text-amber-500" />
+                        )}
+                      </div>
                     </td>
+                    <td className="py-3 px-6 text-left">{exam.MonHoc?.TenMonHoc || '-'}</td>
+                    <td className="py-3 px-6 text-center">{exam.SoCauHoi || 0}</td>
+                    <td className="py-3 px-6 text-center">
+                      {exam.DaDuyet ? (
+                        <span className="flex items-center justify-center text-green-500">
+                          <CheckCircle size={16} className="mr-1" /> Đã duyệt
+                        </span>
+                      ) : (
+                        <span className="flex items-center justify-center text-yellow-500">
+                          <XCircle size={16} className="mr-1" /> Chưa duyệt
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-6 text-center">
+                      {exam.LoaiBoChuongPhan ? (
+                        <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
+                          Không phân cấp
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                          Phân cấp
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-6 text-center">
+                      {new Date(exam.NgayTao).toLocaleDateString('vi-VN')}
+                    </td>
+                    <td className="py-3 px-6 text-center">
+                      <div className="flex items-center justify-center">
+                        <button
+                          onClick={() => handleViewExam(exam.MaDeThi)}
+                          className="transform hover:text-blue-500 hover:scale-110 transition-all p-1"
+                          title="Xem chi tiết"
+                        >
+                          <Eye size={18} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            examApi.downloadExam(exam.MaDeThi, 'pdf')
+                              .then(response => {
+                                const url = window.URL.createObjectURL(new Blob([response.data]));
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.setAttribute('download', `exam-${exam.MaDeThi}.pdf`);
+                                document.body.appendChild(link);
+                                link.click();
+                                link.remove();
+                              })
+                              .catch(error => {
+                                console.error('Error downloading exam:', error);
+                                toast.error('Không thể tải xuống đề thi');
+                              });
+                          }}
+                          className="transform hover:text-green-500 hover:scale-110 transition-all p-1 ml-2"
+                          title="Tải xuống"
+                        >
+                          <Download size={18} />
+                        </button>
+                        {!isApproved && isAdmin && (
+                          <>
+                            <button
+                              onClick={() => handleEditExam(exam.MaDeThi)}
+                              className="transform hover:text-yellow-500 hover:scale-110 transition-all p-1 ml-2"
+                              title="Chỉnh sửa"
+                            >
+                              <Edit size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleApproveExam(exam.MaDeThi)}
+                              className="transform hover:text-green-500 hover:scale-110 transition-all p-1 ml-2"
+                              title="Duyệt"
+                            >
+                              <CheckCircle size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteExam(exam.MaDeThi)}
+                              className="transform hover:text-red-500 hover:scale-110 transition-all p-1 ml-2"
+                              title="Xóa"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                  {expandedExams.includes(exam.MaDeThi) && (
+                    <tr>
+                      <td colSpan={isAdmin ? 8 : 7} className="bg-gray-50 p-0">
+                        <div className="p-4">
+                          <div className="mb-2 flex items-center">
+                            <List size={16} className="mr-2 text-gray-600" />
+                            <h3 className="font-medium">Danh sách câu hỏi</h3>
+                          </div>
+
+                          {loadingQuestions[exam.MaDeThi] ? (
+                            <div className="text-center py-4">
+                              <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-blue-500 border-t-transparent"></div>
+                              <p className="mt-2 text-sm text-gray-500">Đang tải câu hỏi...</p>
+                            </div>
+                          ) : examQuestionsMap[exam.MaDeThi]?.length > 0 ? (
+                            <div className="space-y-4">
+                              {examQuestionsMap[exam.MaDeThi].map((question: any, index: number) => (
+                                <div key={question.MaCauHoi} className="border border-gray-200 rounded-lg overflow-hidden">
+                                  <div className="bg-gray-100 px-4 py-2 flex justify-between items-center">
+                                    <div className="font-medium">Câu {index + 1}</div>
+                                  </div>
+                                  <div className="p-4">
+                                    {renderQuestionContent(question)}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-center py-4 text-gray-500">
+                              Không tìm thấy câu hỏi nào cho đề thi này
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
                   )}
-                  <td className="py-3 px-6 text-left">
-                    <div className="flex items-center">
-                      <FileText size={16} className="mr-2 text-blue-500" />
-                      <span>{exam.TenDeThi}</span>
-                      {!exam.ChiTietDeThi && (
-                        <AlertCircle size={14} className="ml-2 text-amber-500" />
-                      )}
-                    </div>
-                  </td>
-                  <td className="py-3 px-6 text-left">{exam.MonHoc?.TenMonHoc || '-'}</td>
-                  <td className="py-3 px-6 text-center">{exam.SoCauHoi || 0}</td>
-                  <td className="py-3 px-6 text-center">
-                    {exam.DaDuyet ? (
-                      <span className="flex items-center justify-center text-green-500">
-                        <CheckCircle size={16} className="mr-1" /> Đã duyệt
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-center text-yellow-500">
-                        <XCircle size={16} className="mr-1" /> Chưa duyệt
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3 px-6 text-center">
-                    {exam.LoaiBoChuongPhan ? (
-                      <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
-                        Không phân cấp
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
-                        Phân cấp
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3 px-6 text-center">
-                    {new Date(exam.NgayTao).toLocaleDateString('vi-VN')}
-                  </td>
-                  <td className="py-3 px-6 text-center">
-                    <div className="flex items-center justify-center">
-                      <button
-                        onClick={() => handleViewExam(exam.MaDeThi)}
-                        className="transform hover:text-blue-500 hover:scale-110 transition-all p-1"
-                        title="Xem chi tiết"
-                      >
-                        <Eye size={18} />
-                      </button>
-                      <button
-                        onClick={() => {
-                          examApi.downloadExam(exam.MaDeThi, 'pdf')
-                            .then(response => {
-                              const url = window.URL.createObjectURL(new Blob([response.data]));
-                              const link = document.createElement('a');
-                              link.href = url;
-                              link.setAttribute('download', `exam-${exam.MaDeThi}.pdf`);
-                              document.body.appendChild(link);
-                              link.click();
-                              link.remove();
-                            })
-                            .catch(error => {
-                              console.error('Error downloading exam:', error);
-                              toast.error('Không thể tải xuống đề thi');
-                            });
-                        }}
-                        className="transform hover:text-green-500 hover:scale-110 transition-all p-1 ml-2"
-                        title="Tải xuống"
-                      >
-                        <Download size={18} />
-                      </button>
-                      {!isApproved && isAdmin && (
-                        <>
-                          <button
-                            onClick={() => handleEditExam(exam.MaDeThi)}
-                            className="transform hover:text-yellow-500 hover:scale-110 transition-all p-1 ml-2"
-                            title="Chỉnh sửa"
-                          >
-                            <Edit size={18} />
-                          </button>
-                          <button
-                            onClick={() => handleApproveExam(exam.MaDeThi)}
-                            className="transform hover:text-green-500 hover:scale-110 transition-all p-1 ml-2"
-                            title="Duyệt"
-                          >
-                            <CheckCircle size={18} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteExam(exam.MaDeThi)}
-                            className="transform hover:text-red-500 hover:scale-110 transition-all p-1 ml-2"
-                            title="Xóa"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
+                </React.Fragment>
               ))
             ) : (
               <tr>

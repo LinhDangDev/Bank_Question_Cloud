@@ -1,0 +1,38 @@
+# This is a placeholder for the Word template file
+# The actual .dotx file should be created using Microsoft Word with the following structure:
+
+# HEADER SECTION:
+# - TRƯỜNG ĐẠI HỌC CÔNG NGHỆ TP.HCM
+# - HUTECH logo
+# - {examTitle} - NĂM HỌC {academicYear}
+# - Khoa/Lớp: {course}
+# - Môn thi: {subject}
+# - Mã môn học: {studentId}
+# - Ngày thi: {examDate}
+# - Thời gian làm bài: {duration}
+# - Mã đề (Nếu có): {studentName}
+# - SỬ DỤNG TÀI LIỆU: {allowMaterials} ☐ KHÔNG ☐
+
+# STUDENT INFO SECTION:
+# - Họ và tên: {studentName}
+# - Mã số sinh viên: {studentId}
+# - Lớp: {className}
+
+# INSTRUCTIONS SECTION:
+# - {instructions}
+
+# QUESTIONS SECTION:
+# {#questions}
+# Câu {number}: {content}
+# {#answers}
+# {label}. {content}
+# {/answers}
+# {/questions}
+
+# ANSWER SHEET SECTION (if separateAnswerSheet):
+# {#answerKey}
+# Câu {number}: {correctAnswer}
+# {/answerKey}
+
+# Note: This file should be created as a proper .dotx template in Microsoft Word
+# with the placeholders replaced by docxtemplater syntax

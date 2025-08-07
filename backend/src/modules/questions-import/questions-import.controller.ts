@@ -95,6 +95,79 @@ export class QuestionsImportController {
         );
     }
 
+    @Post('upload-python')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'teacher')
+    @ApiOperation({ summary: 'Upload and parse Word document with enhanced Python parser' })
+    @ApiConsumes('multipart/form-data')
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                file: {
+                    type: 'string',
+                    format: 'binary',
+                },
+                maPhan: {
+                    type: 'string',
+                    nullable: true,
+                },
+                processImages: {
+                    type: 'boolean',
+                    default: true,
+                },
+                limit: {
+                    type: 'number',
+                    default: 100,
+                }
+            },
+        },
+    })
+    @UseInterceptors(FileInterceptor('file', {
+        storage: diskStorage({
+            destination: (req, file, cb) => {
+                const uploadPath = path.join(process.cwd(), 'uploads', 'temp');
+                cb(null, uploadPath);
+            },
+            filename: (req, file, cb) => {
+                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+                const ext = path.extname(file.originalname);
+                cb(null, `${uniqueSuffix}${ext}`);
+            },
+        }),
+        limits: {
+            fileSize: 50 * 1024 * 1024, // 50MB maximum file size
+        },
+    }))
+    async uploadFileWithPython(
+        @UploadedFile() file: Express.Multer.File,
+        @Body('maPhan') maPhan?: string,
+        @Body('processImages') processImages?: boolean,
+        @Body('limit') limit?: number,
+    ) {
+        if (!file) {
+            throw new Error('No file uploaded');
+        }
+
+        // Convert Express.Multer.File to our MulterFile interface
+        const multerFile: MulterFile = {
+            fieldname: file.fieldname,
+            originalname: file.originalname,
+            encoding: file.encoding,
+            mimetype: file.mimetype,
+            buffer: fs.readFileSync(file.path), // Read file from disk to get buffer
+            size: file.size,
+            path: file.path // Add path to allow direct file access
+        };
+
+        // Use Python enhanced parser
+        return this.questionsImportService.parseAndSaveQuestionsWithPython(
+            multerFile,
+            maPhan,
+            { processImages: Boolean(processImages), limit: limit ? Number(limit) : 100 }
+        );
+    }
+
     @Get('preview/:fileId')
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles('admin', 'teacher')

@@ -45,7 +45,9 @@ interface ParsedQuestion {
   }[];
   childQuestions?: ParsedQuestion[];
   groupContent?: string;
-  fileId?: string; // Make fileId optional
+  fileId?: string;
+  hasFillInBlanks?: boolean; // Add this to identify fill-in-blank questions
+  blankMarkers?: string[]; // Add this to store the blank markers like {<1>}, {<2>}, etc.
 }
 
 // Helper functions for displaying question difficulty
@@ -74,17 +76,26 @@ const parseQuestion = (text: string) => {
     cleanContent = text.replace(cloRegex, '').trim();
   }
 
-  return { content: cleanContent, clo };
+  // Check if this is a fill-in-blank question by looking for blank markers
+  const hasFillInBlanks = /\{<\d+>\}/.test(cleanContent) || /\(<\d+>\).*?\{<\d+>\}/.test(cleanContent);
+
+  return {
+    content: cleanContent,
+    clo,
+    hasFillInBlanks
+  };
 };
 
 // Parse answer to check if it's marked as correct
 const parseAnswer = (text: string, isUnderlined: boolean) => {
-  // Check if the answer text contains underline markup - Word can use different styles
+  // Check for all possible underline formats that Word can use
   const hasUnderline = text.includes('<u>') ||
-                       text.includes('text-decoration:underline') ||
-                       text.includes('text-decoration: underline') ||
-                       text.includes('<span style="text-decoration: underline">') ||
-                       text.match(/<span\s+class="[^"]*underline[^"]*"/i);
+                     text.includes('</u>') ||
+                     text.includes('text-decoration:underline') ||
+                     text.includes('text-decoration: underline') ||
+                     text.includes('<span style="text-decoration: underline">') ||
+                     text.match(/<span\s+class="[^"]*underline[^"]*"/i) ||
+                     text.match(/style="[^"]*text-decoration[^:]*:[^"]*underline[^"]*"/i);
 
   // If explicitly told it's underlined or if we detect underline markup
   const isCorrectAnswer = isUnderlined || hasUnderline;
@@ -97,7 +108,8 @@ const parseAnswer = (text: string, isUnderlined: boolean) => {
 
   return {
     content: cleanContent,
-    isCorrect: isCorrectAnswer
+    isCorrect: isCorrectAnswer,
+    hasUnderline: isCorrectAnswer
   };
 };
 
@@ -482,6 +494,11 @@ const UploadQuestions = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const navigate = useNavigate();
 
+  // New states for ZIP package upload
+  const [isZipLoading, setIsZipLoading] = useState(false);
+  const [zipError, setZipError] = useState<string | null>(null);
+  const [zipUploadResult, setZipUploadResult] = useState<any>(null);
+
   // Toggle group expansion
   const toggleGroup = (questionId: string) => {
     setExpandedGroups((prev) =>
@@ -708,6 +725,92 @@ const UploadQuestions = () => {
     setShowGuideModal(true);
   };
 
+  // Handle ZIP file upload for exam packages
+  const handleZipFileSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+      setZipError('Vui lòng chọn file ZIP');
+      return;
+    }
+
+    if (file.size > 100 * 1024 * 1024) { // 100MB limit
+      setZipError('File ZIP quá lớn. Vui lòng chọn file nhỏ hơn 100MB');
+      return;
+    }
+
+    await processZipFile(file);
+  };
+
+  // Process ZIP file containing exam package
+  const processZipFile = async (file: File) => {
+    setIsZipLoading(true);
+    setZipError(null);
+    setZipUploadResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      // Add chapter ID if selected
+      if (chapterId) {
+        formData.append('maPhan', chapterId);
+      }
+
+      // Add processing options
+      formData.append('processImages', 'true');
+      formData.append('processAudio', 'true');
+      formData.append('saveToDatabase', 'false'); // Preview mode first
+      formData.append('limit', '100');
+
+      const response = await fetch(`${API_BASE_URL}/exam-package/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Lỗi xử lý gói đề: ${response.status}: ${errorText}`);
+      }
+
+      const result = await response.json();
+      setZipUploadResult(result);
+
+      // Convert result to ParsedQuestion format for preview
+      if (result.questions && result.questions.length > 0) {
+        const convertedQuestions = result.questions.map((q: any) => ({
+          id: q.id || uuidv4(),
+          content: q.content || q.processedContent || '',
+          clo: q.clo,
+          type: q.type || 'single-choice',
+          answers: q.answers || [],
+          childQuestions: q.childQuestions || [],
+          groupContent: q.groupContent,
+          hoanVi: q.hoanVi
+        }));
+
+        setSelectedQuestions(convertedQuestions);
+        toast.success(`Đã xử lý thành công ${result.questions.length} câu hỏi từ gói đề thi!`);
+      }
+
+    } catch (err: any) {
+      console.error('Error processing ZIP file:', err);
+      setZipError(err.message || 'Lỗi xử lý gói đề thi. Vui lòng kiểm tra định dạng và thử lại.');
+      toast.error(err.message || 'Lỗi xử lý gói đề thi');
+    } finally {
+      setIsZipLoading(false);
+      // Reset the file input
+      const zipInput = document.getElementById('zipFileInput') as HTMLInputElement;
+      if (zipInput) {
+        zipInput.value = '';
+      }
+    }
+  };
+
   // Handle select/deselect all questions
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -797,9 +900,17 @@ const UploadQuestions = () => {
     // Clean content first
     let processedContent = cleanContent(content);
 
+    // Process fill-in-blank markers with better highlighting
+    processedContent = processedContent.replace(/\{<(\d+)>\}(_+)?/g,
+      '<span class="inline-flex items-center justify-center bg-yellow-100 text-yellow-800 px-2 py-1 rounded border border-yellow-300 mx-1 font-medium">Blank $1</span>');
+
+    // Also handle another format where blanks might be marked
+    processedContent = processedContent.replace(/\(<(\d+)>\)\s*_+/g,
+      '<span class="inline-flex items-center justify-center bg-yellow-100 text-yellow-800 px-2 py-1 rounded border border-yellow-300 mx-1 font-medium">Blank $1</span>');
+
     // Handle special tags for group questions with better styling
     processedContent = processedContent
-      .replace(/\[\<sg\>\]/g, '<div class="bg-gray-50 p-3 rounded-md border-l-4 border-blue-500 my-3">')
+      .replace(/\[\<sg\>\]/g, '<div class="bg-gray-50 p-4 rounded-md border-l-4 border-blue-500 my-3">')
       .replace(/\[\<\/sg\>\]/g, '</div>')
       .replace(/\[\<egc\>\]/g, '<hr class="my-3 border-dashed border-gray-300"/>')
       .replace(/\[\<br\>\]/g, '');
@@ -807,13 +918,13 @@ const UploadQuestions = () => {
     // Use the new formatting functions for better styling
     processedContent = formatParentQuestionContent(processedContent);
 
-    // Handle child question patterns
+    // Handle child question patterns with better visual indication
     processedContent = processedContent
-      .replace(/\(<(\d+)>\)/g, '<span class="inline-block bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded font-medium text-xs">Câu $1</span>');
+      .replace(/\(<(\d+)>\)/g, '<div class="inline-flex items-center justify-center bg-purple-100 text-purple-800 px-2.5 py-1 rounded-md font-medium text-sm my-2">Câu $1</div>');
 
-    // Process audio tags
+    // Process audio tags with better styling
     processedContent = processedContent
-      .replace(/<audio>(.*?)<\/audio>/g, '<div class="flex items-center gap-2 my-2"><span class="text-green-600">🔊</span><span class="text-xs bg-green-50 text-green-700 p-1 rounded">$1</span></div>');
+      .replace(/<audio>(.*?)<\/audio>/g, '<div class="flex items-center gap-2 my-2 p-2 bg-green-50 rounded-md border border-green-200"><span class="text-green-600">🔊</span><span class="text-sm text-green-700">$1</span></div>');
 
     // Handle underlined answers (Word format for correct answers)
     processedContent = processedContent
@@ -851,9 +962,8 @@ const UploadQuestions = () => {
     return <div className="question-content" dangerouslySetInnerHTML={{ __html: processedContent }} />;
   };
 
-  // Function to render answers
+  // Function to render answers with better indication of correct answers
   const renderAnswers = (answers: any[]) => {
-    // ALWAYS use the grid layout now for better UI consistency
     return (
       <div className="mt-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -862,9 +972,9 @@ const UploadQuestions = () => {
               key={index}
               className={`flex items-center p-3 rounded-md ${
                 answer.isCorrect
-                  ? "bg-green-50 border-2 border-green-500" // Enhanced border color for better visibility
+                  ? "bg-green-50 border-l-4 border-green-500" // Left border for correct answers
                   : "bg-gray-50 border border-gray-200"
-              }`}
+            }`}
             >
               {/* Answer letter in a circle */}
               <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium mr-2.5 ${
@@ -880,7 +990,7 @@ const UploadQuestions = () => {
                 {renderContent(answer.content)}
               </div>
 
-              {/* "Đáp án" badge for correct answer */}
+              {/* "Đáp án đúng" badge for correct answer */}
               {answer.isCorrect && (
                 <div className="flex-shrink-0 bg-green-200 text-green-800 text-xs px-2.5 py-1 rounded-full ml-2 font-medium">
                   Đáp án đúng
@@ -893,7 +1003,294 @@ const UploadQuestions = () => {
     );
   };
 
-  // Modify how questions are rendered
+  // Improved function to detect fill-in-blank group questions
+  const detectFillInBlankQuestion = (question: ParsedQuestion): boolean => {
+    if (!question) return false;
+
+    // Check if it's a group question first
+    if (question.type !== 'group') return false;
+
+    // Check for explicit markers in the content
+    const content = question.groupContent || question.content || '';
+
+    // Check for blank markers like {<1>}, {<2>}, etc.
+    const hasBlankMarkers = /\{<\d+>\}/.test(content);
+
+    // Also check for underscores which might indicate fill-in-blank
+    const hasUnderscores = /_+/.test(content);
+
+    // Check if child questions have minimal content (typical for fill-in-blank)
+    const childrenLackContent = question.childQuestions?.some(child =>
+      !child.content || child.content.trim() === '' || child.content.length < 10);
+
+    return hasBlankMarkers || hasUnderscores || childrenLackContent || !!question.hasFillInBlanks;
+  };
+
+  // Improved function to render group questions with better UI for fill-in-blank
+  const renderGroupQuestion = (question: ParsedQuestion) => {
+    if (!question || question.type !== 'group') return null;
+
+    const isFillInBlank = detectFillInBlankQuestion(question);
+
+    return (
+      <div className="mt-4 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        {/* Group header with CLO and type */}
+        <div className="bg-blue-50 p-4 border-b border-blue-200 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <span className="bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full text-xs font-medium">
+              {isFillInBlank ? 'Câu hỏi điền khuyết' : 'Câu hỏi nhóm'}
+            </span>
+            {question.clo && (
+              <span className={`${getCloColor(question.clo)} px-2.5 py-0.5 rounded-full text-xs font-medium`}>
+                {question.clo}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Group content (passage/shared context) */}
+        <div className="p-4 bg-blue-50 bg-opacity-30 border-b border-gray-200">
+          <div className="prose max-w-none">
+            {renderContent(question.groupContent || question.content)}
+          </div>
+        </div>
+
+        {/* Child questions */}
+        {question.childQuestions && question.childQuestions.length > 0 && (
+          <div className="divide-y divide-gray-200">
+            {question.childQuestions.map((childQuestion, index) => (
+              <div key={childQuestion.id} className="p-4 hover:bg-gray-50">
+                <div className="flex items-start mb-3">
+                  <div className="bg-purple-100 text-purple-800 px-2.5 py-0.5 rounded-full text-xs font-medium mr-2">
+                    {isFillInBlank ? `Blank ${index + 1}` : `Câu ${index + 1}`}
+                  </div>
+                  {childQuestion.clo && (
+                    <span className={`${getCloColor(childQuestion.clo)} px-2.5 py-0.5 rounded-full text-xs font-medium`}>
+                      {childQuestion.clo}
+                    </span>
+                  )}
+                </div>
+
+                {/* Show content for non-fill-in-blank questions */}
+                {!isFillInBlank && childQuestion.content && (
+                  <div className="mb-3">
+                    {renderContent(childQuestion.content)}
+                  </div>
+                )}
+
+                {/* For fill-in-blank, show the blank marker */}
+                {isFillInBlank && (
+                  <div className="mb-3 px-2 py-1 inline-flex items-center bg-yellow-50 text-yellow-800 rounded border border-yellow-200">
+                    <span className="font-medium">Điền vào chỗ trống {index + 1}</span>
+                  </div>
+                )}
+
+                {/* Multimedia content for child question */}
+                <div className="mb-3">
+                  <LazyMediaPlayer maCauHoi={childQuestion.id} showFileName={false} />
+                </div>
+
+                {/* Child answers with improved UI */}
+                {childQuestion.answers && childQuestion.answers.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                    {childQuestion.answers.map((answer, idx) => (
+                      <div
+                        key={idx}
+                        className={`flex items-center p-2 rounded-md ${
+                          answer.isCorrect
+                            ? 'bg-green-50 border-l-4 border-green-500'
+                            : 'bg-gray-50 border border-gray-200'
+                        }`}
+                      >
+                        <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium mr-2 ${
+                          answer.isCorrect
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-200 text-gray-700'
+                        }`}>
+                          {String.fromCharCode(65 + idx)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          {renderContent(answer.content)}
+                        </div>
+                        {answer.isCorrect && (
+                          <div className="flex-shrink-0 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded ml-2 font-medium">
+                            Đáp án đúng
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Enhanced QuestionItem component to better display different question types
+  const QuestionItem = ({ question, isSelected, onSelect }: {
+    question: ParsedQuestion,
+    isSelected: boolean,
+    onSelect: (question: ParsedQuestion) => void
+  }) => {
+    const isGroup = question.type === 'group';
+    const isFillInBlank = isGroup && detectFillInBlankQuestion(question);
+    const [expanded, setExpanded] = useState(false);
+
+    return (
+      <div
+        className={`border rounded-lg overflow-hidden mb-4 transition-colors ${
+          isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'
+        }`}
+      >
+        {/* Question header */}
+        <div className="p-4 flex items-start">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => onSelect(question)}
+            className="h-4 w-4 mt-1 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+          />
+
+          <div className="ml-3 flex-1">
+            {/* Question header with tags */}
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              {question.type && (
+                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                  question.type === 'single-choice' ? 'bg-blue-100 text-blue-800' :
+                  question.type === 'multi-choice' ? 'bg-purple-100 text-purple-800' :
+                  question.type === 'fill-blank' ? 'bg-amber-100 text-amber-800' :
+                  isFillInBlank ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-green-100 text-green-800'
+                }`}>
+                  {question.type === 'single-choice' ? 'Trắc nghiệm đơn' :
+                   question.type === 'multi-choice' ? 'Trắc nghiệm nhiều đáp án' :
+                   question.type === 'fill-blank' ? 'Điền khuyết' :
+                   isFillInBlank ? 'Điền khuyết' :
+                   'Câu hỏi nhóm'}
+                </span>
+              )}
+
+              {question.clo && (
+                <span className={`text-xs px-2 py-0.5 rounded-full ${getCloColor(question.clo)}`}>
+                  {question.clo}
+                </span>
+              )}
+
+              {isGroup && question.childQuestions && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
+                  {question.childQuestions.length} câu hỏi con
+                </span>
+              )}
+            </div>
+
+            {/* Question content */}
+            {!isGroup && renderContent(question.content)}
+
+            {/* For group questions */}
+            {isGroup && (
+              <>
+                <div className="mb-3">
+                  {renderContent(question.groupContent || question.content)}
+                </div>
+
+                <button
+                  onClick={() => setExpanded(!expanded)}
+                  className="flex items-center text-sm font-medium text-blue-600 hover:text-blue-800 mb-2"
+                >
+                  {expanded ? (
+                    <ChevronDown className="h-4 w-4 mr-1" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 mr-1" />
+                  )}
+                  {question.childQuestions?.length || 0} câu hỏi con
+                </button>
+
+                {expanded && question.childQuestions && (
+                  <div className="ml-4 mt-2 border-l-2 border-gray-200 pl-4 space-y-4">
+                    {question.childQuestions.map((childQ, idx) => (
+                      <div key={idx} className="border rounded-md p-3 bg-gray-50">
+                        <div className="font-medium mb-2 flex items-center gap-2">
+                          <div className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs">
+                            {isFillInBlank ? `Blank ${idx + 1}` : `Câu ${idx + 1}`}
+                          </div>
+                          {childQ.clo && (
+                            <span className={`${getCloColor(childQ.clo)} text-xs rounded px-2 py-0.5`}>
+                              {childQ.clo}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Only show content for non-fill-in-blank questions */}
+                        {!isFillInBlank && (
+                          <div className="mb-3 text-gray-800">
+                            {renderContent(childQ.content)}
+                          </div>
+                        )}
+
+                        {/* For fill-in-blank, show the blank marker */}
+                        {isFillInBlank && (
+                          <div className="mb-3 px-2 py-1 inline-flex items-center bg-yellow-50 text-yellow-800 rounded border border-yellow-200">
+                            <span className="font-medium">Điền vào chỗ trống {idx + 1}</span>
+                          </div>
+                        )}
+
+                        {/* Answer options */}
+                        {childQ.answers && childQ.answers.length > 0 && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {childQ.answers.map((answer, ansIdx) => (
+                              <div
+                                key={ansIdx}
+                                className={`flex items-center p-2 rounded-md ${
+                                  answer.isCorrect
+                                    ? 'bg-green-50 border-l-4 border-green-500'
+                                    : 'bg-gray-50 border border-gray-200'
+                                }`}
+                              >
+                                <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium mr-2 ${
+                                  answer.isCorrect
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-gray-200 text-gray-700'
+                                }`}>
+                                  {String.fromCharCode(65 + ansIdx)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  {renderContent(answer.content)}
+                                </div>
+                                {answer.isCorrect && (
+                                  <div className="flex-shrink-0 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded ml-2 font-medium">
+                                    Đáp án đúng
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Multimedia content */}
+            <div className="mt-2">
+              <LazyMediaPlayer maCauHoi={question.id} showFileName={false} />
+            </div>
+
+            {/* Answers for non-group questions */}
+            {!isGroup && question.answers && question.answers.length > 0 && (
+              renderAnswers(question.answers)
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Now update the renderQuestions function to use our enhanced components
   const renderQuestions = () => {
     if (!selectedQuestions.length) return null;
 
@@ -903,107 +1300,18 @@ const UploadQuestions = () => {
       return (
         <div className="text-center py-10 text-gray-500">
           Không tìm thấy câu hỏi nào phù hợp với bộ lọc
-    </div>
-  );
+        </div>
+      );
     }
 
-    return filteredQuestions.map((question, index) => (
+    return filteredQuestions.map((question) => (
       <QuestionItem
         key={question.id}
         question={question}
-        index={index}
-        selected={selectedQuestionIds.includes(question.id)}
-        onSelect={(id, selected) => handleSelectQuestion(id, selected)}
+        isSelected={selectedQuestionIds.includes(question.id)}
+        onSelect={(question) => handleSelectQuestion(question.id, !selectedQuestionIds.includes(question.id))}
       />
     ));
-  };
-
-  // Implement collapse functionality for group questions
-  const handleToggleGroup = (questionId: string) => {
-    setExpandedGroups(prev =>
-      prev.includes(questionId)
-        ? prev.filter(id => id !== questionId)
-        : [...prev, questionId]
-    );
-  };
-
-  // Modify the existing rendering of questions to better handle grouped questions
-  const renderGroupQuestionContent = (question: any, index: number) => {
-    // Only render if the group is expanded
-    if (!expandedGroups.includes(question.id)) return null;
-
-    return (
-      <div className="mt-3 space-y-3 border-t pt-3">
-        {question.childQuestions?.map((childQ: any, childIdx: number) => (
-          <div key={childIdx} className="border rounded-md bg-gray-50 p-3">
-            <div className="font-medium mb-2 flex items-center gap-2">
-              <div className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs">
-                Câu {childIdx + 1}
-              </div>
-              {childQ.clo && (
-                <span className={`${getCloColor(childQ.clo)} text-xs rounded px-2 py-0.5`}>
-                  {childQ.clo}
-                </span>
-              )}
-              <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                childQ.type === 'fill-blank'
-                  ? 'bg-blue-100 text-blue-700'
-                  : childQ.type === 'multi-choice'
-                    ? 'bg-yellow-100 text-yellow-700'
-                    : 'bg-green-100 text-green-700'
-              }`}>
-                {childQ.type === 'fill-blank'
-                  ? 'Điền khuyết'
-                  : childQ.type === 'multi-choice'
-                    ? 'Nhiều lựa chọn'
-                    : 'Đơn lựa chọn'}
-              </span>
-            </div>
-
-            <div className="mb-3 text-gray-800">
-              {renderContent(childQ.content)}
-            </div>
-
-            {/* Multimedia content for child question */}
-            <div className="mb-3">
-              <LazyMediaPlayer maCauHoi={childQ.id} showFileName={false} />
-            </div>
-
-            {/* Display answers in 2x2 grid for group child questions */}
-            {childQ.answers && childQ.answers.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {childQ.answers.map((answer: any, idx: number) => (
-                  <div
-                    key={idx}
-                    className={`flex items-center p-2 rounded-md ${
-                      answer.isCorrect
-                        ? 'bg-green-50 border-2 border-green-300'
-                        : 'bg-gray-50 border border-gray-200'
-                    }`}
-                  >
-                    <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium mr-2 ${
-                      answer.isCorrect
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-gray-200 text-gray-700'
-                    }`}>
-                      {String.fromCharCode(65 + idx)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      {renderContent(answer.content)}
-                    </div>
-                    {answer.isCorrect && (
-                      <div className="flex-shrink-0 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded ml-2 font-medium">
-                        Đáp án
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    );
   };
 
   // Implement statistics calculation functions
@@ -1256,9 +1564,60 @@ const UploadQuestions = () => {
 
       case 'package':
         return (
-          <div className="space-y-3">
-            <h3 className="font-medium">Hướng dẫn nhập gói câu hỏi</h3>
-            <p className="text-sm">Chức năng đang được phát triển...</p>
+          <div className="space-y-4">
+            <h3 className="font-medium text-lg">Hướng dẫn tạo gói đề thi</h3>
+
+            <div className="bg-green-50 border border-green-200 rounded-md p-4 text-sm space-y-3">
+              <h4 className="font-medium text-green-800">Cấu trúc gói đề thi (ZIP)</h4>
+              <div className="space-y-2">
+                <p><strong>📄 File Word (.docx)</strong> - Bắt buộc</p>
+                <p className="ml-4 text-gray-600">• Chứa nội dung câu hỏi theo định dạng chuẩn</p>
+                <p className="ml-4 text-gray-600">• Sử dụng markup [AUDIO: filename] và [IMAGE: filename]</p>
+
+                <p><strong>🎵 Thư mục /audio</strong> - Tùy chọn</p>
+                <p className="ml-4 text-gray-600">• Chứa các file âm thanh (.mp3, .wav, .m4a)</p>
+
+                <p><strong>🖼️ Thư mục /images</strong> - Tùy chọn</p>
+                <p className="ml-4 text-gray-600">• Chứa các file hình ảnh (.jpg, .png, .gif, .bmp)</p>
+                <p className="ml-4 text-gray-600">• Tự động chuyển đổi sang WebP để tối ưu</p>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-4 text-sm space-y-3">
+              <h4 className="font-medium text-blue-800">Tính năng tự động</h4>
+              <ul className="list-disc list-inside space-y-1 text-gray-700">
+                <li>Phân tích và trích xuất câu hỏi từ Word</li>
+                <li>Upload media lên Digital Ocean Spaces</li>
+                <li>Chuyển đổi hình ảnh sang WebP (chất lượng 85%)</li>
+                <li>Thay thế đường dẫn local thành full URLs</li>
+                <li>Nhận diện gạch chân để thiết lập HoanVi</li>
+                <li>Xử lý LaTeX và công thức toán học</li>
+              </ul>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-md p-4 text-sm space-y-2">
+              <h4 className="font-medium text-amber-800">Lưu ý quan trọng</h4>
+              <ul className="list-disc list-inside space-y-1 text-gray-700">
+                <li>Kích thước tối đa: 100MB</li>
+                <li>Tên file media phải khớp với markup trong Word</li>
+                <li>Sử dụng đường dẫn tương đối trong markup</li>
+                <li>Kiểm tra preview trước khi lưu vào database</li>
+              </ul>
+            </div>
+
+            <div className="bg-gray-50 border rounded-md p-3 text-sm">
+              <h4 className="font-medium mb-2">Ví dụ cấu trúc ZIP:</h4>
+              <pre className="text-xs font-mono text-gray-600">
+{`exam-package.zip
+├── questions.docx
+├── audio/
+│   ├── listening1.mp3
+│   └── pronunciation.wav
+└── images/
+    ├── diagram1.jpg
+    └── chart2.png`}
+              </pre>
+            </div>
           </div>
         );
 
@@ -1291,8 +1650,33 @@ const UploadQuestions = () => {
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-start">
               <span className="mr-2 mt-0.5">⚠️</span>
               <div>
-                <p className="font-medium">Lỗi</p>
+                <p className="font-medium">Lỗi upload Word</p>
                 <p>{error}</p>
+              </div>
+            </div>
+          )}
+
+          {/* ZIP Error display */}
+          {zipError && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-start">
+              <span className="mr-2 mt-0.5">⚠️</span>
+              <div>
+                <p className="font-medium">Lỗi upload gói đề thi</p>
+                <p>{zipError}</p>
+              </div>
+            </div>
+          )}
+
+          {/* ZIP Success display */}
+          {zipUploadResult && (
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700 flex items-start">
+              <span className="mr-2 mt-0.5">✅</span>
+              <div>
+                <p className="font-medium">Xử lý gói đề thi thành công</p>
+                <p>Đã xử lý {zipUploadResult.statistics?.totalQuestions || 0} câu hỏi</p>
+                {zipUploadResult.statistics?.mediaReplacementsMade > 0 && (
+                  <p>Đã thay thế {zipUploadResult.statistics.mediaReplacementsMade} tham chiếu media</p>
+                )}
               </div>
             </div>
           )}
@@ -1365,41 +1749,149 @@ const UploadQuestions = () => {
             </div>
           </div>
 
-          {/* File upload area */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-            <h2 className="text-lg font-medium mb-4">Tải lên tệp tin</h2>
-            <div
-              className={`border-2 border-dashed rounded-lg p-8 text-center ${
-                dragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400'
-              } transition-colors duration-200 cursor-pointer`}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileSelected}
-                className="hidden"
-                accept=".docx,.doc"
-              />
-              <div className="mx-auto flex flex-col items-center">
-                <UploadIcon className="h-12 w-12 text-gray-400 mb-3" />
-                <h3 className="text-lg font-medium text-gray-700">Kéo thả hoặc nhấp để tải lên</h3>
-                <p className="text-sm text-gray-500 mt-1">Hỗ trợ tệp tin Word (.docx, .doc)</p>
+          {/* Upload Options - Two Sections */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+
+            {/* Section 1: Upload Word Document */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center mb-4">
+                <FileText className="h-6 w-6 text-blue-600 mr-2" />
+                <h2 className="text-lg font-medium">Upload File Word</h2>
+              </div>
+
+              <div
+                className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors duration-200 ${
+                  isLoading
+                    ? 'border-blue-500 bg-blue-50 cursor-not-allowed'
+                    : dragOver
+                      ? 'border-blue-500 bg-blue-50 cursor-pointer'
+                      : 'border-gray-300 hover:border-blue-400 cursor-pointer'
+                }`}
+                onDragOver={!isLoading ? handleDragOver : undefined}
+                onDragLeave={!isLoading ? handleDragLeave : undefined}
+                onDrop={!isLoading ? handleDrop : undefined}
+                onClick={() => !isLoading && fileInputRef.current?.click()}
+              >
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileSelected}
+                  className="hidden"
+                  accept=".docx,.doc"
+                  disabled={isLoading}
+                />
+                <div className="mx-auto flex flex-col items-center">
+                  {isLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-3"></div>
+                      <h3 className="text-base font-medium text-blue-700">Đang xử lý file Word...</h3>
+                      <p className="text-sm text-blue-600 mt-1">Vui lòng đợi, đang phân tích nội dung</p>
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="h-10 w-10 text-gray-400 mb-3" />
+                      <h3 className="text-base font-medium text-gray-700">Tải lên file Word</h3>
+                      <p className="text-sm text-gray-500 mt-1">Kéo thả hoặc nhấp để chọn file</p>
+                      <p className="text-xs text-gray-400 mt-1">Hỗ trợ: .docx, .doc</p>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <button
+                  type="button"
+                  className={`w-full inline-flex items-center justify-center px-3 py-2 border shadow-sm text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                    isLoading
+                      ? 'border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed'
+                      : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50 focus:ring-blue-500'
+                  }`}
+                  onClick={() => !isLoading && showGuide('word')}
+                  disabled={isLoading}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Xem hướng dẫn định dạng Word
+                </button>
+
+                <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-md">
+                  <p className="font-medium mb-1">Tính năng:</p>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>Phân tích câu hỏi từ file Word</li>
+                    <li>Tự động nhận diện CLO</li>
+                    <li>Hỗ trợ LaTeX và công thức toán</li>
+                    <li>Xử lý định dạng gạch chân (HoanVi)</li>
+                  </ul>
+                </div>
               </div>
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                onClick={() => showGuide('word')}
+            {/* Section 2: Upload Exam Package (ZIP) */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center mb-4">
+                <Database className="h-6 w-6 text-green-600 mr-2" />
+                <h2 className="text-lg font-medium">Upload Gói Đề Thi</h2>
+              </div>
+
+              <div
+                className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors duration-200 ${
+                  isZipLoading
+                    ? 'border-green-500 bg-green-50 cursor-not-allowed'
+                    : 'border-green-300 hover:border-green-400 cursor-pointer'
+                }`}
+                onClick={() => !isZipLoading && document.getElementById('zipFileInput')?.click()}
               >
-                <FileText className="h-4 w-4 mr-2" />
-                Xem hướng dẫn định dạng
-              </button>
+                <input
+                  id="zipFileInput"
+                  type="file"
+                  className="hidden"
+                  accept=".zip"
+                  onChange={handleZipFileSelected}
+                  disabled={isZipLoading}
+                />
+                <div className="mx-auto flex flex-col items-center">
+                  {isZipLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-green-600 mb-3"></div>
+                      <h3 className="text-base font-medium text-green-700">Đang xử lý gói đề thi...</h3>
+                      <p className="text-sm text-green-600 mt-1">Vui lòng đợi, quá trình có thể mất vài phút</p>
+                    </>
+                  ) : (
+                    <>
+                      <Database className="h-10 w-10 text-gray-400 mb-3" />
+                      <h3 className="text-base font-medium text-gray-700">Tải lên gói đề thi</h3>
+                      <p className="text-sm text-gray-500 mt-1">Kéo thả hoặc nhấp để chọn file ZIP</p>
+                      <p className="text-xs text-gray-400 mt-1">Hỗ trợ: .zip (tối đa 100MB)</p>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <button
+                  type="button"
+                  className={`w-full inline-flex items-center justify-center px-3 py-2 border shadow-sm text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                    isZipLoading
+                      ? 'border-green-200 text-green-400 bg-green-25 cursor-not-allowed'
+                      : 'border-green-300 text-green-700 bg-green-50 hover:bg-green-100 focus:ring-green-500'
+                  }`}
+                  onClick={() => !isZipLoading && showGuide('package')}
+                  disabled={isZipLoading}
+                >
+                  <Database className="h-4 w-4 mr-2" />
+                  Xem hướng dẫn gói đề thi
+                </button>
+
+                <div className="text-xs text-gray-500 bg-green-50 p-3 rounded-md">
+                  <p className="font-medium mb-1">Cấu trúc gói đề:</p>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>File Word (.docx) - Bắt buộc</li>
+                    <li>Thư mục /audio - Tùy chọn</li>
+                    <li>Thư mục /images - Tùy chọn</li>
+                    <li>Tự động chuyển đổi WebP</li>
+                    <li>Upload lên Digital Ocean Spaces</li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1507,7 +1999,7 @@ const UploadQuestions = () => {
                         {question.type === 'group' && question.childQuestions && (
                           <div className="mt-4">
                             <button
-                              onClick={() => handleToggleGroup(question.id)}
+                              onClick={() => toggleGroup(question.id)}
                               className="flex items-center text-sm font-medium text-blue-600 hover:text-blue-800"
                             >
                               {expandedGroups.includes(question.id) ? (
@@ -1521,7 +2013,7 @@ const UploadQuestions = () => {
                             {expandedGroups.includes(question.id) && (
                               <div className="mt-2 pl-4 border-l-2 border-gray-200">
                                 {question.childQuestions.map((childQuestion, childIndex) => (
-                                  renderGroupQuestionContent(childQuestion, childIndex)
+                                  renderGroupQuestion(childQuestion)
                                 ))}
                               </div>
                             )}

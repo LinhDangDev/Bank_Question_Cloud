@@ -26,6 +26,11 @@ import { ExamExportModule } from './modules/exam-export/exam-export.module';
 import { WordMultimediaModule } from './modules/word-import/word-multimedia.module';
 import { MultimediaExamModule } from './modules/multimedia-exam/multimedia-exam.module';
 import { ExamPackageModule } from './modules/exam-package/exam-package.module';
+import { EnhancedDocxParserModule } from './modules/enhanced-docx-parser/enhanced-docx-parser.module';
+import { QuestionParserModule } from './modules/question-parser/question-parser.module';
+import { PythonEnhancedDocxParserModule } from './modules/python-enhanced-docx-parser/python-enhanced-docx-parser.module';
+import { ExamWordExportModule } from './modules/exam-word-export/exam-word-export.module';
+import { PythonDocxParserModule } from './modules/python-docx-parser/python-docx-parser.module';
 import databaseConfig from './config/database.config';
 import { DbConfigController } from './utils/db-env-switcher';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
@@ -82,6 +87,11 @@ import * as path from 'path';
         WordMultimediaModule,
         MultimediaExamModule,
         ExamPackageModule,
+        EnhancedDocxParserModule,
+        QuestionParserModule,
+        PythonDocxParserModule,
+        PythonEnhancedDocxParserModule,
+        ExamWordExportModule,
     ],
     controllers: [AppController, DbConfigController],
     providers: [AppService],

@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BookOpen, FileText, Plus, Upload, Download, Eye, Edit2, AlertTriangle, Save, Trash2, Info, CheckCircle } from 'lucide-react';
+import { BookOpen, FileText, Plus, Upload, Download, Eye, Edit2, AlertTriangle, Save, Trash2, Info, CheckCircle, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { API_BASE_URL } from '@/config';
@@ -211,20 +211,34 @@ const Extract = () => {
 
         // Skip header row and convert to MatrixRow format
         const matrixData: MatrixRow[] = jsonData.slice(1).map((row, index) => {
-          // Find matching chapter by name or use placeholder
+          // Get chapter name and ID from Excel
           const chapterName = row[0] || `Chương ${index + 1}`;
-          const matchingChapter = chapters.find(c => c.TenPhan === chapterName);
+          const chapterIdFromExcel = row[1]; // Mã Chương column
+
+          // Find matching chapter by ID first, then by name
+          let matchingChapter = null;
+          if (chapterIdFromExcel) {
+            matchingChapter = chapters.find(c => c.MaPhan === chapterIdFromExcel);
+          }
+
+          if (!matchingChapter) {
+            matchingChapter = chapters.find(c =>
+              c.TenPhan === chapterName ||
+              c.TenPhan.toLowerCase().includes(chapterName.toLowerCase()) ||
+              chapterName.toLowerCase().includes(c.TenPhan.toLowerCase())
+            );
+          }
 
           return {
             chapter: chapterName,
-            chapterId: matchingChapter ? matchingChapter.MaPhan : '',
-            clo1: parseInt(row[1]) || 0,
-            clo2: parseInt(row[2]) || 0,
-            clo3: parseInt(row[3]) || 0,
-            clo4: parseInt(row[4]) || 0,
-            clo5: parseInt(row[5]) || 0,
+            chapterId: matchingChapter ? matchingChapter.MaPhan : (chapterIdFromExcel || ''),
+            clo1: parseInt(row[2]) || 0, // Adjusted for new column structure
+            clo2: parseInt(row[3]) || 0,
+            clo3: parseInt(row[4]) || 0,
+            clo4: parseInt(row[5]) || 0,
+            clo5: parseInt(row[6]) || 0,
           };
-        }).filter(row => row.chapter);
+        }).filter(row => row.chapter && row.chapter !== 'Tổng cộng'); // Filter out total row
 
         // Check if chapter IDs are found
         const missingChapterIds = matrixData.filter(row => !row.chapterId);
@@ -234,7 +248,34 @@ const Extract = () => {
           });
         }
 
-        setImportedData(matrixData);
+        // Auto-apply if all chapters are found and matrix is empty or user confirms
+        const allChaptersFound = missingChapterIds.length === 0;
+        if (allChaptersFound && (matrix.length === 0 || getTotalQuestions() === 0)) {
+          // Auto-apply if matrix is empty
+          const updatedMatrix = [...matrix];
+          matrixData.forEach(importedRow => {
+            const existingIndex = updatedMatrix.findIndex(row =>
+              row.chapterId === importedRow.chapterId
+            );
+            if (existingIndex >= 0) {
+              updatedMatrix[existingIndex] = {
+                ...updatedMatrix[existingIndex],
+                clo1: importedRow.clo1,
+                clo2: importedRow.clo2,
+                clo3: importedRow.clo3,
+                clo4: importedRow.clo4,
+                clo5: importedRow.clo5
+              };
+            }
+          });
+          setMatrix(updatedMatrix);
+          setUnsavedChanges(true);
+          toast.success("Tự động áp dụng thành công", {
+            description: `Đã tự động áp dụng ${matrixData.length} chương từ file Excel`
+          });
+        } else {
+          setImportedData(matrixData);
+        }
 
         toast.success("Import thành công", {
           description: `Đã import ${matrixData.length} chương từ file Excel`
@@ -278,9 +319,14 @@ const Extract = () => {
 
       setMatrix(updatedMatrix);
       setImportedData(null);
+      setUnsavedChanges(true); // Mark as having unsaved changes
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+
+      toast.success('Áp dụng dữ liệu thành công', {
+        description: 'Dữ liệu từ file Excel đã được áp dụng vào ma trận. Nhớ lưu thay đổi!'
+      });
     }
   };
 
@@ -310,9 +356,10 @@ const Extract = () => {
 
   const exportMatrixToExcel = () => {
     try {
-      // Create worksheet from matrix data
+      // Create worksheet from matrix data with chapter ID for better import matching
       const ws = XLSX.utils.json_to_sheet(matrix.map(row => ({
         'Chương': row.chapter,
+        'Mã Chương': row.chapterId, // Add chapter ID for better matching
         'CLO 1': row.clo1,
         'CLO 2': row.clo2,
         'CLO 3': row.clo3,
@@ -331,6 +378,7 @@ const Extract = () => {
 
       XLSX.utils.sheet_add_json(ws, [{
         'Chương': 'Tổng cộng',
+        'Mã Chương': '',
         'CLO 1': totalClo1,
         'CLO 2': totalClo2,
         'CLO 3': totalClo3,
@@ -372,7 +420,7 @@ const Extract = () => {
       tenDeThi: examTitle,
       maMonHoc: selectedSubject,
       loaiBoChuongPhan: loaiBoChuongPhan,
-      soLuongDe: soLuongDeThi,
+      soLuongDe: 1, // Fixed to 1 for performance reasons
       matrix: matrix.map(row => ({
         maPhan: row.chapterId,
         clo1: row.clo1,
@@ -664,14 +712,14 @@ const Extract = () => {
                   id="soLuongDeThi"
                   type="number"
                   min="1"
-                  max="10"
-                  value={soLuongDeThi}
-                  onChange={(e) => setSoLuongDeThi(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
-                  placeholder="Nhập số lượng đề thi muốn tạo"
+                  max="1"
+                  value={1}
+                  disabled
+                  placeholder="Số lượng đề thi"
                   className="border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-colors"
                 />
                 <div className="text-xs text-gray-500">
-                  Tạo từ 1-10 đề thi khác nhau từ cùng một ma trận (mỗi đề có câu hỏi và thứ tự khác nhau)
+                  Hiện tại chỉ hỗ trợ tạo 1 đề thi để đảm bảo hiệu năng hệ thống
                 </div>
               </div>
 
@@ -1087,6 +1135,19 @@ const Extract = () => {
         </div>
       </div>
 
+      {/* Thông báo unsaved changes */}
+      {unsavedChanges && (
+        <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div className="flex items-center gap-2 text-yellow-800">
+            <AlertCircle className="w-5 h-5" />
+            <span className="font-medium">Có thay đổi chưa được lưu</span>
+          </div>
+          <p className="text-yellow-700 text-sm mt-1">
+            Vui lòng lưu thay đổi ma trận trước khi tạo đề thi.
+          </p>
+        </div>
+      )}
+
       {/* Nút tạo đề thi */}
       <div className="flex justify-end mt-6">
         <div className="flex gap-4">
@@ -1110,7 +1171,7 @@ const Extract = () => {
           </Button>
           <Button
             onClick={generateExam}
-            disabled={!selectedFaculty || !selectedSubject || !examTitle || getTotalQuestions() === 0 || loading}
+            disabled={!selectedFaculty || !selectedSubject || !examTitle || getTotalQuestions() === 0 || loading || unsavedChanges}
             className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 gap-2 flex items-center shadow-md"
           >
             {loading ? (

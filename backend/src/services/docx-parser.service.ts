@@ -1,501 +1,833 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as PizZip from 'pizzip';
-import * as Docxtemplater from 'docxtemplater';
-import * as mammoth from 'mammoth';
-import { v4 as uuidv4 } from 'uuid';
+import { StorageService } from './storage.service';
+import { ContentReplacementService } from './content-replacement.service';
+import { MediaProcessingService } from './media-processing.service';
+import { QuestionType } from '../enums/question-type.enum';
 import { MulterFile } from '../interfaces/multer-file.interface';
-import { randomUUID } from 'crypto';
-import { promisify } from 'util';
-import { exec } from 'child_process';
-import * as os from 'os';
 
-const execPromise = promisify(exec);
-
-export interface ParsedQuestion {
-    id: string;
-    content: string;
-    answers?: ParsedAnswer[];
-    type?: string;
-    childQuestions?: ParsedQuestion[];
-    files?: any[];
-    inGroup?: boolean;
-    groupId?: string;
-    has_latex?: boolean;
-    clo?: string;
-    hoanVi?: boolean;
+interface QuestionMedia {
+    originalUrl: string;
+    uploadedUrl?: string;
+    type: 'image' | 'audio';
+    fileName: string;
 }
 
-export interface ParsedAnswer {
-    id: string;
+interface ProcessedQuestion {
     content: string;
-    isCorrect: boolean;
-    order: number;
-    hasUnderline?: boolean;
+    type: QuestionType;
+    options?: string[];
+    correctAnswer?: string;
+    explanation?: string;
+    mediaFiles?: QuestionMedia[];
+    childQuestions?: ProcessedQuestion[];
+    parentId?: string;
+    groupContent?: string;
+    fillInBlankAnswers?: string[];
 }
 
-interface ParseOptions {
+interface DocxParseOptions {
+    uploadMedia?: boolean;
+    generateThumbnails?: boolean;
     processImages?: boolean;
-    extractStyles?: boolean;
-    preserveLatex?: boolean;
 }
 
 @Injectable()
 export class DocxParserService {
     private readonly logger = new Logger(DocxParserService.name);
-    private readonly uploadsDir = path.join(process.cwd(), 'uploads', 'questions');
 
-    constructor() {
-        // Ensure uploads directory exists
-        if (!fs.existsSync(this.uploadsDir)) {
-            fs.mkdirSync(this.uploadsDir, { recursive: true });
-        }
-    }
+    constructor(
+        private readonly storageService: StorageService,
+        private readonly contentReplacementService: ContentReplacementService,
+        private readonly mediaProcessingService: MediaProcessingService,
+    ) { }
 
-    /**
-     * Process uploaded file: save to uploads directory and parse
-     */
-    async processUploadedFile(file: MulterFile): Promise<{ questions: ParsedQuestion[], filePath: string }> {
+    async processUploadedFile(file: MulterFile, options: DocxParseOptions = {}) {
         try {
-            this.logger.log(`Processing uploaded file: ${file?.originalname || 'unknown'}`);
+            const extractPath = path.join(process.cwd(), 'temp', 'docx-parser', Date.now().toString());
+            await fs.promises.mkdir(extractPath, { recursive: true });
 
-            // Check if file exists
-            if (!file) {
-                this.logger.error('File object is missing');
-                throw new Error("Invalid file or missing buffer");
-            }
+            if (!file.path) {
+                // Nếu file.path không tồn tại, tạo file tạm từ buffer
+                const tempFilePath = path.join(extractPath, `temp_${Date.now()}.docx`);
+                await fs.promises.writeFile(tempFilePath, file.buffer);
 
-            // Check if buffer exists
-            if (!file.buffer || file.buffer.length === 0) {
-                this.logger.error(`File buffer is missing or empty for file: ${file.originalname}`);
-                throw new Error("Invalid file or missing buffer");
-            }
-
-            // Check file type
-            const ext = path.extname(file.originalname).toLowerCase();
-            if (ext !== '.docx') {
-                this.logger.error(`Invalid file type: ${ext}. Only .docx files are supported`);
-                throw new Error(`Invalid file type: ${ext}. Only .docx files are supported`);
-            }
-
-            this.logger.log(`File validation passed for ${file.originalname} (${file.size} bytes)`);
-
-            // Generate unique filename
-            const fileId = uuidv4();
-            const filename = `${fileId}${ext}`;
-            const uploadPath = path.join(this.uploadsDir, filename);
-
-            // Ensure directory exists
-            if (!fs.existsSync(this.uploadsDir)) {
-                this.logger.log(`Creating uploads directory: ${this.uploadsDir}`);
-                fs.mkdirSync(this.uploadsDir, { recursive: true });
-            }
-
-            // Save file to disk
-            fs.writeFileSync(uploadPath, file.buffer);
-            this.logger.log(`File saved to: ${uploadPath}`);
-
-            try {
-                // Use the Python parser to get better results with underline detection and LaTeX preservation
-                const questions = await this.parseDocx(uploadPath, {
-                    processImages: true,
-                    extractStyles: true,
-                    preserveLatex: true
-                });
-                return {
-                    questions,
-                    filePath: uploadPath
-                };
-            } catch (pythonError) {
-                this.logger.warn(`Python parsing failed: ${pythonError.message}, falling back to mammoth`);
-
-                // Fallback to Mammoth.js with enhanced options for LaTeX
-                const { value: html } = await mammoth.convertToHtml({
-                    path: uploadPath,
-                    ...(({
-                        styleMap: [
-                            "u => u", // Preserve underline
-                            "strong => strong",
-                            "b => strong",
-                            "i => em",
-                            "strike => s",
-                            "p[style-name='Heading 1'] => h1:fresh",
-                            "p[style-name='Heading 2'] => h2:fresh",
-                            "p[style-name='Heading 3'] => h3:fresh",
-                            // Handle all types of underlined text - Word has multiple ways to apply underline
-                            "w:rPr/w:u => u",  // Word's native underline
-                            'w:rPr[w:u] => u', // Another Word underline format
-                            "span[style-text-decoration='underline'] => u"  // Style-based underline
-                        ],
-                        preserveStyles: true
-                    }) as any)
+                const result = await this.parseDocx(tempFilePath, {
+                    uploadMedia: options.uploadMedia,
+                    generateThumbnails: options.generateThumbnails,
                 });
 
-                this.logger.log(`Processed DOCX with Mammoth, HTML size ${html.length}`);
-
-                // Simple parsing for questions and answers with LaTeX preservation
-                const questions = this.parseSimpleStructure(html);
+                // Xóa file tạm sau khi xử lý
+                await fs.promises.unlink(tempFilePath);
 
                 return {
-                    questions,
-                    filePath: uploadPath
+                    questions: result.questions,
+                    errors: result.errors,
                 };
             }
+
+            const result = await this.parseDocx(file.path, {
+                uploadMedia: options.uploadMedia,
+                generateThumbnails: options.generateThumbnails,
+            });
+
+            return {
+                questions: result.questions,
+                errors: result.errors,
+            };
         } catch (error) {
             this.logger.error(`Error processing uploaded file: ${error.message}`, error.stack);
-            throw new Error(`Failed to process uploaded file: ${error.message}`);
-        }
-    }
-
-    /**
-     * Simple fallback parser that extracts questions from HTML
-     */
-    private parseSimpleStructure(html: string): ParsedQuestion[] {
-        const questions: ParsedQuestion[] = [];
-
-        // Very basic parsing - split by <p> tags and look for patterns
-        const paragraphs = html.split('<p>').map(p => p.replace('</p>', '').trim()).filter(p => p);
-
-        let currentQuestion: ParsedQuestion | null = null;
-
-        for (const paragraph of paragraphs) {
-            // Remove HTML tags for processing, but preserve LaTeX expressions
-            let text = paragraph;
-
-            // Check for LaTeX expressions ($ or \begin{...})
-            const hasLatex = /\$|\\\(|\\\[|\\begin\{/.test(text);
-
-            // Remove HTML tags but preserve LaTeX
-            text = this.preserveLatexWhileRemovingHtml(text);
-
-            // Check if this is a question (starting with number)
-            if (/^\d+\./.test(text)) {
-                // If we have a current question, save it
-                if (currentQuestion) {
-                    questions.push(currentQuestion);
-                }
-
-                // Start new question
-                currentQuestion = {
-                    id: randomUUID(),
-                    content: text,
-                    type: 'single-choice',
-                    answers: [],
-                    has_latex: hasLatex
-                };
-            }
-            // Check if this is an answer (starting with A., B., etc.)
-            else if (currentQuestion && /^[A-D]\./.test(text)) {
-                const hasUnderline = paragraph.includes('<u>') ||
-                    paragraph.includes('underline') ||
-                    paragraph.includes('text-decoration');
-                const isCorrect = hasUnderline;
-
-                if (!currentQuestion.answers) {
-                    currentQuestion.answers = [];
-                }
-
-                currentQuestion.answers.push({
-                    id: randomUUID(),
-                    content: text.substring(2).trim(), // Remove the A., B., etc.
-                    isCorrect,
-                    hasUnderline,
-                    order: currentQuestion.answers.length
-                });
-
-                // If this answer has LaTeX, mark the question as having LaTeX
-                if (hasLatex) {
-                    currentQuestion.has_latex = true;
-                }
-            }
-            // Otherwise, it's additional content for the current question
-            else if (currentQuestion && text) {
-                currentQuestion.content += ' ' + text;
-
-                // If this content has LaTeX, mark the question as having LaTeX
-                if (hasLatex) {
-                    currentQuestion.has_latex = true;
-                }
-            }
-        }
-
-        // Don't forget the last question
-        if (currentQuestion) {
-            // Determine HoanVi value based on underline formatting
-            currentQuestion.hoanVi = this.determineHoanViValue(currentQuestion);
-            questions.push(currentQuestion);
-        }
-
-        return questions;
-    }
-
-    /**
-     * Determine HoanVi value based on underline formatting in answers
-     * HoanVi = false (no shuffling) if any answer has underline
-     * HoanVi = true (allow shuffling) if no answers have underline
-     */
-    private determineHoanViValue(question: ParsedQuestion): boolean {
-        if (!question.answers || question.answers.length === 0) {
-            return true; // Default to allow shuffling if no answers
-        }
-
-        // Check if any answer has underline formatting
-        const hasUnderlinedAnswers = question.answers.some(answer => answer.hasUnderline);
-
-        // If any answer is underlined, don't allow shuffling (HoanVi = false)
-        // If no answers are underlined, allow shuffling (HoanVi = true)
-        return !hasUnderlinedAnswers;
-    }
-
-    /**
-     * Helper method to preserve LaTeX expressions while removing HTML tags
-     */
-    private preserveLatexWhileRemovingHtml(html: string): string {
-        if (!html) return '';
-
-        // Replace LaTeX expressions with placeholders
-        const latexExpressions: string[] = [];
-
-        // Replace $...$ expressions
-        let modifiedHtml = html.replace(/\$(.*?)\$/g, (match) => {
-            latexExpressions.push(match);
-            return `__LATEX_${latexExpressions.length - 1}__`;
-        });
-
-        // Replace \begin{...}...\end{...} expressions
-        modifiedHtml = modifiedHtml.replace(/\\begin\{.*?\}[\s\S]*?\\end\{.*?\}/g, (match) => {
-            latexExpressions.push(match);
-            return `__LATEX_${latexExpressions.length - 1}__`;
-        });
-
-        // Remove HTML tags
-        modifiedHtml = modifiedHtml.replace(/<[^>]+>/g, '').trim();
-
-        // Restore LaTeX expressions
-        latexExpressions.forEach((expr, index) => {
-            modifiedHtml = modifiedHtml.replace(`__LATEX_${index}__`, expr);
-        });
-
-        return modifiedHtml;
-    }
-
-    // Parse a DOCX file and extract questions, answers, and correct answers
-    async parseDocx(filePath: string, options: ParseOptions = {}): Promise<any> {
-        try {
-            // First try using Python for better parsing
-            try {
-                return await this.parseDOCXWithPython(filePath, options);
-            } catch (pythonError) {
-                this.logger.warn(`Python parsing failed, falling back to default parser: ${pythonError.message}`);
-                throw pythonError; // Let the calling function handle the fallback
-            }
-        } catch (error) {
-            this.logger.error(`Failed to parse DOCX: ${error.message}`, error.stack);
-            throw new Error(`Failed to parse DOCX: ${error.message}`);
-        }
-    }
-
-    // Use Python for better DOCX parsing with python-docx
-    private async parseDOCXWithPython(filePath: string, options: ParseOptions = {}): Promise<any> {
-        const tempDir = path.join(os.tmpdir(), 'docx_parser');
-
-        // Create temp directory if it doesn't exist
-        if (!fs.existsSync(tempDir)) {
-            fs.mkdirSync(tempDir, { recursive: true });
-        }
-
-        const outputFile = path.join(tempDir, `${uuidv4()}.json`);
-
-        // Look for the Python script in several possible locations
-        const possiblePaths = [
-            path.join(process.cwd(), 'docx_parser.py'),
-            path.join(process.cwd(), 'backend', 'docx_parser.py'),
-            path.join(__dirname, '..', '..', 'docx_parser.py'),
-            path.join(__dirname, '..', '..', '..', 'docx_parser.py')
-        ];
-
-        let scriptPath = '';
-        for (const p of possiblePaths) {
-            if (fs.existsSync(p)) {
-                scriptPath = p;
-                break;
-            }
-        }
-
-        if (!scriptPath) {
-            // If the script doesn't exist in any of the expected locations, create it
-            scriptPath = path.join(process.cwd(), 'docx_parser.py');
-            await this.createParserScript(scriptPath);
-        }
-
-        // Run Python script
-        // Check which Python command to use (python3 or python)
-        const pythonCmd = os.platform() === 'win32' ? 'python' : 'python3';
-
-        // Prepare command options
-        const cmdOptions: string[] = [];
-        if (options.processImages) cmdOptions.push('--process-images');
-        if (options.extractStyles) cmdOptions.push('--extract-styles');
-        if (options.preserveLatex) cmdOptions.push('--preserve-latex');
-
-        const command = `${pythonCmd} "${scriptPath}" "${filePath}" "${outputFile}" ${cmdOptions.join(' ')}`;
-
-        try {
-            this.logger.log(`Running command: ${command}`);
-
-            const { stdout, stderr } = await execPromise(command);
-
-            if (stderr && !stderr.includes('DEBUG:')) {
-                this.logger.warn(`Python parser warning: ${stderr}`);
-            }
-
-            if (stdout) {
-                this.logger.log(`Python parser output: ${stdout}`);
-            }
-
-            if (!fs.existsSync(outputFile)) {
-                throw new Error('Python parsing failed: No output file generated');
-            }
-
-            // Read and parse the output file
-            const jsonData = fs.readFileSync(outputFile, 'utf8');
-            let result: any;
-
-            try {
-                result = JSON.parse(jsonData);
-                this.logger.log(`Successfully parsed ${result.length} questions from Python parser`);
-
-                // Post-process to ensure LaTeX expressions are properly formatted
-                result = this.postProcessLatex(result);
-
-                // Post-process to determine HoanVi values based on underline formatting
-                result = this.postProcessHoanVi(result);
-            } catch (jsonError) {
-                this.logger.error(`Failed to parse JSON output: ${jsonError.message}`);
-                throw new Error('Failed to parse output from Python parser');
-            }
-
-            // Clean up temp file
-            try {
-                fs.unlinkSync(outputFile);
-            } catch (unlinkError) {
-                this.logger.warn(`Could not delete temporary file: ${unlinkError.message}`);
-            }
-
-            return result;
-        } catch (error) {
-            this.logger.error(`Python parsing failed: ${error.message}`, error.stack);
             throw error;
         }
     }
 
-    /**
-     * Post-process questions to determine HoanVi values based on underline formatting
-     */
-    private postProcessHoanVi(questions: ParsedQuestion[]): ParsedQuestion[] {
-        return questions.map(question => {
-            // Determine HoanVi value for this question
-            question.hoanVi = this.determineHoanViValue(question);
-
-            // Process child questions recursively
-            if (question.childQuestions) {
-                question.childQuestions = this.postProcessHoanVi(question.childQuestions);
-            }
-
-            return question;
-        });
-    }
-
-    /**
-     * Post-process questions to ensure LaTeX expressions are properly formatted
-     */
-    private postProcessLatex(questions: ParsedQuestion[]): ParsedQuestion[] {
-        return questions.map(question => {
-            // Process content
-            if (question.content) {
-                question.content = this.ensureLatexDelimiters(question.content);
-            }
-
-            // Process answers
-            if (question.answers) {
-                question.answers = question.answers.map(answer => {
-                    if (answer.content) {
-                        answer.content = this.ensureLatexDelimiters(answer.content);
-                    }
-                    return answer;
-                });
-            }
-
-            // Process child questions recursively
-            if (question.childQuestions) {
-                question.childQuestions = this.postProcessLatex(question.childQuestions);
-            }
-
-            return question;
-        });
-    }
-
-    /**
-     * Ensure LaTeX expressions have proper delimiters
-     */
-    private ensureLatexDelimiters(text: string): string {
-        if (!text) return text;
-
-        // Already processed by Python parser, just return
-        return text;
-    }
-
-    // Create Python parser script if it doesn't exist
-    private async createParserScript(scriptPath: string): Promise<void> {
-        // First check if the script already exists but just needs permissions
-        if (fs.existsSync(scriptPath)) {
-            try {
-                // On non-Windows platforms, make the script executable
-                if (os.platform() !== 'win32') {
-                    fs.chmodSync(scriptPath, '755');
-                }
-                this.logger.log(`Set permissions for existing parser script at ${scriptPath}`);
-                return;
-            } catch (permError) {
-                this.logger.warn(`Failed to set permissions: ${permError.message}`);
-            }
-        }
-
-        // Find the source script from possible locations
-        const possibleSourcePaths = [
-            path.join(process.cwd(), 'docx_parser.py'),
-            path.join(process.cwd(), '..', 'docx_parser.py'),
-            path.join(process.cwd(), 'backend', 'docx_parser.py')
-        ];
-
-        let sourceScriptPath = '';
-        for (const sourcePath of possibleSourcePaths) {
-            if (fs.existsSync(sourcePath)) {
-                sourceScriptPath = sourcePath;
-                break;
-            }
-        }
-
-        if (!sourceScriptPath) {
-            throw new Error('Could not find source docx_parser.py script in any expected location');
-        }
-
-        // If we get here, we need to create the script
+    async parseDocx(
+        filePath: string,
+        options: DocxParseOptions = {},
+    ): Promise<{ questions: ProcessedQuestion[]; errors: string[] }> {
         try {
-            // Copy the script from the source location
-            const scriptContent = fs.readFileSync(sourceScriptPath, 'utf8');
-            fs.writeFileSync(scriptPath, scriptContent);
+            // Đọc nội dung file DOCX (ví dụ bằng mammoth hoặc docx4js)
+            // Chuyển đổi sang HTML hoặc text để xử lý
+            const docContent = await this.readDocxContent(filePath);
 
-            // On non-Windows platforms, make the script executable
-            if (os.platform() !== 'win32') {
-                fs.chmodSync(scriptPath, '755');
+            // Phân tích nội dung DOCX để xác định các câu hỏi
+            const { questions, errors } = await this.parseQuestionsFromContent(docContent, options);
+
+            return { questions, errors };
+        } catch (error) {
+            this.logger.error(`Error parsing DOCX: ${error.message}`, error.stack);
+            throw error;
+        }
+    }
+
+    private async readDocxContent(filePath: string): Promise<string> {
+        // Use mammoth.js to extract both text and images from the DOCX file
+        const mammoth = require('mammoth');
+        const fs = require('fs');
+        const path = require('path');
+
+        try {
+            // Create a temp directory for extracted images
+            const tempImageDir = path.join(process.cwd(), 'temp', 'docx-parser', 'images', Date.now().toString());
+            await fs.promises.mkdir(tempImageDir, { recursive: true });
+
+            // Extract the document with images
+            const result = await mammoth.extractRawText({
+                path: filePath,
+                convertImage: mammoth.images.imgElement(async (imageBuffer, imageType) => {
+                    try {
+                        // Generate a unique filename for the image
+                        const imageExt = imageType.extension || 'png';
+                        const imageName = `image_${Date.now()}_${Math.floor(Math.random() * 10000)}.${imageExt}`;
+                        const imagePath = path.join(tempImageDir, imageName);
+
+                        // Save the image to disk
+                        await fs.promises.writeFile(imagePath, imageBuffer);
+
+                        // Return an image tag with the reference
+                        return {
+                            src: `[image:${imageName}]`
+                        };
+                    } catch (error) {
+                        this.logger.error(`Error saving extracted image: ${error.message}`);
+                        return { src: '' };
+                    }
+                })
+            });
+
+            // Also look for inline audio references that might be present in Word files
+            // Note: This is a simple approach. For complex audio extraction, a more sophisticated approach may be needed
+            const audioPattern = /\[audio:([^\]]+)\]/gi;
+            let contentWithAudio = result.value;
+
+            // Add support for CLO markers: (CLO1), (CLO2), etc.
+            const cloPattern = /\(CLO\d+\)/gi;
+            let matches = contentWithAudio.match(cloPattern);
+
+            if (matches) {
+                for (const match of matches) {
+                    // Make sure CLO markers stand out by ensuring they're on their own line
+                    contentWithAudio = contentWithAudio.replace(match, `\n${match}\n`);
+                }
             }
 
-            this.logger.log(`Created parser script at ${scriptPath} from source ${sourceScriptPath}`);
-        } catch (createError) {
-            this.logger.error(`Failed to create parser script: ${createError.message}`);
-            throw new Error(`Could not create Python parser script: ${createError.message}`);
+            return contentWithAudio;
+        } catch (error) {
+            this.logger.error(`Error extracting content from DOCX: ${error.message}`, error.stack);
+            throw error;
         }
+    }
+
+    private async parseQuestionsFromContent(
+        content: string,
+        options: DocxParseOptions,
+    ): Promise<{ questions: ProcessedQuestion[]; errors: string[] }> {
+        const questions: ProcessedQuestion[] = [];
+        const errors: string[] = [];
+
+        try {
+            // Tách nội dung thành các đoạn
+            const paragraphs = content.split('\n').filter(p => p.trim().length > 0);
+
+            let currentIndex = 0;
+
+            while (currentIndex < paragraphs.length) {
+                const paragraph = paragraphs[currentIndex];
+
+                // Xác định loại câu hỏi dựa trên các marker
+                if (paragraph.includes('(DON)')) {
+                    // Xử lý câu hỏi đơn
+                    const singleQuestion = this.parseSingleQuestion(paragraphs, currentIndex);
+                    if (singleQuestion.question) {
+                        questions.push(singleQuestion.question);
+                        currentIndex = singleQuestion.nextIndex;
+                    } else {
+                        errors.push(`Không thể phân tích câu hỏi đơn tại vị trí ${currentIndex}`);
+                        currentIndex++;
+                    }
+                } else if (paragraph.includes('(NHOM)')) {
+                    // Xử lý câu hỏi nhóm
+                    const groupQuestion = this.parseGroupQuestion(paragraphs, currentIndex);
+                    if (groupQuestion.question) {
+                        questions.push(groupQuestion.question);
+                        currentIndex = groupQuestion.nextIndex;
+                    } else {
+                        errors.push(`Không thể phân tích câu hỏi nhóm tại vị trí ${currentIndex}`);
+                        currentIndex++;
+                    }
+                } else if (paragraph.includes('(DIENKHUYET)')) {
+                    // Xử lý câu hỏi điền khuyết
+                    const fillInBlankQuestion = this.parseFillInBlankQuestion(paragraphs, currentIndex);
+                    if (fillInBlankQuestion.question) {
+                        questions.push(fillInBlankQuestion.question);
+                        currentIndex = fillInBlankQuestion.nextIndex;
+                    } else {
+                        errors.push(`Không thể phân tích câu điền khuyết tại vị trí ${currentIndex}`);
+                        currentIndex++;
+                    }
+                } else {
+                    // Không nhận diện được loại câu hỏi, bỏ qua
+                    currentIndex++;
+                }
+            }
+
+            // Xử lý media nếu cần
+            if (options.uploadMedia) {
+                for (const question of questions) {
+                    await this.processQuestionMedia(question);
+
+                    if (question.childQuestions && question.childQuestions.length > 0) {
+                        for (const childQuestion of question.childQuestions) {
+                            await this.processQuestionMedia(childQuestion);
+                        }
+                    }
+                }
+            }
+
+            return { questions, errors };
+        } catch (error) {
+            this.logger.error(`Error parsing questions: ${error.message}`, error.stack);
+            errors.push(`Lỗi khi phân tích câu hỏi: ${error.message}`);
+            return { questions, errors };
+        }
+    }
+
+    private parseSingleQuestion(paragraphs: string[], startIndex: number): { question?: ProcessedQuestion; nextIndex: number } {
+        try {
+            let currentIndex = startIndex;
+            const questionContent: string[] = [];
+            const options: string[] = [];
+            let correctAnswer = '';
+
+            // Kiểm tra xem có phải câu hỏi đơn không
+            if (!paragraphs[currentIndex].includes('(DON)')) {
+                return { nextIndex: startIndex + 1 };
+            }
+
+            // Thu thập thông tin CLO nếu có
+            let cloInfo = '';
+            if (paragraphs[currentIndex + 1] && paragraphs[currentIndex + 1].includes('(CLO')) {
+                cloInfo = paragraphs[currentIndex + 1];
+                currentIndex++;
+            }
+
+            // Thu thập nội dung câu hỏi
+            questionContent.push(cloInfo);
+            currentIndex++;
+
+            // Thu thập các lựa chọn
+            while (currentIndex < paragraphs.length) {
+                const line = paragraphs[currentIndex];
+
+                // Nếu gặp marker kết thúc câu hỏi hoặc bắt đầu câu hỏi mới
+                if (line.includes('[<br>]') || line.includes('(DON)') || line.includes('(NHOM)') || line.includes('(DIENKHUYET)')) {
+                    if (line.includes('[<br>]')) {
+                        currentIndex++;
+                    }
+                    break;
+                }
+
+                // Thu thập lựa chọn
+                if (line.startsWith('A.') || line.startsWith('B.') || line.startsWith('C.') || line.startsWith('D.')) {
+                    const option = line.trim();
+                    options.push(option);
+
+                    // Xác định đáp án đúng (dựa vào gạch chân hoặc định dạng)
+                    if (line.includes('_') || line.includes('__')) {
+                        correctAnswer = option.substring(0, 1); // Lấy ký tự đầu tiên (A, B, C, D)
+                    }
+                } else {
+                    // Thu thập nội dung câu hỏi
+                    questionContent.push(line);
+                }
+
+                currentIndex++;
+            }
+
+            const question: ProcessedQuestion = {
+                content: questionContent.join('\n'),
+                type: QuestionType.SINGLE_CHOICE,
+                options: options,
+                correctAnswer: correctAnswer,
+            };
+
+            return { question, nextIndex: currentIndex };
+        } catch (error) {
+            this.logger.error(`Error parsing single question: ${error.message}`, error.stack);
+            return { nextIndex: startIndex + 1 };
+        }
+    }
+
+    private parseGroupQuestion(paragraphs: string[], startIndex: number): { question?: ProcessedQuestion; nextIndex: number } {
+        try {
+            let currentIndex = startIndex;
+            let groupContent = '';
+            const childQuestions: ProcessedQuestion[] = [];
+
+            // Kiểm tra xem có phải câu hỏi nhóm không
+            if (!paragraphs[currentIndex].includes('(NHOM)')) {
+                return { nextIndex: startIndex + 1 };
+            }
+
+            // Extract CLO information if present
+            let cloInfo = '';
+            currentIndex++;
+            if (currentIndex < paragraphs.length && paragraphs[currentIndex].includes('(CLO')) {
+                cloInfo = paragraphs[currentIndex];
+                currentIndex++;
+            }
+
+            // Thu thập nội dung đoạn văn của câu hỏi nhóm
+            let collectingGroupContent = false;
+
+            while (currentIndex < paragraphs.length) {
+                const line = paragraphs[currentIndex];
+
+                // Xác định bắt đầu đoạn văn
+                if (line.includes('[<sg>]')) {
+                    collectingGroupContent = true;
+                    currentIndex++;
+                    continue;
+                }
+
+                // Xác định kết thúc đoạn văn
+                if (line.includes('[<egc>]') || line.includes('[</sg>]')) {
+                    collectingGroupContent = false;
+                    currentIndex++;
+                    break;
+                }
+
+                // Thu thập nội dung đoạn văn
+                if (collectingGroupContent) {
+                    groupContent += line + '\n';
+                } else if (!line.trim()) {
+                    // Skip empty lines
+                    currentIndex++;
+                    continue;
+                } else {
+                    // If we're not collecting content yet and this is not an empty line,
+                    // it's probably part of the group content too
+                    groupContent += line + '\n';
+                }
+
+                currentIndex++;
+            }
+
+            // Handle child questions - looking for (<1>), (<2>), etc. patterns or explicit (NHOM - X) markers
+            const childQuestionPattern = /^\(<(\d+)>\)/;
+            const groupQuestionMarker = /\(NHOM\s*[-–]\s*(\d+)\)/;
+
+            while (currentIndex < paragraphs.length) {
+                const line = paragraphs[currentIndex];
+
+                // Stop if we encounter a new question type
+                if (line.includes('(DON)') || (line.includes('(NHOM)') && !line.includes('(NHOM -') && !line.includes('(NHOM –'))
+                    || line.includes('(DIENKHUYET)')) {
+                    break;
+                }
+
+                // Check if it's a child question with explicit marker
+                if (line.match(groupQuestionMarker)) {
+                    const childQuestion = this.parseChildQuestion(paragraphs, currentIndex);
+                    if (childQuestion.question) {
+                        childQuestions.push(childQuestion.question);
+                    }
+                    currentIndex = childQuestion.nextIndex;
+                    continue;
+                }
+
+                // Check if it's a child question with (<N>) pattern
+                const childMatch = line.match(childQuestionPattern);
+                if (childMatch) {
+                    const childQuestion = this.parseChildQuestion(paragraphs, currentIndex);
+                    if (childQuestion.question) {
+                        childQuestions.push(childQuestion.question);
+                    }
+                    currentIndex = childQuestion.nextIndex;
+                    continue;
+                }
+
+                // If it's a separator, skip it
+                if (line.includes('[<br>]')) {
+                    currentIndex++;
+                    continue;
+                }
+
+                // Check if it could be a child question without explicit marker
+                // (starts with A., B., etc. options nearby)
+                if (currentIndex + 1 < paragraphs.length) {
+                    const nextLine = paragraphs[currentIndex + 1];
+                    if (nextLine.startsWith('A.') || nextLine.startsWith('a.')) {
+                        // This is likely a child question, treat it as such
+                        const childQuestion = this.parseChildQuestion(paragraphs, currentIndex);
+                        if (childQuestion.question) {
+                            childQuestions.push(childQuestion.question);
+                        }
+                        currentIndex = childQuestion.nextIndex;
+                        continue;
+                    }
+                }
+
+                // If we got here, just move to the next line
+                currentIndex++;
+            }
+
+            // Add CLO info to the group content if present
+            if (cloInfo) {
+                groupContent = `${cloInfo}\n${groupContent}`;
+            }
+
+            const question: ProcessedQuestion = {
+                content: cloInfo || 'Câu hỏi nhóm', // Use CLO info as content if available
+                type: QuestionType.GROUP,
+                groupContent: groupContent.trim(),
+                childQuestions: childQuestions
+            };
+
+            return { question, nextIndex: currentIndex };
+        } catch (error) {
+            this.logger.error(`Error parsing group question: ${error.message}`, error.stack);
+            return { nextIndex: startIndex + 1 };
+        }
+    }
+
+    private parseChildQuestion(paragraphs: string[], startIndex: number): { question?: ProcessedQuestion; nextIndex: number } {
+        try {
+            let currentIndex = startIndex;
+            const questionContent: string[] = [];
+            const options: string[] = [];
+            let correctAnswer = '';
+
+            // Thu thập thông tin CLO và nội dung câu hỏi
+            questionContent.push(paragraphs[currentIndex]);
+            currentIndex++;
+
+            // Thu thập các lựa chọn
+            while (currentIndex < paragraphs.length) {
+                const line = paragraphs[currentIndex];
+
+                // Nếu gặp marker kết thúc câu hỏi con hoặc bắt đầu câu hỏi mới
+                if (line.includes('[<br>]') || line.includes('(DON)') || line.includes('(NHOM)') ||
+                    line.includes('(DIENKHUYET)') || line.includes('(NHOM – ')) {
+                    if (line.includes('[<br>]')) {
+                        currentIndex++;
+                    }
+                    break;
+                }
+
+                // Thu thập lựa chọn
+                if (line.startsWith('A.') || line.startsWith('B.') || line.startsWith('C.') || line.startsWith('D.')) {
+                    const option = line.trim();
+                    options.push(option);
+
+                    // Xác định đáp án đúng (dựa vào gạch chân hoặc định dạng)
+                    if (line.includes('_') || line.includes('__')) {
+                        correctAnswer = option.substring(0, 1); // Lấy ký tự đầu tiên (A, B, C, D)
+                    }
+                } else {
+                    // Thu thập nội dung câu hỏi
+                    questionContent.push(line);
+                }
+
+                currentIndex++;
+            }
+
+            const question: ProcessedQuestion = {
+                content: questionContent.join('\n'),
+                type: QuestionType.SINGLE_CHOICE,
+                options: options,
+                correctAnswer: correctAnswer,
+            };
+
+            return { question, nextIndex: currentIndex };
+        } catch (error) {
+            this.logger.error(`Error parsing child question: ${error.message}`, error.stack);
+            return { nextIndex: startIndex + 1 };
+        }
+    }
+
+    private parseFillInBlankQuestion(paragraphs: string[], startIndex: number): { question?: ProcessedQuestion; nextIndex: number } {
+        try {
+            let currentIndex = startIndex;
+            let fillInBlankContent = '';
+            const childQuestions: ProcessedQuestion[] = [];
+            const fillInBlankAnswers: string[] = [];
+
+            // Kiểm tra xem có phải câu hỏi điền khuyết không
+            if (!paragraphs[currentIndex].includes('(DIENKHUYET)')) {
+                return { nextIndex: startIndex + 1 };
+            }
+
+            currentIndex++;
+
+            // Thu thập nội dung đoạn văn của câu hỏi điền khuyết
+            let collectingContent = false;
+
+            while (currentIndex < paragraphs.length) {
+                const line = paragraphs[currentIndex];
+
+                // Xác định bắt đầu đoạn văn
+                if (line.includes('[<sg>]')) {
+                    collectingContent = true;
+                    currentIndex++;
+                    continue;
+                }
+
+                // Xác định kết thúc đoạn văn
+                if (line.includes('[<egc>]')) {
+                    collectingContent = false;
+                    currentIndex++;
+                    break;
+                }
+
+                // Thu thập nội dung đoạn văn
+                if (collectingContent) {
+                    fillInBlankContent += line + '\n';
+                }
+
+                currentIndex++;
+            }
+
+            // Thu thập các câu hỏi con (các ô điền khuyết)
+            while (currentIndex < paragraphs.length) {
+                const line = paragraphs[currentIndex];
+
+                // Nếu gặp marker kết thúc câu điền khuyết hoặc bắt đầu câu hỏi mới
+                if (line.includes('(DON)') || line.includes('(NHOM)') || line.includes('(DIENKHUYET)') &&
+                    !line.includes('(DIENKHUYET – ')) {
+                    break;
+                }
+
+                // Xử lý câu hỏi con điền khuyết
+                if (line.includes('(DIENKHUYET – ')) {
+                    const childBlankQuestion = this.parseChildFillInBlankQuestion(paragraphs, currentIndex);
+                    if (childBlankQuestion.question) {
+                        childQuestions.push(childBlankQuestion.question);
+                        if (childBlankQuestion.answer) {
+                            fillInBlankAnswers.push(childBlankQuestion.answer);
+                        }
+                    }
+                    currentIndex = childBlankQuestion.nextIndex;
+                } else {
+                    currentIndex++;
+                }
+            }
+
+            const question: ProcessedQuestion = {
+                content: fillInBlankContent.trim(),
+                type: QuestionType.FILL_IN_BLANK,
+                childQuestions: childQuestions,
+                fillInBlankAnswers: fillInBlankAnswers
+            };
+
+            return { question, nextIndex: currentIndex };
+        } catch (error) {
+            this.logger.error(`Error parsing fill-in-blank question: ${error.message}`, error.stack);
+            return { nextIndex: startIndex + 1 };
+        }
+    }
+
+    private parseChildFillInBlankQuestion(
+        paragraphs: string[],
+        startIndex: number
+    ): { question?: ProcessedQuestion; answer?: string; nextIndex: number } {
+        try {
+            let currentIndex = startIndex;
+            const questionContent: string[] = [];
+            const options: string[] = [];
+            let correctAnswer = '';
+
+            // Thu thập thông tin câu điền khuyết con
+            questionContent.push(paragraphs[currentIndex]);
+            currentIndex++;
+
+            // Thu thập các lựa chọn
+            while (currentIndex < paragraphs.length) {
+                const line = paragraphs[currentIndex];
+
+                // Nếu gặp marker kết thúc câu điền khuyết con hoặc bắt đầu câu hỏi mới
+                if (line.includes('[<br>]') || line.includes('(DON)') || line.includes('(NHOM)') ||
+                    line.includes('(DIENKHUYET)') || line.includes('(DIENKHUYET – ')) {
+                    if (line.includes('[<br>]')) {
+                        currentIndex++;
+                    }
+                    break;
+                }
+
+                // Thu thập lựa chọn
+                if (line.startsWith('A.') || line.startsWith('B.') || line.startsWith('C.') || line.startsWith('D.')) {
+                    const option = line.trim();
+                    options.push(option);
+
+                    // Xác định đáp án đúng (dựa vào gạch chân hoặc định dạng)
+                    if (line.includes('_') || line.includes('__')) {
+                        correctAnswer = option.substring(0, 1); // Lấy ký tự đầu tiên (A, B, C, D)
+                    }
+                } else {
+                    // Thu thập nội dung câu hỏi
+                    questionContent.push(line);
+                }
+
+                currentIndex++;
+            }
+
+            // Trích xuất đáp án dựa vào lựa chọn đúng
+            let answer = '';
+            if (correctAnswer && options.length > 0) {
+                const correctOption = options.find(opt => opt.startsWith(correctAnswer));
+                if (correctOption) {
+                    answer = correctOption.substring(correctOption.indexOf('.') + 1).trim();
+                }
+            }
+
+            const question: ProcessedQuestion = {
+                content: questionContent.join('\n'),
+                type: QuestionType.SINGLE_CHOICE,
+                options: options,
+                correctAnswer: correctAnswer,
+            };
+
+            return { question, answer, nextIndex: currentIndex };
+        } catch (error) {
+            this.logger.error(`Error parsing child fill-in-blank question: ${error.message}`, error.stack);
+            return { nextIndex: startIndex + 1 };
+        }
+    }
+
+    private async processQuestionMedia(question: ProcessedQuestion): Promise<void> {
+        try {
+            if (!question.content) {
+                return;
+            }
+
+            // Initialize the mediaFiles array if it doesn't exist
+            if (!question.mediaFiles) {
+                question.mediaFiles = [];
+            }
+
+            // Process images
+            const imagePattern = /\[image:\s*([^\]]+)\]/gi;
+            let imageMatch;
+            const processedImageUrls = new Set<string>();
+
+            while ((imageMatch = imagePattern.exec(question.content)) !== null) {
+                const fileName = imageMatch[1].trim();
+
+                // Skip if we've already processed this image
+                if (processedImageUrls.has(fileName)) {
+                    continue;
+                }
+
+                processedImageUrls.add(fileName);
+
+                // Add image to the question's media files
+                question.mediaFiles.push({
+                    originalUrl: fileName,
+                    type: 'image',
+                    fileName: fileName,
+                });
+
+                // Also replace the [image:...] tag with a proper HTML img tag in content
+                // This will be further processed by the content replacement service
+                question.content = question.content.replace(
+                    new RegExp(`\\[image:\\s*${this.escapeRegExp(fileName)}\\]`, 'gi'),
+                    `<img src="${fileName}" alt="${fileName}" class="question-image" />`
+                );
+            }
+
+            // Process audio
+            const audioPattern = /\[audio:\s*([^\]]+)\]/gi;
+            let audioMatch;
+            const processedAudioUrls = new Set<string>();
+
+            while ((audioMatch = audioPattern.exec(question.content)) !== null) {
+                const fileName = audioMatch[1].trim();
+
+                // Skip if we've already processed this audio
+                if (processedAudioUrls.has(fileName)) {
+                    continue;
+                }
+
+                processedAudioUrls.add(fileName);
+
+                // Add audio to the question's media files
+                question.mediaFiles.push({
+                    originalUrl: fileName,
+                    type: 'audio',
+                    fileName: fileName,
+                });
+
+                // Also replace the [audio:...] tag with a proper HTML audio control in content
+                question.content = question.content.replace(
+                    new RegExp(`\\[audio:\\s*${this.escapeRegExp(fileName)}\\]`, 'gi'),
+                    `<audio controls src="${fileName}" class="question-audio"></audio>`
+                );
+            }
+
+            // Also process media in options if available
+            if (question.options && question.options.length > 0) {
+                for (let i = 0; i < question.options.length; i++) {
+                    const option = question.options[i];
+
+                    // Process images in options
+                    let optionImageMatch;
+                    imagePattern.lastIndex = 0; // Reset regex index
+
+                    while ((optionImageMatch = imagePattern.exec(option)) !== null) {
+                        const fileName = optionImageMatch[1].trim();
+
+                        if (!processedImageUrls.has(fileName)) {
+                            processedImageUrls.add(fileName);
+
+                            question.mediaFiles.push({
+                                originalUrl: fileName,
+                                type: 'image',
+                                fileName: fileName,
+                            });
+                        }
+
+                        // Replace the tag in the option
+                        question.options[i] = option.replace(
+                            new RegExp(`\\[image:\\s*${this.escapeRegExp(fileName)}\\]`, 'gi'),
+                            `<img src="${fileName}" alt="${fileName}" class="option-image" />`
+                        );
+                    }
+
+                    // Process audio in options
+                    let optionAudioMatch;
+                    audioPattern.lastIndex = 0; // Reset regex index
+
+                    while ((optionAudioMatch = audioPattern.exec(option)) !== null) {
+                        const fileName = optionAudioMatch[1].trim();
+
+                        if (!processedAudioUrls.has(fileName)) {
+                            processedAudioUrls.add(fileName);
+
+                            question.mediaFiles.push({
+                                originalUrl: fileName,
+                                type: 'audio',
+                                fileName: fileName,
+                            });
+                        }
+
+                        // Replace the tag in the option
+                        question.options[i] = option.replace(
+                            new RegExp(`\\[audio:\\s*${this.escapeRegExp(fileName)}\\]`, 'gi'),
+                            `<audio controls src="${fileName}" class="option-audio"></audio>`
+                        );
+                    }
+                }
+            }
+
+            // Process group content if available
+            if (question.groupContent) {
+                // Process images in group content
+                let groupContentImageMatch;
+                imagePattern.lastIndex = 0; // Reset regex index
+
+                while ((groupContentImageMatch = imagePattern.exec(question.groupContent)) !== null) {
+                    const fileName = groupContentImageMatch[1].trim();
+
+                    if (!processedImageUrls.has(fileName)) {
+                        processedImageUrls.add(fileName);
+
+                        question.mediaFiles.push({
+                            originalUrl: fileName,
+                            type: 'image',
+                            fileName: fileName,
+                        });
+                    }
+
+                    // Replace the tag in the group content
+                    question.groupContent = question.groupContent.replace(
+                        new RegExp(`\\[image:\\s*${this.escapeRegExp(fileName)}\\]`, 'gi'),
+                        `<img src="${fileName}" alt="${fileName}" class="group-content-image" />`
+                    );
+                }
+
+                // Process audio in group content
+                let groupContentAudioMatch;
+                audioPattern.lastIndex = 0; // Reset regex index
+
+                while ((groupContentAudioMatch = audioPattern.exec(question.groupContent)) !== null) {
+                    const fileName = groupContentAudioMatch[1].trim();
+
+                    if (!processedAudioUrls.has(fileName)) {
+                        processedAudioUrls.add(fileName);
+
+                        question.mediaFiles.push({
+                            originalUrl: fileName,
+                            type: 'audio',
+                            fileName: fileName,
+                        });
+                    }
+
+                    // Replace the tag in the group content
+                    question.groupContent = question.groupContent.replace(
+                        new RegExp(`\\[audio:\\s*${this.escapeRegExp(fileName)}\\]`, 'gi'),
+                        `<audio controls src="${fileName}" class="group-content-audio"></audio>`
+                    );
+                }
+            }
+
+            // Extract CLO information from content
+            const cloPattern = /\(CLO(\d+)\)/i;
+            const cloMatch = question.content.match(cloPattern);
+
+            if (cloMatch) {
+                // Add the CLO info to question content to make it more visible
+                const cloNumber = cloMatch[1];
+                const cloTag = `<span class="clo-tag">(CLO${cloNumber})</span>`;
+                question.content = question.content.replace(cloPattern, cloTag);
+            }
+        } catch (error) {
+            this.logger.error(`Error processing question media: ${error.message}`, error.stack);
+        }
+    }
+
+    // Helper method to escape special characters in a string for use in a RegExp
+    private escapeRegExp(string: string): string {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 }

@@ -12,6 +12,7 @@ import { DocxTemplateService } from './docx-template.service';
 import { PdfService } from './pdf.service';
 import { MediaMarkupUtil } from '../utils/media-markup.util';
 import { MediaContentProcessor } from '../utils/media-content-processor.util';
+import { ExamValidationUtil } from '../utils/exam-validation.util';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 
@@ -55,6 +56,17 @@ interface ExamPackage {
 export class ExamService {
     private readonly logger = new Logger(ExamService.name);
 
+    // Simple in-memory cache for recently used questions (5 minutes TTL)
+    private recentlyUsedQuestionsCache: {
+        data: Set<string> | null;
+        timestamp: number;
+        ttl: number;
+    } = {
+            data: null,
+            timestamp: 0,
+            ttl: 5 * 60 * 1000 // 5 minutes
+        };
+
     constructor(
         @InjectRepository(CauHoi)
         private readonly cauHoiRepository: Repository<CauHoi>,
@@ -75,8 +87,11 @@ export class ExamService {
     async generateExamPackage(examRequest: ExamRequest): Promise<DeThi> {
         this.logger.log(`Generating exam package for subject: ${examRequest.maMonHoc}`);
 
-        const questions = await this.selectQuestionsWithCLOStrategy(examRequest.matrix);
-        this.logger.log(`Selected ${questions.length} questions.`);
+        const rawQuestions = await this.selectQuestionsWithCLOStrategy(examRequest.matrix);
+
+        // Final validation: Remove any duplicate questions
+        const questions = this.validateAndRemoveDuplicates(rawQuestions);
+        this.logger.log(`Selected ${questions.length} questions (after duplicate removal).`);
 
         const totalRequested = examRequest.matrix.reduce((sum, item) => sum + item.clo1 + item.clo2 + item.clo3 + item.clo4 + item.clo5, 0);
 
@@ -140,12 +155,29 @@ export class ExamService {
         // 3. Pre-distribute questions across all exams to ensure no overlap
         const examQuestionSets = this.distributeQuestionsAcrossExams(allQuestions, examRequest.matrix, soLuongDe);
 
+        // 4. Validate distribution integrity
+        const distributionValidation = ExamValidationUtil.validateExamDistribution(examQuestionSets);
+        if (!distributionValidation.isValid) {
+            this.logger.error('Exam distribution validation failed:');
+            distributionValidation.errors.forEach(error => this.logger.error(`- ${error}`));
+        }
+        if (distributionValidation.warnings.length > 0) {
+            distributionValidation.warnings.forEach(warning => this.logger.warn(`- ${warning}`));
+        }
+
+        // Log integrity report for debugging
+        const integrityReport = ExamValidationUtil.generateIntegrityReport(examQuestionSets);
+        this.logger.debug(integrityReport);
+
         for (let i = 0; i < soLuongDe; i++) {
             const examTitle = soLuongDe > 1 ? `${tenDeThi} - Đề ${i + 1}` : tenDeThi;
             this.logger.log(`Generating exam #${i + 1}: ${examTitle}`);
 
             // 3. Get pre-distributed questions for this exam
-            const selectedQuestions = examQuestionSets[i] || [];
+            const rawSelectedQuestions = examQuestionSets[i] || [];
+
+            // 4. Final validation: Remove any duplicate questions (last line of defense)
+            const selectedQuestions = this.validateAndRemoveDuplicates(rawSelectedQuestions);
 
             // Validate that we have questions for this exam
             if (selectedQuestions.length === 0) {
@@ -389,11 +421,13 @@ export class ExamService {
      * This algorithm ensures balanced distribution across chapters and CLOs
      * with multiple fallback strategies to guarantee question selection
      * Now supports group questions (parent-child relationships)
-     * UPDATED: Added duplicate prevention across different exam extractions
+     * UPDATED: Added robust duplicate prevention across different exam extractions using dictionary approach
      */
     private async selectQuestionsWithCLOStrategy(matrix: ExamMatrixItem[], multiplier: number = 1): Promise<CauHoi[]> {
         const selectedQuestions: CauHoi[] = [];
-        this.logger.log(`Starting enhanced CLO-Stratified Weighted Random Sampling for ${matrix.length} chapters with duplicate prevention`);
+        const selectedQuestionIds = new Set<string>(); // Dictionary/map to track all selected questions
+
+        this.logger.log(`Starting enhanced CLO-Stratified Weighted Random Sampling for ${matrix.length} chapters with dictionary-based duplicate prevention`);
 
         try {
             // Phase 1: Get recently used questions to avoid duplicates
@@ -402,48 +436,37 @@ export class ExamService {
 
             // Phase 2: Pre-load all available questions for better performance
             const allChapterIds = matrix.map(item => item.maPhan);
-
-            // Thay đổi: Lấy câu hỏi theo từng chương riêng biệt thay vì một câu query lớn
-            this.logger.log(`Fetching questions for ${allChapterIds.length} chapters individually`);
-
             const allQuestions: CauHoi[] = [];
 
-            // Lấy câu hỏi cho từng chương một
-            for (const chapterId of allChapterIds) {
-                this.logger.log(`Fetching questions for chapter ID: ${chapterId}`);
+            // OPTIMIZED: Fetch all questions in one batch query instead of per-chapter
+            this.logger.log(`Fetching questions for ${allChapterIds.length} chapters in batch`);
 
-                const chapterQuestions = await this.cauHoiRepository.find({
-                    where: {
-                        MaPhan: chapterId,
-                        XoaTamCauHoi: false,
-                        MaCauHoiCha: IsNull() // Only parent questions
-                    },
-                    relations: ['CLO', 'Phan', 'CauTraLoi'],
-                    select: [
-                        'MaCauHoi', 'MaPhan', 'MaSoCauHoi', 'NoiDung', 'HoanVi', 'CapDo', 'SoCauHoiCon',
-                        'DoPhanCachCauHoi', 'MaCauHoiCha', 'XoaTamCauHoi', 'SoLanDuocThi', 'SoLanDung',
-                        'NgayTao', 'NgaySua', 'MaCLO', 'DoKhoThucTe'
-                    ],
-                    take: 500 // Giới hạn số câu hỏi tối đa cho mỗi chương
-                });
+            const allChapterQuestions = await this.cauHoiRepository.find({
+                where: {
+                    MaPhan: In(allChapterIds),
+                    XoaTamCauHoi: false,
+                    MaCauHoiCha: IsNull() // Only parent questions
+                },
+                select: [
+                    'MaCauHoi', 'MaPhan', 'MaSoCauHoi', 'NoiDung', 'HoanVi', 'CapDo', 'SoCauHoiCon',
+                    'DoPhanCachCauHoi', 'MaCauHoiCha', 'XoaTamCauHoi', 'SoLanDuocThi', 'SoLanDung',
+                    'NgayTao', 'NgaySua', 'MaCLO', 'DoKhoThucTe'
+                ],
+                take: 2000 // Increased limit for batch query
+            });
 
-                // Filter out recently used questions to avoid duplicates
-                const availableQuestions = chapterQuestions.filter(q => !recentlyUsedQuestions.has(q.MaCauHoi));
-                this.logger.log(`Found ${chapterQuestions.length} total questions, ${availableQuestions.length} available (not recently used) for chapter ID: ${chapterId}`);
-                allQuestions.push(...availableQuestions);
-            }
+            // Filter out recently used questions to avoid duplicates
+            const availableQuestions = allChapterQuestions.filter(q => !recentlyUsedQuestions.has(q.MaCauHoi));
+            this.logger.log(`Found ${allChapterQuestions.length} total questions, ${availableQuestions.length} available (not recently used) from all chapters`);
+            allQuestions.push(...availableQuestions);
 
             this.logger.log(`Total questions loaded across all chapters: ${allQuestions.length}`);
 
             // Check if we have enough questions for the requested matrix
             const totalRequested = matrix.reduce((sum, item) => sum + item.clo1 + item.clo2 + item.clo3 + item.clo4 + item.clo5, 0) * multiplier;
-            if (allQuestions.length < totalRequested * 0.5) { // If less than 50% of required questions available
-                this.logger.warn(`Low question availability: ${allQuestions.length} available vs ${totalRequested} requested. Expanding search to include older questions.`);
-
-                // Fallback: Include questions from last 60 days if not enough available
-                const expandedQuestions = await this.getExpandedQuestionPool(allChapterIds, recentlyUsedQuestions);
-                allQuestions.push(...expandedQuestions);
-                this.logger.log(`Expanded question pool to ${allQuestions.length} questions`);
+            if (allQuestions.length < totalRequested * 0.3) { // Reduced threshold to 30% to avoid unnecessary expansion
+                this.logger.warn(`Low question availability: ${allQuestions.length} available vs ${totalRequested} requested. Skipping expansion to improve performance.`);
+                // Skip expansion for better performance - let fallback logic handle shortfall
             }
 
             // Debug: Log sample questions to understand CLO structure
@@ -452,63 +475,30 @@ export class ExamService {
                 this.logger.log(`Sample question structure: MaCauHoi=${sampleQuestion.MaCauHoi}, MaCLO=${sampleQuestion.MaCLO}, CLO.ThuTu=${sampleQuestion.CLO?.ThuTu}`);
             }
 
-            // Group questions by chapter and CLO
-            const questionsByChapter = new Map<string, CauHoi[]>();
-            const questionsByChapterAndCLO = new Map<string, Map<number, CauHoi[]>>();
+            // Organize questions by chapter and CLO for efficient lookup using dictionary approach
+            const questionsByChapterCLO = new Map<string, CauHoi[]>();
 
-            // Initialize structure
-            for (const item of matrix) {
-                questionsByChapter.set(item.maPhan, []);
-                const cloMap = new Map<number, CauHoi[]>();
-                for (let i = 1; i <= 5; i++) {
-                    cloMap.set(i, []);
-                }
-                questionsByChapterAndCLO.set(item.maPhan, cloMap);
-            }
-
-            // Populate the structure
+            // Populate the dictionary structure
             for (const question of allQuestions) {
-                const chapterQuestions = questionsByChapter.get(question.MaPhan) || [];
-                chapterQuestions.push(question);
-                questionsByChapter.set(question.MaPhan, chapterQuestions);
-
-                // Map CLO based on ThuTu field from CLO relation
                 const cloOrder = question.CLO?.ThuTu || 0;
-                this.logger.debug(`Question ${question.MaCauHoi} has CLO order: ${cloOrder}, CLO ID: ${question.MaCLO}`);
-
                 if (cloOrder >= 1 && cloOrder <= 5) {
-                    const cloMap = questionsByChapterAndCLO.get(question.MaPhan);
-                    if (cloMap) {
-                        const cloQuestions = cloMap.get(cloOrder) || [];
-                        cloQuestions.push(question);
-                        cloMap.set(cloOrder, cloQuestions);
-                        this.logger.debug(`Added question to CLO ${cloOrder} for chapter ${question.MaPhan}`);
+                    const key = `${question.MaPhan}-${cloOrder}`;
+                    if (!questionsByChapterCLO.has(key)) {
+                        questionsByChapterCLO.set(key, []);
                     }
-                } else {
-                    this.logger.warn(`Question ${question.MaCauHoi} has invalid CLO order: ${cloOrder}`);
+                    questionsByChapterCLO.get(key)!.push(question);
                 }
             }
 
-            // Debug: Log CLO distribution after population
-            for (const [chapterId, cloMap] of questionsByChapterAndCLO) {
-                this.logger.log(`Chapter ${chapterId} CLO distribution:`);
-                for (let i = 1; i <= 5; i++) {
-                    const count = cloMap.get(i)?.length || 0;
-                    this.logger.log(`  CLO ${i}: ${count} questions`);
-                }
+            // Debug: Log CLO distribution
+            for (const [key, questions] of questionsByChapterCLO.entries()) {
+                this.logger.log(`Chapter-CLO ${key} has ${questions.length} available questions`);
             }
 
-            // Phase 2: Select questions for each chapter with multiple strategies
+            // Phase 3: Select questions for each matrix item using dictionary-based approach
             for (const item of matrix) {
                 this.logger.log(`Processing chapter ${item.maPhan} with requirements: CLO1=${item.clo1}, CLO2=${item.clo2}, CLO3=${item.clo3}, CLO4=${item.clo4}, CLO5=${item.clo5}`);
 
-                const chapterSelectedQuestions: CauHoi[] = [];
-                const cloMap = questionsByChapterAndCLO.get(item.maPhan);
-                const allChapterQuestions = questionsByChapter.get(item.maPhan) || [];
-
-                this.logger.log(`Chapter ${item.maPhan} has ${allChapterQuestions.length} total questions`);
-
-                // Strategy 1: Direct CLO matching (multiply by multiplier for better variation)
                 const cloRequirements = [
                     { clo: 1, count: Math.ceil(item.clo1 * multiplier) },
                     { clo: 2, count: Math.ceil(item.clo2 * multiplier) },
@@ -517,77 +507,79 @@ export class ExamService {
                     { clo: 5, count: Math.ceil(item.clo5 * multiplier) }
                 ];
 
+                // Process each CLO requirement sequentially
                 for (const req of cloRequirements) {
                     if (req.count > 0) {
-                        const availableQuestions = cloMap?.get(req.clo) || [];
+                        const key = `${item.maPhan}-${req.clo}`;
+                        const availableQuestions = questionsByChapterCLO.get(key) || [];
                         this.logger.log(`CLO ${req.clo} has ${availableQuestions.length} available questions, need ${req.count}`);
 
                         if (availableQuestions.length > 0) {
-                            const selected = this.weightedRandomSelection(
-                                availableQuestions.map(q => ({ question: q, weight: this.calculateQuestionWeight(q, req.clo) })),
-                                Math.min(req.count, availableQuestions.length)
-                            );
-                            chapterSelectedQuestions.push(...selected);
-                            req.count -= selected.length;
+                            // Filter out already selected questions using our dictionary
+                            const uniqueQuestions = availableQuestions.filter(q => !selectedQuestionIds.has(q.MaCauHoi));
+                            this.logger.log(`After filtering duplicates: ${uniqueQuestions.length} unique questions available for ${key}`);
 
-                            // Remove selected questions from all pools
-                            const selectedIds = new Set(selected.map(q => q.MaCauHoi));
-                            this.removeQuestionsFromPools(questionsByChapterAndCLO, item.maPhan, selectedIds);
-                            this.removeQuestionsFromPool(questionsByChapter, item.maPhan, selectedIds);
+                            if (uniqueQuestions.length > 0) {
+                                // Calculate weights for each question
+                                const weightedQuestions = uniqueQuestions.map(q => ({
+                                    question: q,
+                                    weight: this.calculateQuestionWeight(q, req.clo)
+                                }));
+
+                                // Select questions with weighted random selection, respecting uniqueness constraint
+                                const selectedCount = Math.min(req.count, uniqueQuestions.length);
+                                const selected = this.weightedRandomSelectionUnique(
+                                    weightedQuestions,
+                                    selectedCount,
+                                    selectedQuestionIds
+                                );
+
+                                // Add selected questions to results and tracking dictionary
+                                selected.forEach(question => {
+                                    selectedQuestions.push(question);
+                                    selectedQuestionIds.add(question.MaCauHoi);
+                                });
+
+                                this.logger.log(`Selected ${selected.length}/${req.count} questions for chapter ${item.maPhan}, CLO ${req.clo}`);
+                            }
                         }
                     }
                 }
+            }
 
-                // Strategy 2: Fallback to any available questions in the chapter
-                const remainingRequirements = cloRequirements.filter(req => req.count > 0);
-                if (remainingRequirements.length > 0) {
-                    this.logger.log(`Fallback needed for chapter ${item.maPhan}. Remaining requirements:`, remainingRequirements);
+            // Phase 4: Handle shortfalls using fallback strategies
+            const totalSelected = selectedQuestions.length;
+            const totalRequired = matrix.reduce((sum, item) => sum + item.clo1 + item.clo2 + item.clo3 + item.clo4 + item.clo5, 0) * multiplier;
 
-                    const totalRemaining = remainingRequirements.reduce((sum, req) => sum + req.count, 0);
-                    const availableQuestions = questionsByChapter.get(item.maPhan) || [];
+            if (totalSelected < totalRequired) {
+                this.logger.warn(`Selected ${totalSelected}/${totalRequired} questions, attempting fallback strategy for shortfall`);
 
-                    if (availableQuestions.length > 0) {
-                        const fallbackSelected = this.weightedRandomSelection(
-                            availableQuestions.map(q => ({ question: q, weight: this.calculateQuestionWeight(q) })),
-                            Math.min(totalRemaining, availableQuestions.length)
-                        );
+                // Try to find any suitable questions from remaining pool
+                const remainingQuestions = allQuestions.filter(q => !selectedQuestionIds.has(q.MaCauHoi));
 
-                        chapterSelectedQuestions.push(...fallbackSelected);
+                if (remainingQuestions.length > 0) {
+                    const shortfall = totalRequired - totalSelected;
+                    const fallbackCount = Math.min(shortfall, remainingQuestions.length);
 
-                        // Remove selected questions from all pools
-                        const selectedIds = new Set(fallbackSelected.map(q => q.MaCauHoi));
-                        this.removeQuestionsFromPools(questionsByChapterAndCLO, item.maPhan, selectedIds);
-                        this.removeQuestionsFromPool(questionsByChapter, item.maPhan, selectedIds);
-                    }
+                    // Use weighted selection on remaining questions
+                    const weightedRemaining = remainingQuestions.map(q => ({
+                        question: q,
+                        weight: this.calculateQuestionWeight(q)
+                    }));
+
+                    const fallbackSelected = this.weightedRandomSelectionUnique(
+                        weightedRemaining,
+                        fallbackCount,
+                        selectedQuestionIds
+                    );
+
+                    fallbackSelected.forEach(question => {
+                        selectedQuestions.push(question);
+                        selectedQuestionIds.add(question.MaCauHoi);
+                    });
+
+                    this.logger.log(`Added ${fallbackSelected.length} additional questions using fallback strategy`);
                 }
-
-                // Strategy 3: Cross-chapter fallback if still no questions
-                const finalRequirements = cloRequirements.filter(req => req.count > 0);
-                if (finalRequirements.length > 0) {
-                    this.logger.warn(`Cross-chapter fallback needed for chapter ${item.maPhan}. Final requirements:`, finalRequirements);
-
-                    const totalFinal = finalRequirements.reduce((sum, req) => sum + req.count, 0);
-                    const allAvailableQuestions = Array.from(questionsByChapter.values()).flat();
-
-                    if (allAvailableQuestions.length > 0) {
-                        const crossChapterSelected = this.weightedRandomSelection(
-                            allAvailableQuestions.map(q => ({ question: q, weight: this.calculateQuestionWeight(q) })),
-                            Math.min(totalFinal, allAvailableQuestions.length)
-                        );
-
-                        chapterSelectedQuestions.push(...crossChapterSelected);
-
-                        // Remove selected questions from all pools
-                        const selectedIds = new Set(crossChapterSelected.map(q => q.MaCauHoi));
-                        for (const chapterId of allChapterIds) {
-                            this.removeQuestionsFromPools(questionsByChapterAndCLO, chapterId, selectedIds);
-                            this.removeQuestionsFromPool(questionsByChapter, chapterId, selectedIds);
-                        }
-                    }
-                }
-
-                this.logger.log(`Selected ${chapterSelectedQuestions.length} questions for chapter ${item.maPhan}`);
-                selectedQuestions.push(...chapterSelectedQuestions);
             }
 
             this.logger.log(`Total selected parent questions: ${selectedQuestions.length}`);
@@ -597,7 +589,15 @@ export class ExamService {
                 throw new Error('Không thể tìm thấy câu hỏi phù hợp cho ma trận đề thi. Vui lòng kiểm tra lại dữ liệu câu hỏi.');
             }
 
-            // ENHANCED: Handle group questions - get child questions for selected parents
+            // Final verification: ensure no duplicates in our selection
+            const finalUniqueQuestions = Array.from(new Map(selectedQuestions.map(q => [q.MaCauHoi, q])).values());
+            if (finalUniqueQuestions.length !== selectedQuestions.length) {
+                this.logger.warn(`Duplicate check: Found and removed ${selectedQuestions.length - finalUniqueQuestions.length} duplicates in final selection`);
+                selectedQuestions.length = 0;
+                selectedQuestions.push(...finalUniqueQuestions);
+            }
+
+            // Phase 5: Handle group questions - get child questions for selected parents
             this.logger.log('Processing group questions...');
             const childQuestionsMap = await this.getChildQuestionsForParents(selectedQuestions);
 
@@ -607,7 +607,6 @@ export class ExamService {
                 const validation = this.validateGroupQuestionIntegrity(parentQuestions, childQuestionsMap);
                 if (!validation.isValid) {
                     this.logger.warn('Group question integrity issues found:', validation.warnings);
-                    // Log warnings but continue - we'll work with available child questions
                     validation.warnings.forEach(warning => this.logger.warn(warning));
                 }
             }
@@ -640,39 +639,40 @@ export class ExamService {
 
     /**
      * Get recently used questions to avoid duplicates in new exam extractions
-     * Returns Set of question IDs that have been used in exams created within the last 30 days
+     * OPTIMIZED: Uses caching and single query with JOIN
      */
     private async getRecentlyUsedQuestions(): Promise<Set<string>> {
         try {
-            // Get exams created in the last 30 days
+            // Check cache first
+            const now = Date.now();
+            if (this.recentlyUsedQuestionsCache.data &&
+                (now - this.recentlyUsedQuestionsCache.timestamp) < this.recentlyUsedQuestionsCache.ttl) {
+                this.logger.log(`Using cached recently used questions: ${this.recentlyUsedQuestionsCache.data.size} questions`);
+                return this.recentlyUsedQuestionsCache.data;
+            }
+
+            // OPTIMIZED: Single query with JOIN instead of multiple queries
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-            const recentExams = await this.deThiRepository.find({
-                where: {
-                    NgayTao: MoreThan(thirtyDaysAgo)
-                },
-                select: ['MaDeThi']
-            });
+            // Use query builder for better performance
+            const usedQuestions = await this.chiTietDeThiRepository
+                .createQueryBuilder('ctdt')
+                .innerJoin('ctdt.DeThi', 'dt')
+                .select('DISTINCT ctdt.MaCauHoi', 'MaCauHoi')
+                .where('dt.NgayTao > :thirtyDaysAgo', { thirtyDaysAgo })
+                .getRawMany();
 
-            if (recentExams.length === 0) {
-                this.logger.log('No recent exams found, no questions to exclude');
-                return new Set<string>();
-            }
+            const usedQuestionIds = new Set(usedQuestions.map(item => item.MaCauHoi));
 
-            const recentExamIds = recentExams.map(exam => exam.MaDeThi);
-            this.logger.log(`Found ${recentExamIds.length} recent exams to check for used questions`);
+            // Update cache
+            this.recentlyUsedQuestionsCache = {
+                data: usedQuestionIds,
+                timestamp: now,
+                ttl: this.recentlyUsedQuestionsCache.ttl
+            };
 
-            // Get all questions used in these recent exams
-            const usedQuestionDetails = await this.chiTietDeThiRepository.find({
-                where: {
-                    MaDeThi: In(recentExamIds)
-                },
-                select: ['MaCauHoi']
-            });
-
-            const usedQuestionIds = new Set(usedQuestionDetails.map(detail => detail.MaCauHoi));
-            this.logger.log(`Found ${usedQuestionIds.size} unique questions used in recent exams`);
+            this.logger.log(`Found ${usedQuestionIds.size} unique questions used in recent exams (cached for 5 minutes)`);
 
             return usedQuestionIds;
         } catch (error) {
@@ -956,18 +956,34 @@ export class ExamService {
     }
 
     /**
-     * Enhanced weighted random selection using reservoir sampling with better distribution
-     * This ensures diversity while still respecting the weights
+     * Enhanced weighted random selection with strict uniqueness constraint
+     * @param items Array of weighted questions
+     * @param count Number of items to select
+     * @param existingSelections Set of already selected question IDs to avoid
+     * @returns Array of selected unique questions
      */
-    private weightedRandomSelection(items: WeightedQuestion[], count: number): CauHoi[] {
+    private weightedRandomSelectionUnique(
+        items: WeightedQuestion[],
+        count: number,
+        existingSelections: Set<string>
+    ): CauHoi[] {
         if (items.length === 0) return [];
-        if (items.length <= count) return items.map(item => item.question);
 
-        // Normalize weights to avoid numerical issues
+        // If we don't have enough items, return all available unique ones
+        if (items.length <= count) {
+            return items
+                .filter(item => !existingSelections.has(item.question.MaCauHoi))
+                .map(item => item.question);
+        }
+
+        // Normalize weights for numerical stability
         const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
         if (totalWeight <= 0) {
-            // If all weights are zero or negative, use uniform distribution
-            const shuffled = [...items].sort(() => Math.random() - 0.5);
+            // Use uniform distribution if weights are invalid
+            const shuffled = [...items]
+                .filter(item => !existingSelections.has(item.question.MaCauHoi))
+                .sort(() => Math.random() - 0.5);
+
             return shuffled.slice(0, count).map(item => item.question);
         }
 
@@ -976,39 +992,48 @@ export class ExamService {
             weight: item.weight / totalWeight
         }));
 
-        // Use weighted reservoir sampling with replacement prevention
+        // Use weighted selection with strict uniqueness enforcement
         const selected: CauHoi[] = [];
-        const usedIndices = new Set<number>();
+        const tempSelectedIds = new Set<string>(existingSelections); // Copy existing selections
 
-        for (let i = 0; i < count; i++) {
+        // Try to select up to 'count' items
+        let attempts = 0;
+        const maxAttempts = normalizedItems.length * 2; // Reasonable cap on attempts
+
+        while (selected.length < count && attempts < maxAttempts) {
+            attempts++;
+
+            // Skip if we've exhausted all available items
+            if (selected.length + tempSelectedIds.size >= normalizedItems.length) break;
+
             let randomValue = Math.random();
-            let selectedIndex = -1;
+            let selectedItem: WeightedQuestion | null = null;
+
+            // Filter available items (not already selected)
+            const availableItems = normalizedItems.filter(
+                item => !tempSelectedIds.has(item.question.MaCauHoi)
+            );
+
+            if (availableItems.length === 0) break;
+
+            // Find item at random weighted position
             let cumulativeWeight = 0;
-
-            // Find the item at this random position
-            for (let j = 0; j < normalizedItems.length; j++) {
-                if (usedIndices.has(j)) continue; // Skip already selected items
-
-                cumulativeWeight += normalizedItems[j].weight;
+            for (const item of availableItems) {
+                cumulativeWeight += item.weight;
                 if (randomValue <= cumulativeWeight) {
-                    selectedIndex = j;
+                    selectedItem = item;
                     break;
                 }
             }
 
-            // Fallback: if no item was selected, pick the first available
-            if (selectedIndex === -1) {
-                for (let j = 0; j < normalizedItems.length; j++) {
-                    if (!usedIndices.has(j)) {
-                        selectedIndex = j;
-                        break;
-                    }
-                }
+            // Fallback to first available if no selection (edge case)
+            if (!selectedItem && availableItems.length > 0) {
+                selectedItem = availableItems[0];
             }
 
-            if (selectedIndex !== -1) {
-                selected.push(normalizedItems[selectedIndex].question);
-                usedIndices.add(selectedIndex);
+            if (selectedItem && !tempSelectedIds.has(selectedItem.question.MaCauHoi)) {
+                selected.push(selectedItem.question);
+                tempSelectedIds.add(selectedItem.question.MaCauHoi);
             }
         }
 
@@ -1270,85 +1295,235 @@ export class ExamService {
 
     /**
      * Distribute questions across multiple exams to ensure no overlap and fair distribution
+     * Updated to use strict dictionary-based approach for preventing duplicates
      */
     private distributeQuestionsAcrossExams(
         allQuestions: CauHoi[],
         matrix: ExamMatrixItem[],
         numberOfExams: number
     ): CauHoi[][] {
+        this.logger.log(`Distributing questions across ${numberOfExams} exams with strict uniqueness enforcement`);
+
         const examQuestionSets: CauHoi[][] = Array.from({ length: numberOfExams }, () => []);
-        const usedQuestionIds = new Set<string>();
+        const globalUsedQuestionIds = new Set<string>(); // Global tracking dictionary for all used questions
 
-        // Group questions by chapter and CLO
+        // Organize questions by chapter-CLO combination for efficient lookup
         const questionsByChapterCLO = new Map<string, CauHoi[]>();
-        allQuestions.forEach(question => {
-            const key = `${question.MaPhan}-${question.MaCLO}`;
-            if (!questionsByChapterCLO.has(key)) {
-                questionsByChapterCLO.set(key, []);
+
+        // Build the dictionary structure
+        for (const question of allQuestions) {
+            const cloOrder = question.CLO?.ThuTu || 0;
+            if (cloOrder >= 1 && cloOrder <= 5) {
+                const key = `${question.MaPhan}-${cloOrder}`;
+                if (!questionsByChapterCLO.has(key)) {
+                    questionsByChapterCLO.set(key, []);
+                }
+                questionsByChapterCLO.get(key)!.push(question);
             }
-            questionsByChapterCLO.get(key)!.push(question);
-        });
+        }
 
-        // Distribute questions for each matrix requirement
-        matrix.forEach(matrixItem => {
-            const cloRequirements = [
-                { clo: 1, count: matrixItem.clo1 },
-                { clo: 2, count: matrixItem.clo2 },
-                { clo: 3, count: matrixItem.clo3 },
-                { clo: 4, count: matrixItem.clo4 },
-                { clo: 5, count: matrixItem.clo5 }
-            ];
+        // Log available questions in each category
+        for (const [key, questions] of questionsByChapterCLO.entries()) {
+            this.logger.log(`Distribution pool: ${key} has ${questions.length} questions available`);
+        }
 
-            cloRequirements.forEach(({ clo, count }) => {
-                if (count > 0) {
-                    const key = `${matrixItem.maPhan}-${clo}`;
-                    const availableQuestions = questionsByChapterCLO.get(key) || [];
+        // Process each exam in sequence
+        for (let examIndex = 0; examIndex < numberOfExams; examIndex++) {
+            this.logger.log(`Processing distribution for exam ${examIndex + 1}`);
+            const examUsedQuestionIds = new Set<string>(); // Track questions used in this specific exam
 
-                    // Filter out already used questions
-                    const unusedQuestions = availableQuestions.filter(q => !usedQuestionIds.has(q.MaCauHoi));
+            // Process each matrix item for this exam
+            for (const item of matrix) {
+                this.logger.log(`Exam ${examIndex + 1}: Processing chapter ${item.maPhan}`);
 
-                    if (unusedQuestions.length >= count * numberOfExams) {
-                        // Enough questions for all exams - distribute evenly
-                        const shuffled = this.shuffleQuestions(unusedQuestions);
+                // Process each CLO requirement
+                const cloRequirements = [
+                    { clo: 1, count: item.clo1 },
+                    { clo: 2, count: item.clo2 },
+                    { clo: 3, count: item.clo3 },
+                    { clo: 4, count: item.clo4 },
+                    { clo: 5, count: item.clo5 }
+                ];
 
-                        for (let examIndex = 0; examIndex < numberOfExams; examIndex++) {
-                            for (let i = 0; i < count; i++) {
-                                const questionIndex = examIndex * count + i;
-                                if (questionIndex < shuffled.length) {
-                                    const question = shuffled[questionIndex];
-                                    examQuestionSets[examIndex].push(question);
-                                    usedQuestionIds.add(question.MaCauHoi);
-                                }
-                            }
-                        }
-                    } else if (unusedQuestions.length > 0) {
-                        // Not enough questions - distribute what we have
-                        const shuffled = this.shuffleQuestions(unusedQuestions);
-                        let questionIndex = 0;
+                for (const req of cloRequirements) {
+                    if (req.count > 0) {
+                        const key = `${item.maPhan}-${req.clo}`;
+                        const availableQuestions = questionsByChapterCLO.get(key) || [];
 
-                        for (let examIndex = 0; examIndex < numberOfExams; examIndex++) {
-                            for (let i = 0; i < count && questionIndex < shuffled.length; i++) {
-                                const question = shuffled[questionIndex % shuffled.length];
+                        // Filter questions that haven't been used in ANY exam
+                        const uniqueQuestions = availableQuestions.filter(q =>
+                            !globalUsedQuestionIds.has(q.MaCauHoi)
+                        );
+
+                        this.logger.log(`Exam ${examIndex + 1}: Chapter ${item.maPhan}, CLO ${req.clo} - Need ${req.count}, have ${uniqueQuestions.length} unique questions available`);
+
+                        if (uniqueQuestions.length > 0) {
+                            // Calculate weights for each question
+                            const weightedQuestions = uniqueQuestions.map(q => ({
+                                question: q,
+                                weight: this.calculateQuestionWeight(q, req.clo)
+                            }));
+
+                            // Select questions with weighted randomness ensuring uniqueness
+                            const selectedCount = Math.min(req.count, uniqueQuestions.length);
+                            const selected = this.weightedRandomSelectionUnique(
+                                weightedQuestions,
+                                selectedCount,
+                                examUsedQuestionIds // Already used in this exam (should be empty as we're checking by category)
+                            );
+
+                            // Add selected questions to results and tracking dictionaries
+                            selected.forEach(question => {
                                 examQuestionSets[examIndex].push(question);
-                                usedQuestionIds.add(question.MaCauHoi);
-                                questionIndex++;
-                            }
-                        }
+                                examUsedQuestionIds.add(question.MaCauHoi);
+                                globalUsedQuestionIds.add(question.MaCauHoi); // Mark as globally used
+                            });
 
-                        this.logger.warn(`Limited questions available for chapter ${matrixItem.maPhan}, CLO ${clo}. Available: ${unusedQuestions.length}, Required: ${count * numberOfExams}`);
-                    } else {
-                        this.logger.error(`No questions available for chapter ${matrixItem.maPhan}, CLO ${clo}`);
+                            this.logger.log(`Exam ${examIndex + 1}: Selected ${selected.length}/${req.count} questions for chapter ${item.maPhan}, CLO ${req.clo}`);
+                        } else {
+                            this.logger.warn(`Exam ${examIndex + 1}: No unique questions available for chapter ${item.maPhan}, CLO ${req.clo}`);
+                        }
                     }
                 }
-            });
-        });
+            }
 
-        // Log distribution results
-        examQuestionSets.forEach((questions, index) => {
-            this.logger.log(`Exam ${index + 1} will have ${questions.length} questions`);
-        });
+            // Handle shortfalls for this exam if needed
+            const examRequired = matrix.reduce((sum, item) =>
+                sum + item.clo1 + item.clo2 + item.clo3 + item.clo4 + item.clo5, 0);
+
+            if (examQuestionSets[examIndex].length < examRequired) {
+                this.logger.warn(`Exam ${examIndex + 1}: Selected only ${examQuestionSets[examIndex].length}/${examRequired} questions, attempting fallback`);
+
+                // Find any remaining questions not used in any exam
+                const remainingQuestions = allQuestions.filter(q =>
+                    !globalUsedQuestionIds.has(q.MaCauHoi)
+                );
+
+                if (remainingQuestions.length > 0) {
+                    const shortfall = examRequired - examQuestionSets[examIndex].length;
+                    const fallbackCount = Math.min(shortfall, remainingQuestions.length);
+
+                    // Weighted selection from remaining pool
+                    const weightedRemaining = remainingQuestions.map(q => ({
+                        question: q,
+                        weight: this.calculateQuestionWeight(q)
+                    }));
+
+                    const fallbackSelected = this.weightedRandomSelectionUnique(
+                        weightedRemaining,
+                        fallbackCount,
+                        examUsedQuestionIds
+                    );
+
+                    fallbackSelected.forEach(question => {
+                        examQuestionSets[examIndex].push(question);
+                        globalUsedQuestionIds.add(question.MaCauHoi);
+                    });
+
+                    this.logger.log(`Exam ${examIndex + 1}: Added ${fallbackSelected.length} additional questions using fallback strategy`);
+                }
+            }
+
+            // Final uniqueness verification for this exam
+            const uniqueQuestionCount = new Set(examQuestionSets[examIndex].map(q => q.MaCauHoi)).size;
+            if (uniqueQuestionCount !== examQuestionSets[examIndex].length) {
+                this.logger.error(`Exam ${examIndex + 1}: Found duplicates! Expected ${examQuestionSets[examIndex].length} unique questions but found ${uniqueQuestionCount}`);
+
+                // Fix by removing duplicates (should never happen with our algorithm, but as a safety check)
+                examQuestionSets[examIndex] = Array.from(
+                    new Map(examQuestionSets[examIndex].map(q => [q.MaCauHoi, q])).values()
+                );
+            }
+
+            this.logger.log(`Exam ${examIndex + 1}: Final distribution complete with ${examQuestionSets[examIndex].length} unique questions`);
+        }
+
+        // Verify global uniqueness across exams
+        this.logger.log(`Verifying global uniqueness across all ${numberOfExams} exams...`);
+        const allDistributedQuestions = examQuestionSets.flat();
+        const uniqueDistributedIds = new Set(allDistributedQuestions.map(q => q.MaCauHoi));
+
+        if (uniqueDistributedIds.size !== allDistributedQuestions.length) {
+            this.logger.error(`Global uniqueness check failed! Found ${allDistributedQuestions.length - uniqueDistributedIds.size} duplicates across exams`);
+
+            // This should not happen with our algorithm, but verify and report for debugging
+            const questionCounts = new Map<string, number>();
+            allDistributedQuestions.forEach(q => {
+                questionCounts.set(q.MaCauHoi, (questionCounts.get(q.MaCauHoi) || 0) + 1);
+            });
+
+            // Log any questions that appear more than once
+            for (const [id, count] of questionCounts.entries()) {
+                if (count > 1) {
+                    const question = allDistributedQuestions.find(q => q.MaCauHoi === id);
+                    this.logger.error(`Question ${id} appears ${count} times: "${question?.NoiDung?.substring(0, 30)}..."`);
+                }
+            }
+        } else {
+            this.logger.log(`Global uniqueness verified: ${uniqueDistributedIds.size} unique questions across all exams`);
+        }
 
         return examQuestionSets;
+    }
+
+    /**
+     * Enhanced validation to ensure no duplicate questions in exam
+     * This is the last line of defense against duplicates
+     */
+    private validateAndRemoveDuplicates(questions: CauHoi[]): CauHoi[] {
+        if (!questions || questions.length === 0) {
+            return [];
+        }
+
+        // Use dictionary approach for efficient duplicate detection
+        const uniqueQuestionsMap = new Map<string, CauHoi>();
+        const duplicates: { id: string, content: string }[] = [];
+
+        questions.forEach(question => {
+            const questionId = question?.MaCauHoi;
+
+            // Handle null/undefined question IDs safely
+            if (!questionId) {
+                this.logger.warn('Found question with null/undefined ID, skipping duplicate check');
+                return;
+            }
+
+            // Check if this question is already in our unique map
+            if (uniqueQuestionsMap.has(questionId)) {
+                // It's a duplicate, add to duplicates list for reporting
+                duplicates.push({
+                    id: questionId,
+                    content: question.NoiDung?.substring(0, 50) || 'No content'
+                });
+            } else {
+                // It's unique, add to our map
+                uniqueQuestionsMap.set(questionId, question);
+            }
+        });
+
+        // Log duplicate information if found
+        if (duplicates.length > 0) {
+            this.logger.warn(`Found ${duplicates.length} duplicate questions during final validation`);
+
+            // Log details of first few duplicates (limit to avoid excessive logging)
+            const logLimit = Math.min(5, duplicates.length);
+            for (let i = 0; i < logLimit; i++) {
+                this.logger.warn(`Duplicate #${i + 1}: ID=${duplicates[i].id}, Content="${duplicates[i].content}..."`);
+            }
+
+            if (duplicates.length > logLimit) {
+                this.logger.warn(`...and ${duplicates.length - logLimit} more duplicates`);
+            }
+        }
+
+        // Return only unique questions
+        const uniqueQuestions = Array.from(uniqueQuestionsMap.values());
+
+        if (uniqueQuestions.length !== questions.length) {
+            this.logger.warn(`Removed ${questions.length - uniqueQuestions.length} duplicate questions from exam`);
+        }
+
+        return uniqueQuestions;
     }
 
     /**
@@ -1622,7 +1797,7 @@ export class ExamService {
             };
 
             // Generate the DOCX file using the template service
-            const templatePath = 'TemplateHutech.dotx'; // Use the standard template
+            const templatePath = './template/TemplateHutechOffical.dotx'; // Use the standard template
             const outputPath = await this.docxTemplateService.generateDocx(templatePath, docxData);
 
             this.logger.log(`Custom DOCX generated successfully at ${outputPath}`);
@@ -1733,7 +1908,7 @@ export class ExamService {
         };
 
         // Generate the DOCX file
-        const templatePath = 'TemplateHutech.dotx'; // Use the standard template
+        const templatePath = './template/TemplateHutechOffical.dotx'; // Use the standard template
         const outputPath = await this.docxTemplateService.generateDocx(templatePath, docxData);
 
         this.logger.log(`Exam DOCX generated successfully at ${outputPath}`);

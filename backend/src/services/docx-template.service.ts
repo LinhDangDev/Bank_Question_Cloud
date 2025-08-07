@@ -125,8 +125,7 @@ export class DocxTemplateService {
                         isCorrect: a.isCorrect || false
                     })) : [],
                     correctAnswer: q.correctAnswer || '',
-                    clo: q.clo || '',
-                    difficulty: q.difficulty || 1,
+                    // CLO and difficulty info removed as requested
                     // Include chapter info only if not hiding chapter structure
                     chapter: data.hideChapterStructure ? null : q.chapter
                 };

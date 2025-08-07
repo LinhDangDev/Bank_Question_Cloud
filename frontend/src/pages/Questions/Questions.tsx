@@ -10,7 +10,22 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import 'katex/dist/katex.min.css'
 import katex from 'katex'
 import { API_BASE_URL } from '@/config'
-import QuestionItem, { Question as FrontendQuestionType } from '@/components/QuestionItem'
+import QuestionItem from '@/components/QuestionItem'
+
+// Define frontend question type
+interface FrontendQuestionType {
+  id: string;
+  content: string;
+  type: string;
+  clo?: string;
+  capDo?: number;
+  difficulty?: number;
+  answers?: any[];
+  files?: any[];
+  status?: string;
+  childQuestions?: any[];
+  groupContent?: string;
+}
 import PaginationBar from '@/components/PaginationBar'
 import Filters, { FilterOptions } from '@/components/Filters'
 import { renderLatex, parseGroupQuestionContent, formatChildQuestionContent, formatParentQuestionContent, cleanContent } from '@/utils/latex'
@@ -97,7 +112,7 @@ const statusColors: Record<string, string> = {
 
 
 // Utility function to convert backend question to frontend question format
-const convertToFrontendQuestion = (backendQuestion: BackendQuestion): FrontendQuestionType => {
+    const convertToFrontendQuestion = (backendQuestion: BackendQuestion): FrontendQuestionType => {
   return {
     id: backendQuestion.MaCauHoi,
     content: backendQuestion.NoiDung,
@@ -417,7 +432,11 @@ const Questions = () => {
               )}
 
               <Badge variant="outline" className={`text-xs font-medium ${isGroupQuestion ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
-                {isGroupQuestion ? (groupContent?.questionRange ? `Nhóm ${groupContent.questionRange}` : 'Nhóm') : 'Đơn'}
+                {isGroupQuestion ? (
+                  groupContent?.questionType === 'fill-in-blank' ? 'Điền khuyết' :
+                  groupContent?.questionType === 'reading' ? 'Đọc hiểu' :
+                  groupContent?.questionRange ? `Nhóm ${groupContent.questionRange}` : 'Nhóm'
+                ) : 'Đơn'}
               </Badge>
 
               <Badge variant="outline" className="text-xs font-medium bg-blue-100 text-blue-700">
@@ -513,11 +532,26 @@ const Questions = () => {
               <div className="mb-3">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="text-sm font-medium text-purple-700">
-                    {groupContent?.questionRange ? `Câu hỏi nhóm ${groupContent.questionRange}` : 'Câu hỏi nhóm'}
+                    {groupContent?.questionType === 'fill-in-blank' ?
+                      `Câu hỏi điền khuyết ${groupContent?.questionRange || ''}` :
+                      groupContent?.questionType === 'reading' ?
+                      `Câu hỏi đọc hiểu ${groupContent?.questionRange || ''}` :
+                      groupContent?.questionRange ? `Câu hỏi nhóm ${groupContent.questionRange}` : 'Câu hỏi nhóm'
+                    }
                   </div>
                   {question.CauHoiCon && (
                     <Badge variant="outline" className="text-xs bg-purple-50 text-purple-600">
                       {question.CauHoiCon.length} câu con
+                    </Badge>
+                  )}
+                  {groupContent?.questionType && (
+                    <Badge variant="outline" className={`text-xs ${
+                      groupContent.questionType === 'fill-in-blank' ? 'bg-yellow-50 text-yellow-700' :
+                      groupContent.questionType === 'reading' ? 'bg-blue-50 text-blue-700' :
+                      'bg-gray-50 text-gray-700'
+                    }`}>
+                      {groupContent.questionType === 'fill-in-blank' ? '📝 Điền khuyết' :
+                       groupContent.questionType === 'reading' ? '📖 Đọc hiểu' : '📋 Nhóm'}
                     </Badge>
                   )}
                 </div>

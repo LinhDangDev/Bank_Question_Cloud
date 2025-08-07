@@ -6,33 +6,9 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Search, Plus, ArrowLeft, Trash2, RefreshCw, BookOpen } from 'lucide-react'
+import { Search, Plus, ArrowLeft, Trash2, RefreshCw, BookOpen, Edit, RotateCcw } from 'lucide-react'
 import PageContainer from '@/components/ui/PageContainer'
-import {
-    Box,
-    IconButton,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Tooltip,
-    useTheme,
-    TextField,
-    Typography,
-    Paper,
-} from '@mui/material'
-import {
-    Add as AddIcon,
-    Edit as EditIcon,
-    Delete as DeleteIcon,
-    Restore as RestoreIcon,
-    MenuBook as MenuBookIcon
-} from '@mui/icons-material'
 import { khoaApi } from '@/services/api'
-import axios from 'axios'
-import { API_BASE_URL } from '@/config'
 import { usePermissions } from '@/hooks/usePermissions'
 
 interface Faculty {
@@ -46,7 +22,7 @@ interface Faculty {
 
 const Faculty = () => {
     const navigate = useNavigate()
-    const theme = useTheme()
+
     const { isAdmin } = usePermissions()
     const [faculties, setFaculties] = useState<Faculty[]>([])
     const [searchQuery, setSearchQuery] = useState('')
@@ -187,67 +163,95 @@ const Faculty = () => {
     const deletedFaculties = faculties.filter(f => f.XoaTamKhoa).length
 
     return (
-        <PageContainer className="p-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-                <div className="flex gap-4">
-                    <Button variant="outline" onClick={() => navigate(-1)}>
-                        <ArrowLeft className="w-4 h-4 mr-2" />
+        <div className="flex flex-col h-[calc(94vh-56px)] overflow-hidden">
+            {/* Header với tiêu đề và nút tạo khoa */}
+            <div className="bg-white border-b px-6 py-3 flex flex-wrap justify-between items-center gap-y-3">
+                <div>
+                    <h1 className="text-xl font-bold text-gray-800">Quản lý Khoa</h1>
+                    <p className="text-sm text-gray-600 mt-0.5">
+                        Quản lý thông tin các khoa trong hệ thống
+                    </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" onClick={() => navigate(-1)} size="sm" className="h-9">
+                        <ArrowLeft className="w-4 h-4 mr-1.5" />
                         Quay lại
                     </Button>
-                    <h1 className="text-2xl font-bold">Quản lý Khoa</h1>
+                    {isAdmin() && (
+                        <Button
+                            variant="primary"
+                            size="sm"
+                            className="h-9 bg-blue-600 hover:bg-blue-700 text-white"
+                            onClick={() => setIsCreateDialogOpen(true)}
+                        >
+                            <Plus className="w-4 h-4 mr-1.5" />
+                            Thêm Khoa
+                        </Button>
+                    )}
                 </div>
-                {isAdmin() && (
-                    <Button onClick={() => setIsCreateDialogOpen(true)}>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Thêm Khoa
+            </div>
+
+            {/* Statistics */}
+            <div className="bg-gray-50 border-b px-6 py-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-white rounded-lg p-4 border">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-gray-600">Tổng số khoa</p>
+                                <p className="text-2xl font-bold text-gray-900">{totalFaculties}</p>
+                            </div>
+                            <div className="p-2 bg-blue-100 rounded-lg">
+                                <BookOpen className="w-6 h-6 text-blue-600" />
+                            </div>
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 border">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-gray-600">Đang hoạt động</p>
+                                <p className="text-2xl font-bold text-green-600">{activeFaculties}</p>
+                            </div>
+                            <div className="p-2 bg-green-100 rounded-lg">
+                                <BookOpen className="w-6 h-6 text-green-600" />
+                            </div>
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 border">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-gray-600">Đã xóa</p>
+                                <p className="text-2xl font-bold text-red-600">{deletedFaculties}</p>
+                            </div>
+                            <div className="p-2 bg-red-100 rounded-lg">
+                                <Trash2 className="w-6 h-6 text-red-600" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Search and Filters */}
+            <div className="bg-white border-b px-6 py-4">
+                <div className="flex gap-4">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <Input
+                            placeholder="Tìm kiếm khoa..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-10 h-9"
+                        />
+                    </div>
+                    <Button variant="outline" onClick={fetchFaculties} disabled={isLoading} size="sm" className="h-9">
+                        <RefreshCw className={`w-4 h-4 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />
+                        Làm mới
                     </Button>
-                )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Tổng số Khoa</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{totalFaculties}</div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Khoa đang hoạt động</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-green-600">{activeFaculties}</div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Khoa đã xóa</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-red-600">{deletedFaculties}</div>
-                    </CardContent>
-                </Card>
-            </div>
-
-            <div className="flex items-center gap-4 mb-6">
-                <div className="relative flex-1">
-                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder="Tìm kiếm khoa..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-8"
-                    />
                 </div>
-                <Button variant="outline" onClick={fetchFaculties} disabled={isLoading}>
-                    <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                    Làm mới
-                </Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Content Area */}
+            <div className="flex-1 overflow-auto p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredFaculties.map((faculty) => (
                     <Card
                         key={faculty.MaKhoa}
@@ -275,49 +279,51 @@ const Faculty = () => {
                                             className="flex items-center"
                                             onClick={() => viewSubjects(faculty)}
                                         >
-                                            <MenuBookIcon className="w-4 h-4 mr-2" />
+                                            <BookOpen className="w-4 h-4 mr-2" />
                                             Xem môn học
                                         </Button>
 
                                         {isAdmin() && (
-                                            <Tooltip title="Chỉnh sửa">
-                                                <IconButton
-                                                    onClick={() => openEditDialog(faculty)}
-                                                    size="small"
-                                                >
-                                                    <EditIcon />
-                                                </IconButton>
-                                            </Tooltip>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => openEditDialog(faculty)}
+                                                className="p-2"
+                                                title="Chỉnh sửa"
+                                            >
+                                                <Edit className="w-4 h-4" />
+                                            </Button>
                                         )}
 
                                         {isAdmin() && (
-                                            <Tooltip title="Xóa">
-                                                <IconButton
-                                                    onClick={() => handleDeleteFaculty(faculty)}
-                                                    size="small"
-                                                    color="error"
-                                                >
-                                                    <DeleteIcon />
-                                                </IconButton>
-                                            </Tooltip>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleDeleteFaculty(faculty)}
+                                                className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                title="Xóa"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </Button>
                                         )}
                                     </>
                                 )}
                                 {faculty.XoaTamKhoa && isAdmin() && (
-                                    <Tooltip title="Khôi phục">
-                                        <IconButton
-                                            onClick={() => handleRestoreFaculty(faculty)}
-                                            size="small"
-                                            color="primary"
-                                        >
-                                            <RestoreIcon />
-                                        </IconButton>
-                                    </Tooltip>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleRestoreFaculty(faculty)}
+                                        className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                        title="Khôi phục"
+                                    >
+                                        <RotateCcw className="w-4 h-4" />
+                                    </Button>
                                 )}
                             </div>
                         </CardContent>
                     </Card>
                 ))}
+                </div>
             </div>
 
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
@@ -395,7 +401,7 @@ const Faculty = () => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </PageContainer>
+        </div>
     )
 }
 

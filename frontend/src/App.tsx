@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import Layout from '@/components/layout/Layout'
 import Home from '@/pages/Home/Home'
+import Dashboard from '@/pages/Home/Dashboard'
 import SignIn from '@/pages/Auth/SignIn'
 import Questions from '@/pages/Questions/Questions'
 import ChapterQuestions from '@/pages/Questions/ChapterQuestions'
@@ -30,10 +31,12 @@ import 'react-toastify/dist/ReactToastify.css'
 import 'katex/dist/katex.min.css'
 import '@/styles/mathlive.css'
 import ExamDetail from '@/pages/Tool/ExamDetail/ExamDetail'
+import EditExamQuestions from '@/pages/Tool/ExamDetail/EditExamQuestions'
 import EditUser from '@/pages/Users/EditUser'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
 import FirstTimePassword from '@/pages/Auth/FirstTimePassword'
-import MediaMarkupTest from '@/test/MediaMarkupTest'
+import ErrorBoundary from '@/components/ErrorBoundary'
+import { useEffect } from 'react'
 
 // RequireAuth component
 function RequireAuth() {
@@ -110,6 +113,7 @@ function AppRoutes() {
       <Route element={<RequireAuth />}>
         <Route path="/" element={<Layout />}>
           <Route index element={<Home />} />
+          <Route path="dashboard" element={<Dashboard />} />
           <Route path="faculty" element={<Faculty />} />
           <Route path="subjects/:facultyId" element={<SubjectList />} />
           <Route path="chapters/:subjectId" element={<ChapterList />} />
@@ -128,6 +132,7 @@ function AppRoutes() {
           <Route path="exams" element={<Exams />} />
           <Route path="exams/:id" element={<ExamDetail />} />
           <Route path="exams/edit/:id" element={<ExamDetail />} />
+          <Route path="exams/edit-questions/:id" element={<EditExamQuestions />} />
           <Route path="users" element={<Users />} />
           <Route path="users/add" element={<AddUser />} />
           <Route path="users/edit/:id" element={<EditUser />} />
@@ -143,24 +148,74 @@ function AppRoutes() {
 }
 
 function App() {
+  useEffect(() => {
+    // Global error handler for unhandled promise rejections
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      console.error('Unhandled promise rejection:', event.reason);
+
+      // Prevent the default browser behavior (logging to console)
+      event.preventDefault();
+
+      // Show user-friendly error message
+      if (event.reason?.message?.includes('fetch') || event.reason?.message?.includes('network')) {
+        console.warn('Network error caught by global handler');
+      } else if (event.reason?.message?.includes('Receiving end does not exist') ||
+                event.reason?.message?.includes('Could not establish connection')) {
+        // Ignore Chrome extension connection errors - these are often from content scripts or extensions
+        console.warn('Extension connection error - ignoring:', event.reason?.message);
+        return; // Don't log as unhandled error
+      } else {
+        console.error('Unhandled error:', event.reason);
+      }
+    };
+
+    // Global error handler for JavaScript errors
+    const handleError = (event: ErrorEvent) => {
+      console.error('Global error:', event.error);
+
+      // Prevent infinite loops by checking if error is from error boundary
+      if (event.error?.message?.includes('ErrorBoundary')) {
+        return;
+      }
+
+      // Ignore Chrome extension connection errors
+      if (event.error?.message?.includes('Receiving end does not exist') ||
+          event.error?.message?.includes('Could not establish connection')) {
+        console.warn('Extension connection error caught by global handler:', event.error?.message);
+        event.preventDefault(); // Prevent default error handling
+        return;
+      }
+    };
+
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    window.addEventListener('error', handleError);
+
+    return () => {
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      window.removeEventListener('error', handleError);
+    };
+  }, []);
+
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <ToastContainer
-          position="bottom-right"
-          autoClose={5000}
-          hideProgressBar={false}
-          newestOnTop
-          closeOnClick
-          rtl={false}
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover
-          theme="colored"
-        />
-        <AppRoutes />
-      </AuthProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <ToastContainer
+            position="bottom-right"
+            autoClose={5000}
+            hideProgressBar={false}
+            newestOnTop
+            closeOnClick
+            rtl={false}
+            pauseOnFocusLoss
+            draggable
+            pauseOnHover
+            theme="colored"
+          />
+          <AppRoutes />
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   )
 }
 

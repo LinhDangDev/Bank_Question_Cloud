@@ -1,6 +1,5 @@
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryColumn } from 'typeorm';
 import { CauHoi } from './cau-hoi.entity';
-import { Files } from './files.entity';
 
 @Entity('CauTraLoi')
 export class CauTraLoi {
@@ -26,6 +25,6 @@ export class CauTraLoi {
     @JoinColumn({ name: 'MaCauHoi' })
     CauHoi: CauHoi;
 
-    @OneToMany(() => Files, files => files.CauTraLoi)
-    Files: Files[];
+    @OneToMany('Files', 'CauTraLoi')
+    Files: any[];
 }

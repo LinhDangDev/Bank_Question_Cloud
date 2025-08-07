@@ -163,13 +163,50 @@ export const extractMediaFilenames = (content: string): { audioFiles: string[], 
 };
 
 /**
- * Check if content has media markup
- * @param content Content to check
- * @returns True if content contains media markup
+ * Xử lý media markup từ nội dung
+ * Chuyển đổi các thẻ đặc biệt thành HTML
  */
+export const processMediaMarkup = (content: string): string => {
+    if (!content) return '';
+
+    let processedContent = content;
+
+    // Xử lý hình ảnh inline: [<img>image_path.jpg</img>]
+    processedContent = processedContent.replace(
+        /\[\<img\>(.*?)\<\/img\>\]/g,
+        (_, src) => `<img src="${src}" alt="Embedded image" class="inline-image" />`
+    );
+
+    // Xử lý audio: [<audio>audio_path.mp3</audio>]
+    processedContent = processedContent.replace(
+        /\[\<audio\>(.*?)\<\/audio\>\]/g,
+        (_, src) => `<audio controls src="${src}" class="embedded-audio"></audio>`
+    );
+
+    // Xử lý video: [<video>video_path.mp4</video>]
+    processedContent = processedContent.replace(
+        /\[\<video\>(.*?)\<\/video\>\]/g,
+        (_, src) => `<video controls src="${src}" class="embedded-video"></video>`
+    );
+
+    // Xử lý line break: [<br>]
+    processedContent = processedContent.replace(/\[\<br\>\]/g, '<br/>');
+
+    return processedContent;
+};
+
+// Kiểm tra xem nội dung có chứa media markup không
 export const hasMediaMarkup = (content: string): boolean => {
     if (!content) return false;
-    return /\[(AUDIO|IMAGE):\s*[^\]]+\]/i.test(content);
+
+    const mediaPatterns = [
+        /\[\<img\>(.*?)\<\/img\>\]/,
+        /\[\<audio\>(.*?)\<\/audio\>\]/,
+        /\[\<video\>(.*?)\<\/video\>\]/,
+        /\[\<br\>\]/
+    ];
+
+    return mediaPatterns.some(pattern => pattern.test(content));
 };
 
 /**

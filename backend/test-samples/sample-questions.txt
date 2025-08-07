@@ -1,0 +1,65 @@
+(DON)
+(CLO1) Tìm từ khác nghĩa với các từ còn lại
+A. Good bye		
+B. こんにちは.	
+C. 안녕하세요.	
+D. 你好.
+[<br>]
+
+(NHOM)
+[<sg>]
+Questions {<1>} – {<2>} refer to the following passage.
+Probably the most important factor governing the severity of forest fires is weather. Hot, dry weather lowers the moisture content of fuels. Once a fire has started, wind is extremely critical because it influences the oxygen supply and the rate of spread...
+[<egc>]
+(NHOM –  1) (CLO1) In this passage, the author's main purpose is to …
+A. argue
+B. <u>inform</u>
+C. persuade
+D. entertain
+[<br>]
+(NHOM – 2)(CLO1) Which of the following best describes the organization of the passage?
+A. A comparison and contrast of the factors governing forest fires is followed by a list of causes.
+B. <strong>A description of the conditions affecting forest fires is followed by a description of the causes.</strong>
+C. An analysis of factors related to forest fires is followed by an argument against the causes of fires.
+D. Several generalizations about forest fires are followed by a series of conclusions.
+[<br>]
+[</sg>]
+(KETTHUCNHOM)
+
+(DIENKHUYET)
+[<sg>]
+(CLO3) Questions {<1>} – {<5>} refer to the following passage. 
+Travelling to all corners of the world gets easier and easier. We live in a global village, but this {<1>}_____ mean that we all behave the same way. Many countries have rules about what you should and {<2>} _____ do. In Asian and Muslim countries, you shouldn't reveal your body, especially women who should wear long-sleeved blouses and skirts {<3>} _____ the knee. In Japan, you should take off your shoes when {<4>} _____ a house or a restaurant. Remember {<5>} _____ them neatly together facing the door you came in. This is also true in China, Korea and Thailand. Here are some others. 
+[<egc>] 
+(DIENKHUYET – 1)
+A. <u>doesn't</u>
+B. didn't 
+C. don't 
+D. isn't 
+[<br>] 
+(DIENKHUYET – 2)
+A. may not 
+B. <b>shouldn't</b>
+C. don't 
+D. can't 
+[<br>] 
+(DIENKHUYET –3)
+A. above 
+B. over 
+C. on 
+D. __below__
+[<br>] 
+(DIENKHUYET – 4)
+A. going 
+B. walking 
+C. <strong>entering</strong>
+D. coming 
+[<br>] 
+(DIENKHUYET – 5)
+A. placing 
+B. _to place_
+C. place 
+D. placed 
+[<br>] 
+[</sg>]
+(KETTHUCDIENKHUYET)

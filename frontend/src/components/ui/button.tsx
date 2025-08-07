@@ -2,7 +2,7 @@ import { forwardRef } from 'react'
 import { cx } from '../../utils/theme'
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'destructive' | 'text';
+  variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'destructive' | 'text' | 'default' | 'ghost' | 'link';
   size?: 'xs' | 'sm' | 'md' | 'lg';
   fullWidth?: boolean;
   loading?: boolean;
@@ -39,6 +39,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       danger: 'bg-red-600 hover:bg-red-700 text-white',
       destructive: 'bg-red-600 hover:bg-red-700 text-white',
       text: 'text-blue-600 hover:text-blue-700 hover:underline dark:text-blue-400 dark:hover:text-blue-300',
+      default: 'bg-blue-600 hover:bg-blue-700 text-white', // Same as primary for compatibility
+      ghost: 'hover:bg-gray-100 text-gray-700 dark:hover:bg-gray-800 dark:text-gray-200',
+      link: 'text-blue-600 hover:underline dark:text-blue-400 hover:text-blue-700'
     }
 
     const disabledClasses = 'opacity-50 cursor-not-allowed pointer-events-none'

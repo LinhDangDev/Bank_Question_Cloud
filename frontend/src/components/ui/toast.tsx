@@ -2,7 +2,7 @@ import React, { createContext, useState, useContext, useCallback } from 'react';
 import { useThemeStyles, cx } from '../../utils/theme';
 import { X } from 'lucide-react';
 
-type ToastVariant = 'default' | 'destructive' | 'success';
+type ToastVariant = 'default' | 'destructive' | 'success' | 'error' | 'info';
 
 interface Toast {
   id: string;
@@ -14,6 +14,9 @@ interface Toast {
 interface ToastContextValue {
   toasts: Toast[];
   toast: (props: Omit<Toast, 'id'>) => void;
+  success: (message: string, title?: string) => void;
+  error: (message: string, title?: string) => void;
+  info: (message: string, title?: string) => void;
   dismiss: (id: string) => void;
 }
 
@@ -32,12 +35,36 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, 5000);
   }, []);
 
+  const success = useCallback((message: string, title?: string) => {
+    toast({
+      title,
+      description: message,
+      variant: 'success'
+    });
+  }, [toast]);
+
+  const error = useCallback((message: string, title?: string) => {
+    toast({
+      title,
+      description: message,
+      variant: 'error'
+    });
+  }, [toast]);
+
+  const info = useCallback((message: string, title?: string) => {
+    toast({
+      title,
+      description: message,
+      variant: 'info'
+    });
+  }, [toast]);
+
   const dismiss = useCallback((id: string) => {
     setToasts((prevToasts) => prevToasts.filter((toast) => toast.id !== id));
   }, []);
 
   return (
-    <ToastContext.Provider value={{ toasts, toast, dismiss }}>
+    <ToastContext.Provider value={{ toasts, toast, success, error, info, dismiss }}>
       {children}
       <ToastContainer />
     </ToastContext.Provider>
@@ -57,7 +84,9 @@ const ToastContainer: React.FC = () => {
             "px-4 py-3 rounded-lg shadow-lg flex items-start max-w-sm w-full transition-all transform translate-y-0 opacity-100",
             styles.isDark ? "bg-gray-800 text-white" : "bg-white text-gray-800",
             toast.variant === 'destructive' && (styles.isDark ? "border-l-4 border-red-500" : "border-l-4 border-red-500"),
-            toast.variant === 'success' && (styles.isDark ? "border-l-4 border-green-500" : "border-l-4 border-green-500")
+            toast.variant === 'success' && (styles.isDark ? "border-l-4 border-green-500" : "border-l-4 border-green-500"),
+            toast.variant === 'error' && (styles.isDark ? "border-l-4 border-red-500" : "border-l-4 border-red-500"),
+            toast.variant === 'info' && (styles.isDark ? "border-l-4 border-blue-500" : "border-l-4 border-blue-500")
           )}
         >
           <div className="flex-1">

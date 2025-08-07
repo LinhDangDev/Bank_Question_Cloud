@@ -1,0 +1,29 @@
+# Docker Compose for optimized building
+# Author: Linh Dang Dev
+
+version: '3.8'
+
+services:
+  backend-build:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+      cache_from:
+        - lighthunter15723/question-bank-backend:base
+        - lighthunter15723/question-bank-backend:builder
+        - lighthunter15723/question-bank-backend:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: lighthunter15723/question-bank-backend:latest
+    container_name: question-bank-backend-build
+    
+  # Cache warming service
+  cache-warmer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: base
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: lighthunter15723/question-bank-backend:base

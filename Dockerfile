@@ -1,29 +1,33 @@
 # Multi-stage Docker build for backend only
-FROM node:18-alpine AS builder
+FROM node:18-alpine AS base
 
-# Install pnpm
-RUN npm install -g pnpm
+# Install pnpm globally and setup caching
+RUN npm install -g pnpm@latest && \
+    pnpm config set store-dir /root/.pnpm-store && \
+    pnpm config set registry https://registry.npmjs.org/
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Builder stage
+FROM base AS builder
+
+# Copy package files first for better caching
 COPY backend/package.json backend/pnpm-lock.yaml ./
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile
+# Install all dependencies with optimizations
+RUN --mount=type=cache,target=/root/.pnpm-store \
+    pnpm install --frozen-lockfile --prefer-offline
 
 # Copy backend source code
 COPY backend/ ./
 
 # Build backend for production
-RUN pnpm run build
+RUN pnpm run build && \
+    pnpm prune --prod
 
 # Production stage
-FROM node:18-alpine AS production
-
-# Install pnpm
-RUN npm install -g pnpm
+FROM base AS production
 
 # Create app directory
 WORKDIR /app
@@ -31,8 +35,9 @@ WORKDIR /app
 # Copy package files
 COPY backend/package.json backend/pnpm-lock.yaml ./
 
-# Install only production dependencies
-RUN pnpm install --frozen-lockfile --prod
+# Install only production dependencies with cache mount
+RUN --mount=type=cache,target=/root/.pnpm-store \
+    pnpm install --frozen-lockfile --prod --prefer-offline
 
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist

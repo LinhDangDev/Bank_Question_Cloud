@@ -12,6 +12,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as mime from 'mime-types';
 import { promisify } from 'util';
+// @ts-ignore
+import { createExtractorFromData } from 'node-unrar-js';
 import { v4 as uuidv4 } from 'uuid';
 import {
     ExamPackageStructure,
@@ -61,8 +63,21 @@ export class ExamPackageService {
         private readonly dataSource: DataSource
     ) { }
 
+    private detectArchiveType(fileName: string): 'zip' | 'rar' | 'unknown' {
+        const extension = fileName.toLowerCase().split('.').pop();
+        if (extension === 'zip') return 'zip';
+        if (extension === 'rar') return 'rar';
+        return 'unknown';
+    }
+
+    private async extractRarFile(filePath: string, tempDir: string): Promise<ExamPackageStructure> {
+        // TODO: Implement RAR extraction properly
+        // For now, throw an error to indicate RAR is not yet supported
+        throw new BadRequestException('RAR file extraction is not yet implemented. Please use ZIP files for now.');
+    }
+
     async processExamPackage(
-        zipFile: MulterFile,
+        archiveFile: MulterFile,
         maPhan?: string,
         options: {
             processImages?: boolean;
@@ -80,14 +95,31 @@ export class ExamPackageService {
                 fs.mkdirSync(tempDir, { recursive: true });
             }
 
-            // Extract ZIP file
-            this.logger.log(`Extracting ZIP package: ${zipFile.originalname}`);
-            const extractedStructure = await this.extractZipFile(zipFile, tempDir);
+            // Detect archive type and extract accordingly
+            const archiveType = this.detectArchiveType(archiveFile.originalname);
+            this.logger.log(`Extracting ${archiveType.toUpperCase()} package: ${archiveFile.originalname}`);
+
+            let extractedStructure: ExamPackageStructure;
+
+            if (archiveType === 'zip') {
+                extractedStructure = await this.extractZipFile(archiveFile, tempDir);
+            } else if (archiveType === 'rar') {
+                // Save RAR file to temp directory first
+                const rarFilePath = path.join(tempDir, archiveFile.originalname);
+                fs.writeFileSync(rarFilePath, archiveFile.buffer);
+                extractedStructure = await this.extractRarFile(rarFilePath, tempDir);
+            } else {
+                throw new BadRequestException('Định dạng file không được hỗ trợ. Chỉ chấp nhận file ZIP và RAR.');
+            }
 
             // Validate package structure
             this.validatePackageStructure(extractedStructure);
 
             // Parse Word document
+            if (!extractedStructure.wordDocument) {
+                throw new BadRequestException('Không tìm thấy file Word (.docx) trong gói đề thi');
+            }
+
             this.logger.log('Parsing Word document for questions');
             const { questions } = await this.docxParserService.processUploadedFile(
                 extractedStructure.wordDocument as any
@@ -218,18 +250,22 @@ export class ExamPackageService {
                             const mimeType = mime.lookup(entry.fileName) || 'application/octet-stream';
 
                             const extractedFile: ExtractedFile = {
-                                fileName: path.basename(entry.fileName),
+                                name: path.basename(entry.fileName),
+                                fileName: path.basename(entry.fileName), // Backward compatibility
                                 originalName: path.basename(entry.fileName),
-                                buffer,
+                                path: entry.fileName,
+                                size: buffer.length,
+                                data: buffer,
+                                buffer, // Backward compatibility
                                 mimeType,
-                                relativePath: entry.fileName
+                                relativePath: entry.fileName // Backward compatibility
                             };
 
                             // Categorize file
                             if (entry.fileName.endsWith('.docx')) {
                                 wordDocument = extractedFile;
                             } else if (this.isMediaFile(entry.fileName)) {
-                                const mediaFile = this.createMediaFile(extractedFile, entry.fileName);
+                                const mediaFile = this.createMediaFile(extractedFile);
                                 if (mediaFile) {
                                     mediaFiles.push(mediaFile);
                                 }
@@ -270,11 +306,15 @@ export class ExamPackageService {
             !fileName.endsWith('.docx');
     }
 
-    private createMediaFile(extractedFile: ExtractedFile, filePath: string): ExtractedMediaFile | null {
-        const fileType = this.mediaProcessingService.classifyMediaFile(
-            extractedFile.fileName,
-            extractedFile.mimeType
-        );
+    private createMediaFile(extractedFile: ExtractedFile): ExtractedMediaFile | null {
+        const fileName = extractedFile.name || extractedFile.fileName;
+        const mimeType = extractedFile.mimeType;
+
+        if (!fileName || !mimeType) {
+            return null;
+        }
+
+        const fileType = this.mediaProcessingService.classifyMediaFile(fileName, mimeType);
 
         if (!fileType) {
             return null;
@@ -282,9 +322,16 @@ export class ExamPackageService {
 
         const targetFolder = fileType === MediaFileType.AUDIO ? 'audio' : 'images';
 
+        // Map MediaFileType to string type
+        let type: 'audio' | 'image' | 'document' | 'unknown' = 'unknown';
+        if (fileType === MediaFileType.AUDIO) type = 'audio';
+        else if (fileType === MediaFileType.IMAGE) type = 'image';
+        else if (fileType === MediaFileType.DOCUMENT) type = 'document';
+
         return {
             ...extractedFile,
-            fileType,
+            type,
+            fileType, // Backward compatibility
             targetFolder
         };
     }
@@ -295,58 +342,78 @@ export class ExamPackageService {
 
         // Check for required Word document
         if (!structure.wordDocument) {
-            errors.push('ZIP package must contain a Word document (.docx)');
+            errors.push('Archive package must contain a Word document (.docx)');
         }
 
         // Validate Word document
         if (structure.wordDocument) {
-            if (structure.wordDocument.buffer.length === 0) {
+            const docData = structure.wordDocument.data || structure.wordDocument.buffer;
+            if (!docData || docData.length === 0) {
                 errors.push('Word document is empty');
             }
 
-            if (structure.wordDocument.buffer.length > 50 * 1024 * 1024) {
+            if (docData && docData.length > 50 * 1024 * 1024) {
                 errors.push('Word document exceeds maximum size of 50MB');
             }
         }
 
         // Validate media files
         for (const mediaFile of structure.mediaFiles) {
+            const fileData = mediaFile.data || mediaFile.buffer;
+            const fileName = mediaFile.name || mediaFile.fileName;
+            const mimeType = mediaFile.mimeType;
+
             // Check file size
-            if (mediaFile.buffer.length > 10 * 1024 * 1024) {
-                warnings.push(`Media file ${mediaFile.fileName} is larger than 10MB`);
+            if (fileData && fileData.length > 10 * 1024 * 1024) {
+                warnings.push(`Media file ${fileName} is larger than 10MB`);
             }
 
             // Check file type
-            if (!this.mediaProcessingService.classifyMediaFile(mediaFile.fileName, mediaFile.mimeType)) {
-                warnings.push(`Unsupported media file type: ${mediaFile.fileName}`);
+            if (fileName && mimeType && !this.mediaProcessingService.classifyMediaFile(fileName, mimeType)) {
+                warnings.push(`Unsupported media file type: ${fileName}`);
             }
 
             // Validate media file integrity
-            try {
-                this.mediaProcessingService.validateMediaFile(mediaFile.fileName, mediaFile.buffer);
-            } catch (validationError) {
-                errors.push(`Invalid media file ${mediaFile.fileName}: ${validationError.message}`);
+            if (fileName && fileData) {
+                try {
+                    this.mediaProcessingService.validateMediaFile(fileName, fileData);
+                } catch (validationError) {
+                    errors.push(`Invalid media file ${fileName}: ${validationError.message}`);
+                }
             }
         }
 
         // Check for suspicious file patterns
-        const suspiciousFiles = structure.mediaFiles.filter(file =>
-            file.fileName.includes('..') ||
-            file.fileName.startsWith('/') ||
-            file.fileName.includes('\\')
-        );
+        const suspiciousFiles = structure.mediaFiles.filter(file => {
+            const fileName = file.name || file.fileName;
+            return fileName && (
+                fileName.includes('..') ||
+                fileName.startsWith('/') ||
+                fileName.includes('\\')
+            );
+        });
 
         if (suspiciousFiles.length > 0) {
-            errors.push(`Suspicious file paths detected: ${suspiciousFiles.map(f => f.fileName).join(', ')}`);
+            const suspiciousNames = suspiciousFiles.map(f => f.name || f.fileName).filter(Boolean);
+            errors.push(`Suspicious file paths detected: ${suspiciousNames.join(', ')}`);
         }
 
         // Validate folder structure
-        const audioFiles = structure.mediaFiles.filter(f => f.relativePath.startsWith('audio/'));
-        const imageFiles = structure.mediaFiles.filter(f => f.relativePath.startsWith('images/'));
-        const otherFiles = structure.mediaFiles.filter(f =>
-            !f.relativePath.startsWith('audio/') &&
-            !f.relativePath.startsWith('images/')
-        );
+        const audioFiles = structure.mediaFiles.filter(f => {
+            const filePath = f.path || f.relativePath;
+            return filePath && filePath.startsWith('audio/');
+        });
+        const imageFiles = structure.mediaFiles.filter(f => {
+            const filePath = f.path || f.relativePath;
+            return filePath && filePath.startsWith('images/');
+        });
+        const otherFiles = structure.mediaFiles.filter(f => {
+            const filePath = f.path || f.relativePath;
+            return filePath && (
+                !filePath.startsWith('audio/') &&
+                !filePath.startsWith('images/')
+            );
+        });
 
         if (otherFiles.length > 0) {
             warnings.push(`Media files found outside audio/ and images/ folders: ${otherFiles.map(f => f.fileName).join(', ')}`);
@@ -451,8 +518,22 @@ export class ExamPackageService {
                 for (const mediaFile of questionMediaFiles) {
                     const fileEntity = new Files();
                     fileEntity.MaCauHoi = savedQuestion.MaCauHoi;
-                    fileEntity.TenFile = mediaFile.spacesKey || mediaFile.fileName;
-                    fileEntity.LoaiFile = mediaFile.fileType;
+
+                    // Handle file name
+                    const fileName = mediaFile.spacesKey || mediaFile.fileName || mediaFile.name;
+                    if (!fileName) continue;
+                    fileEntity.TenFile = fileName;
+
+                    // Handle file type
+                    let fileType = 0;
+                    if (mediaFile.fileType) {
+                        fileType = mediaFile.fileType;
+                    } else if (mediaFile.type) {
+                        fileType = mediaFile.type === 'audio' ? 1 :
+                            mediaFile.type === 'image' ? 2 :
+                                mediaFile.type === 'document' ? 3 : 0;
+                    }
+                    fileEntity.LoaiFile = fileType;
 
                     await queryRunner.manager.save(Files, fileEntity);
                 }

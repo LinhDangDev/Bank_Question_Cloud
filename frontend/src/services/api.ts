@@ -238,11 +238,21 @@ export const deThiApi = {
     },
     disapproveDeThi: (id: string) => {
         return api.post(`/de-thi/${id}/huy-duyet`);
+    },
+    // New endpoints for managing questions in an exam
+    addQuestionsToExam: (examId: string, questions: Array<{ MaDeThi: string, MaCauHoi: string, MaPhan: string, ThuTu: number }>) => {
+        return api.post(`/chi-tiet-de-thi/batch`, questions);
+    },
+    removeQuestionFromExam: (examId: string, questionId: string) => {
+        return api.delete(`/chi-tiet-de-thi/de-thi/${examId}/cau-hoi/${questionId}`);
+    },
+    updateExamQuestionOrder: (examId: string, questions: Array<{ MaDeThi: string, MaCauHoi: string, MaPhan: string, ThuTu: number }>) => {
+        return api.patch(`/chi-tiet-de-thi/update-order`, questions);
     }
 };
 
 // Question API
-export const questionApi = {
+export const cauHoiApi = {
     getAll: () => {
         return api.get('/cau-hoi');
     },
@@ -258,14 +268,14 @@ export const questionApi = {
     getByChapter: (chapterId: string) => {
         return api.get(`/cau-hoi/phan/${chapterId}`);
     },
-    getByChapterWithAnswers: (chapterId: string) => {
-        return api.get(`/cau-hoi/phan/${chapterId}/with-answers`);
+    getByChapterWithAnswers: (chapterId: string, limit: number = 1000, page: number = 1) => {
+        return api.get(`/cau-hoi/phan/${chapterId}/with-answers?limit=${limit}&page=${page}`);
+    },
+    getChildQuestions: (parentQuestionId: string) => {
+        return api.get(`/cau-hoi/con/${parentQuestionId}`);
     },
     getWithAnswers: (id: string) => {
         return api.get(`/cau-hoi/${id}/with-answers`);
-    },
-    getChildQuestions: (parentId: string) => {
-        return api.get(`/cau-hoi/con/${parentId}`);
     },
     getGroupQuestion: (id: string) => {
         return api.get(`/cau-hoi/group/${id}`);
@@ -297,6 +307,27 @@ export const questionApi = {
     restore: (id: string) => {
         return api.patch(`/cau-hoi/${id}/restore`);
     },
+    // Add search function
+    searchQuestions: (params: {
+        searchTerm?: string;
+        pageNumber?: number;
+        pageSize?: number;
+        maPhan?: string;
+        maMonHoc?: string;
+        maCLO?: string;
+        type?: string;
+    }) => {
+        const queryString = new URLSearchParams();
+        if (params.searchTerm) queryString.append('searchTerm', params.searchTerm);
+        if (params.pageNumber) queryString.append('pageNumber', params.pageNumber.toString());
+        if (params.pageSize) queryString.append('pageSize', params.pageSize.toString());
+        if (params.maPhan) queryString.append('maPhan', params.maPhan);
+        if (params.maMonHoc) queryString.append('maMonHoc', params.maMonHoc);
+        if (params.maCLO) queryString.append('maCLO', params.maCLO);
+        if (params.type) queryString.append('type', params.type);
+
+        return api.get(`/cau-hoi/search?${queryString.toString()}`);
+    }
 };
 
 // Exam API
@@ -367,6 +398,27 @@ export const examApi = {
             }
         });
     },
+};
+
+// Exam Word Export API
+export const examWordExportApi = {
+    getDefaultOptions: (examId: string) => {
+        return api.get(`/exam-word-export/${examId}/default-options`);
+    },
+    previewExam: (examId: string) => {
+        return api.get(`/exam-word-export/${examId}/preview`);
+    },
+    exportToWord: (examId: string, options: any) => {
+        return api.post(`/exam-word-export/${examId}/export`, options, {
+            responseType: 'blob',
+            headers: {
+                'Accept': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            }
+        });
+    },
+    getTemplates: () => {
+        return api.get('/exam-word-export/templates');
+    }
 };
 
 // File upload API

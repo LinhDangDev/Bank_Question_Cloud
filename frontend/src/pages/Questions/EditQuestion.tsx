@@ -13,7 +13,7 @@ import GroupQuestion from './GroupQuestion';
 import { ChevronLeft, AlertTriangle, Sigma } from 'lucide-react';
 import { API_BASE_URL } from '@/config';
 import { MathRenderer } from '@/components/MathRenderer';
-import { questionApi, monHocApi, phanApi, khoaApi, cloApi } from '@/services/api';
+import { cauHoiApi, monHocApi, phanApi, khoaApi, cloApi } from '@/services/api';
 
 // Add interface definitions for the props of each question component
 interface LatexProps {
@@ -150,7 +150,7 @@ const EditQuestion = () => {
       setLoading(true);
 
       // Use questionApi instead of direct fetch
-      questionApi.getFullDetails(id)
+      cauHoiApi.getFullDetails(id)
         .then(async (response) => {
           if (!response.data) throw new Error('Không tìm thấy câu hỏi!');
 
@@ -231,7 +231,7 @@ const EditQuestion = () => {
   useEffect(() => {
     if (parentId) {
       setLoadingParent(true);
-      questionApi.getById(parentId)
+      cauHoiApi.getById(parentId)
         .then(response => {
           if (response.data) {
             setParentQuestion(response.data);

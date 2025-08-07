@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useThemeStyles, cx } from '../../utils/theme';
+import { createTinyMCEConfig, TINYMCE_API_KEY } from '../../utils/tinymce-config';
 import { Info, CheckCircle, Plus, Trash2, Save, ArrowLeft } from 'lucide-react';
 import { Editor } from '@tinymce/tinymce-react';
 
@@ -61,29 +62,10 @@ const MultiChoiceQuestion = () => {
             </label>
             <div className="rounded-xl border border-blue-200 bg-white p-1.5 shadow-sm">
               <EditorAny
-                apiKey="6gjaodohdncfz36azjc7q49f26yrhh881rljxqshfack7cax"
+                apiKey={TINYMCE_API_KEY}
                 value={content}
                 onEditorChange={setContent}
-                init={{
-                  height: 120,
-                  menubar: false,
-                  plugins: [
-                    'advlist autolink lists link image charmap preview anchor',
-                    'searchreplace visualblocks code fullscreen',
-                    'insertdatetime media table code help wordcount',
-                    'mathjax',
-                    'table',
-                    'media',
-                    'codesample',
-                  ],
-                  toolbar:
-                    'bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | fontselect fontsizeselect formatselect | forecolor backcolor removeformat | subscript superscript | link image media table codesample blockquote | mathjax',
-                  mathjax: {
-                    lib: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js',
-                  },
-                  content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }',
-                  toolbar_mode: 'sliding',
-                }}
+                init={createTinyMCEConfig(120, false)}
               />
             </div>
           </div>

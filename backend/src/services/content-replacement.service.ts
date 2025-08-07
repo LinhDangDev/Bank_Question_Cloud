@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { 
-    MediaReference, 
-    ExtractedMediaFile, 
-    ProcessedQuestion 
+import {
+    MediaReference,
+    ExtractedMediaFile,
+    ProcessedQuestion
 } from '../interfaces/exam-package.interface';
 
 @Injectable()
@@ -10,7 +10,7 @@ export class ContentReplacementService {
     private readonly logger = new Logger(ContentReplacementService.name);
 
     replaceMediaPaths(
-        content: string, 
+        content: string,
         uploadedMediaFiles: ExtractedMediaFile[]
     ): { processedContent: string; mediaReferences: MediaReference[] } {
         let processedContent = content;
@@ -18,13 +18,13 @@ export class ContentReplacementService {
 
         for (const mediaFile of uploadedMediaFiles) {
             const references = this.findAndReplaceMediaReferences(
-                processedContent, 
+                processedContent,
                 mediaFile
             );
 
             for (const reference of references) {
                 processedContent = processedContent.replace(
-                    reference.tagContent, 
+                    reference.tagContent,
                     reference.replacementTag
                 );
                 mediaReferences.push(reference);
@@ -35,12 +35,17 @@ export class ContentReplacementService {
     }
 
     private findAndReplaceMediaReferences(
-        content: string, 
+        content: string,
         mediaFile: ExtractedMediaFile
     ): MediaReference[] {
         const references: MediaReference[] = [];
-        const fileName = mediaFile.originalName;
+        const fileName = mediaFile.name || mediaFile.originalName || mediaFile.fileName;
         const uploadedUrl = mediaFile.uploadedUrl;
+
+        if (!fileName) {
+            this.logger.warn('Media file has no valid fileName');
+            return references;
+        }
 
         if (!uploadedUrl) {
             this.logger.warn(`No uploaded URL found for media file: ${fileName}`);
@@ -59,8 +64,8 @@ export class ContentReplacementService {
     }
 
     private replaceAudioReferences(
-        content: string, 
-        fileName: string, 
+        content: string,
+        fileName: string,
         uploadedUrl: string
     ): MediaReference[] {
         const references: MediaReference[] = [];
@@ -77,7 +82,7 @@ export class ContentReplacementService {
             if (matches) {
                 for (const match of matches) {
                     const replacementTag = `<audio src="${uploadedUrl}" controls></audio>`;
-                    
+
                     references.push({
                         type: 'audio',
                         originalPath: `./audio/${fileName}`,
@@ -96,8 +101,8 @@ export class ContentReplacementService {
     }
 
     private replaceImageReferences(
-        content: string, 
-        fileName: string, 
+        content: string,
+        fileName: string,
         uploadedUrl: string
     ): MediaReference[] {
         const references: MediaReference[] = [];
@@ -119,7 +124,7 @@ export class ContentReplacementService {
             if (matches) {
                 for (const match of matches) {
                     const replacementTag = `<img src="${uploadedUrl}" style="max-width: 400px; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">`;
-                    
+
                     references.push({
                         type: 'image',
                         originalPath: `./images/${originalFileName}`,
@@ -138,7 +143,7 @@ export class ContentReplacementService {
     }
 
     processQuestionContent(
-        questions: any[], 
+        questions: any[],
         uploadedMediaFiles: ExtractedMediaFile[]
     ): ProcessedQuestion[] {
         const processedQuestions: ProcessedQuestion[] = [];
@@ -146,7 +151,7 @@ export class ContentReplacementService {
         for (const question of questions) {
             const originalContent = question.content || '';
             const { processedContent, mediaReferences } = this.replaceMediaPaths(
-                originalContent, 
+                originalContent,
                 uploadedMediaFiles
             );
 
@@ -166,9 +171,9 @@ export class ContentReplacementService {
         return processedQuestions;
     }
 
-    validateMediaReferences(content: string): { 
-        hasUnreplacedReferences: boolean; 
-        unreplacedReferences: string[] 
+    validateMediaReferences(content: string): {
+        hasUnreplacedReferences: boolean;
+        unreplacedReferences: string[]
     } {
         const unreplacedReferences: string[] = [];
 

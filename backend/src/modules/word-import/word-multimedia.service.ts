@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Files } from '../../entities/files.entity';
 import { SpacesService } from '../../services/spaces.service';
+import { FileType, getFileTypeFromExtension, getFolderByFileType } from '../../enums/file-type.enum';
 import * as AdmZip from 'adm-zip';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,7 +13,7 @@ export interface ExtractedMedia {
     originalName: string;
     buffer: Buffer;
     mimeType: string;
-    fileType: number; // 1=audio, 2=image, 3=document, 4=video
+    fileType: FileType;
     spacesKey?: string;
     uploadedUrl?: string;
 }
@@ -242,33 +243,17 @@ export class WordMultimediaService {
     }
 
     /**
-     * Get file type number từ extension
+     * Get file type từ extension
      */
-    private getFileType(ext: string): number {
-        const audioExts = ['.mp3', '.wav', '.m4a', '.ogg'];
-        const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
-        const videoExts = ['.mp4', '.avi', '.mov', '.wmv'];
-        const docExts = ['.pdf', '.doc', '.docx'];
-
-        if (audioExts.includes(ext)) return 1; // Audio
-        if (imageExts.includes(ext)) return 2; // Image
-        if (docExts.includes(ext)) return 3;   // Document
-        if (videoExts.includes(ext)) return 4; // Video
-
-        return 0; // Other
+    private getFileType(ext: string): FileType {
+        return getFileTypeFromExtension(ext);
     }
 
     /**
      * Get folder name theo file type
      */
-    private getFolderByType(fileType: number): string {
-        switch (fileType) {
-            case 1: return 'audio';
-            case 2: return 'images';
-            case 3: return 'documents';
-            case 4: return 'videos';
-            default: return 'files';
-        }
+    private getFolderByType(fileType: FileType): string {
+        return getFolderByFileType(fileType);
     }
 
     /**

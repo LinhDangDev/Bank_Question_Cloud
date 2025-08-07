@@ -11,6 +11,7 @@ import * as Docxtemplater from 'docxtemplater';
 import { DocxTemplateService } from '../../services/docx-template.service';
 import { PdfService } from '../../services/pdf.service';
 import { StorageService } from '../../services/storage.service';
+import { FileType, getFileTypeFromExtension } from '../../enums/file-type.enum';
 
 // Define the file type for Express.Multer.File since it's not recognized
 interface MulterFile {
@@ -62,6 +63,9 @@ export class FilesService {
         // Save file metadata to the database
         const fileEntity = new Files();
         fileEntity.MaFile = randomUUID();
+        fileEntity.TenFile = filePath;
+        fileEntity.LoaiFile = this.getFileType(fileExtension || '');
+        // KichThuocFile has been removed from the entity
 
         // Use type assertion to handle potential null values
         if (maCauHoi) {
@@ -72,21 +76,27 @@ export class FilesService {
             fileEntity.MaCauTraLoi = maCauTraLoi;
         }
 
-        fileEntity.TenFile = filePath;
-        fileEntity.LoaiFile = this.getFileType(fileExtension || '');
+        const savedFile = await this.filesRepository.save(fileEntity);
 
-        return this.filesRepository.save(fileEntity);
+        // Return the saved entity with additional metadata as non-persistent properties
+        return {
+            ...savedFile,
+            mimetype: file.mimetype,
+            originalFilename: file.originalname
+        } as any;
     }
 
     async findByCauHoi(maCauHoi: string): Promise<Files[]> {
         return this.filesRepository.find({
-            where: { MaCauHoi: maCauHoi }
+            where: { MaCauHoi: maCauHoi },
+            select: ['MaFile', 'TenFile', 'LoaiFile', 'MaCauHoi', 'MaCauTraLoi']
         });
     }
 
     async findByCauTraLoi(maCauTraLoi: string): Promise<Files[]> {
         return this.filesRepository.find({
-            where: { MaCauTraLoi: maCauTraLoi }
+            where: { MaCauTraLoi: maCauTraLoi },
+            select: ['MaFile', 'TenFile', 'LoaiFile', 'MaCauHoi', 'MaCauTraLoi']
         });
     }
 
@@ -95,16 +105,8 @@ export class FilesService {
     }
 
     // Helper method to determine file type
-    private getFileType(extension: string): number {
-        const audioExtensions = ['mp3', 'wav', 'ogg', 'm4a'];
-        const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp'];
-
-        if (audioExtensions.includes(extension.toLowerCase())) {
-            return 1; // Audio file
-        } else if (imageExtensions.includes(extension.toLowerCase())) {
-            return 2; // Image file
-        }
-        return 0; // Other file type
+    private getFileType(extension: string): FileType {
+        return getFileTypeFromExtension(extension.startsWith('.') ? extension : `.${extension}`);
     }
 
     async generatePdfFromContent(title: string, content: string, showAnswers: boolean = false): Promise<string> {

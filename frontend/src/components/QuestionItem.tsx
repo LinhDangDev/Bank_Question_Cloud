@@ -1,275 +1,344 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
-import { MathRenderer } from './MathRenderer';
-import { getCloColor, getDifficultyColor, getDifficultyText } from '../utils/theme';
-import LazyMediaPlayer from './LazyMediaPlayer';
-import { formatChildQuestionContent, formatParentQuestionContent, cleanContent } from '../utils/latex';
-import { convertMediaMarkupToHtml, hasMediaMarkup } from '../utils/mediaMarkup';
-import { processMediaContent, detectMediaFormat } from '../utils/mediaContentProcessor';
+import { Card, CardHeader, CardContent } from '@/components/ui/Card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroupItem } from '@/components/ui/radio-group';
+import MathRenderer from '@/components/MathRenderer';
+import MediaPlayer from '@/components/MediaPlayer';
+import { Image, FileText, Music, Video } from 'lucide-react';
+import * as mediaMarkupUtils from '@/utils/mediaMarkup';
+import { toast } from 'sonner';
 
-export interface Answer {
-  id: string;
-  content: string;
-  isCorrect: boolean;
-  order: number;
-}
+type QuestionItemProps = {
+  question: any;
+  isSelected?: boolean;
+  onSelect?: (question: any) => void;
+  showAnswers?: boolean;
+  isPreview?: boolean;
+  onEdit?: (question: any) => void;
+};
 
-export interface Question {
-  id: string;
-  content: string;
-  clo?: string | null;
-  type: 'single-choice' | 'multi-choice' | 'fill-blank' | 'group';
-  answers: Answer[];
-  childQuestions?: Question[];
-  groupContent?: string;
-  capDo?: number;
-}
-
-interface QuestionItemProps {
-  question: Question;
-  index: number;
-  selected?: boolean;
-  onSelect?: (questionId: string, selected: boolean) => void;
-}
-
-export const QuestionItem: React.FC<QuestionItemProps> = ({
-  question,
-  index,
-  selected = false,
-  onSelect,
-}) => {
-  const [expanded, setExpanded] = useState(false);
-
-  // Render content with LaTeX and media (supports both HTML tags and markup)
-  const renderContent = (content: string, isChildQuestion = false, questionNumber = 0) => {
-    let processedContent = content;
-
-    // Detect media format and check if content has any media
-    const mediaFormat = detectMediaFormat(content);
-    const hasMedia = mediaFormat.formatType !== 'none';
-
-    // Check if content has [<br>] tags that need HTML rendering
-    const hasBrTags = content.includes('[<br>]');
-
-    if (hasMedia || hasBrTags) {
-      // Process media content (handles both HTML tags and markup)
-      processedContent = processMediaContent(processedContent);
-
-      // Then apply LaTeX formatting
-      if (isChildQuestion) {
-        processedContent = formatChildQuestionContent(processedContent, questionNumber);
-      } else if (question.isGroup) {
-        processedContent = formatParentQuestionContent(processedContent);
-      } else {
-        processedContent = cleanContent(processedContent);
-      }
-
-      // Render HTML directly for media content or content with br tags
-      return (
-        <div
-          className="question-content prose prose-sm max-w-none"
-          dangerouslySetInnerHTML={{ __html: processedContent }}
-        />
-      );
-    } else {
-      // For content without media or br tags, use MathRenderer as before
-      if (isChildQuestion) {
-        processedContent = formatChildQuestionContent(processedContent, questionNumber);
-      } else if (question.isGroup) {
-        processedContent = formatParentQuestionContent(processedContent);
-      } else {
-        processedContent = cleanContent(processedContent);
-      }
-
-      return <MathRenderer content={processedContent} />;
-    }
-  };
-
-  // Function to preprocess content for better LaTeX rendering
-  const preprocessLatex = (content: string): string => {
-    if (!content) return '';
-
-    // Replace LaTeX expressions with proper markdown math format
-    let result = content;
-
-    // Convert $...$ to markdown math inline format
-    result = result.replace(/\$([^$]+)\$/g, '$$$1$$');
-
-    // Convert \(...\) to markdown math inline format
-    result = result.replace(/\\\(([^)]+)\\\)/g, '$$$1$$');
-
-    // Convert \[...\] or $$...$$ to markdown math block format
-    result = result.replace(/\\\[([^]]+)\\\]/g, '$$$$1$$$$');
-    result = result.replace(/\$\$([^$]+)\$\$/g, '$$$$1$$$$');
-
-    // Handle specific LaTeX commands that might need special handling
-    result = result.replace(/\\forall/g, '$\\forall$');
-    result = result.replace(/\\exists/g, '$\\exists$');
-    result = result.replace(/\\in/g, '$\\in$');
-    result = result.replace(/\\subset/g, '$\\subset$');
-    result = result.replace(/\\cup/g, '$\\cup$');
-    result = result.replace(/\\cap/g, '$\\cap$');
-    result = result.replace(/\\rightarrow/g, '$\\rightarrow$');
-    result = result.replace(/\\Rightarrow/g, '$\\Rightarrow$');
-
-    return result;
-  };
-
-  // Render a single answer
-  const renderAnswer = (answer: Answer, idx: number) => {
-    return (
-      <div
-        key={answer.id}
-        className={`flex items-center p-2 rounded-md ${
-          answer.isCorrect
-            ? 'bg-green-50 border border-green-300'
-            : 'bg-gray-50 border border-gray-200'
-        }`}
-      >
-        <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium mr-2 ${
-          answer.isCorrect
-            ? 'bg-green-100 text-green-700'
-            : 'bg-gray-200 text-gray-700'
-        }`}>
-          {String.fromCharCode(65 + idx)}
-        </div>
-        <div className="flex-1 min-w-0">
-          {renderContent(answer.content)}
-        </div>
-        {answer.isCorrect && (
-          <div className="flex-shrink-0 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded ml-2 font-medium">
-            Đáp án
-          </div>
-        )}
-      </div>
-    );
-  };
-
-
-
+// Tạo component Tooltip đơn giản vì không có trong UI components
+const Tooltip = ({ children, content }: { children: React.ReactNode, content: string }) => {
   return (
-    <div className="border rounded-lg overflow-hidden shadow-sm bg-white mb-4">
-      {/* Question header */}
-      <div className="flex items-center gap-2 p-2 bg-gray-50 border-b">
-        <div className="flex items-center gap-2 flex-1">
-          {onSelect && (
-            <input
-              type="checkbox"
-              className="h-4 w-4"
-              checked={selected}
-              onChange={(e) => onSelect(question.id, e.target.checked)}
-            />
-          )}
-          <div className="text-sm font-medium text-gray-700">#{index + 1}</div>
-          {question.clo && (
-            <span className={`${getCloColor(question.clo)} text-xs rounded px-2 py-0.5`}>
-              {question.clo}
-            </span>
-          )}
-          <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-            question.type === 'fill-blank'
-              ? 'bg-blue-100 text-blue-700'
-              : question.type === 'multi-choice'
-                ? 'bg-yellow-100 text-yellow-700'
-                : question.type === 'group'
-                  ? 'bg-purple-100 text-purple-700'
-                  : 'bg-green-100 text-green-700'
-          }`}>
-            {question.type === 'fill-blank'
-              ? 'Điền khuyết'
-              : question.type === 'multi-choice'
-                ? 'Nhiều lựa chọn'
-                : question.type === 'group'
-                  ? 'Câu hỏi nhóm'
-                  : 'Đơn lựa chọn'}
-          </span>
-          {question.capDo && (
-            <span className={`${getDifficultyColor(question.capDo)} text-xs rounded px-2 py-0.5`}>
-              {getDifficultyText(question.capDo)}
-            </span>
-          )}
-        </div>
-        </div>
-
-      {/* Question content */}
-      <div className="p-4">
-        {/* Multimedia content */}
-        <div className="mb-3">
-          <LazyMediaPlayer maCauHoi={question.id} showFileName={false} />
-        </div>
-
-        {/* For non-group questions - show content directly */}
-        {question.type !== 'group' && (
-          <div className="mb-3 text-gray-800">
-            {renderContent(question.content)}
-          </div>
-        )}
-
-        {/* For group questions */}
-        {question.type === 'group' && (
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-            {/* Group question content */}
-            <div className="mb-4">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                <span className="text-sm font-semibold text-purple-700">Nội dung đầy đủ</span>
-              </div>
-              <div className="bg-white p-3 rounded border">
-                {renderContent(question.content)}
-              </div>
-            </div>
-
-            {/* Child questions section */}
-            {question.childQuestions && question.childQuestions.length > 0 && (
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <span className="text-sm font-semibold text-blue-700">
-                    Các câu hỏi con ({question.childQuestions.length} câu)
-                  </span>
-                </div>
-
-                <div className="space-y-3">
-                  {question.childQuestions.map((childQuestion, idx) => (
-                    <div key={childQuestion.id} className="bg-white border border-gray-200 rounded-lg p-3">
-                      {/* Child question header */}
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-sm font-medium">
-                          Câu {idx + 1}
-                        </div>
-                        {childQuestion.clo && (
-                          <span className={`${getCloColor(childQuestion.clo)} text-xs rounded px-2 py-0.5`}>
-                            {childQuestion.clo}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Child question content */}
-                      <div className="mb-3 text-gray-800">
-                        {renderContent(childQuestion.content, true, idx + 1)}
-                      </div>
-
-                      {/* Child question answers */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {childQuestion.answers.map((answer, ansIdx) => renderAnswer(answer, ansIdx))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* For non-group questions */}
-        {question.type !== 'group' && question.answers && question.answers.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {question.answers.map((answer, idx) => renderAnswer(answer, idx))}
-          </div>
-        )}
+    <div className="relative group">
+      {children}
+      <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs rounded p-1">
+        {content}
       </div>
     </div>
   );
 };
 
-export default QuestionItem;
+export default function QuestionItem({
+  question,
+  isSelected = false,
+  onSelect,
+  showAnswers = true, // Always show answers
+  isPreview = false,
+  onEdit
+}: QuestionItemProps) {
+  const [expandedChildQuestions, setExpandedChildQuestions] = useState<{ [key: string]: boolean }>({});
+
+  // Format the content to handle LaTeX expressions
+  const renderContent = (content: string) => {
+    // First process media markup
+    const processedContent = mediaMarkupUtils.processMediaMarkup ?
+      mediaMarkupUtils.processMediaMarkup(content) : content;
+
+    // Check if content contains LaTeX
+    if (question.has_latex || content.match(/\$|\\\(|\\\[|\\begin\{|\\frac|\\sqrt/)) {
+      return <MathRenderer content={processedContent} />;
+    }
+
+    // Process chemical formulas
+    if (content.match(/\\ce\{|H_\d+O|(H|C|O|N|P|S|Cl|Na|K|Ca|Fe|Mg)_\d+|\d+(H|C|O|N|P|S|Cl|Na|K|Ca|Fe|Mg)|CH_\d+|C\dH\d+/)) {
+      return <MathRenderer content={processedContent} />;
+    }
+
+    // Handle fill-in-blank questions by highlighting the blanks
+    if (question.type === 'fill-in-blank' || content.match(/_{2,}|\.{3,}|\(\s*\.\.\.\s*\)|\[\s*\.\.\.\s*\]|\<\s*\.\.\.\s*\>|\(\s*\_+\s*\)|\[\s*\_+\s*\]|\<\s*\_+\s*\>|\(\s*blank\s*\)|\[\s*blank\s*\]|\<\s*blank\s*\>|\(\s*điền\s*\)|\[\s*điền\s*\]|\<\s*điền\s*\>/i)) {
+      return (
+        <div
+          dangerouslySetInnerHTML={{
+            __html: processedContent
+              .replace(/_{2,}/g, '<span class="blank-space">_____</span>')
+              .replace(/\.{3,}/g, '<span class="blank-space">_____</span>')
+              .replace(/\(\s*\.\.\.\s*\)/g, '<span class="blank-space">(___)</span>')
+              .replace(/\[\s*\.\.\.\s*\]/g, '<span class="blank-space">[___]</span>')
+              .replace(/\<\s*\.\.\.\s*\>/g, '<span class="blank-space">&lt;___&gt;</span>')
+              .replace(/\(\s*\_+\s*\)/g, '<span class="blank-space">(___)</span>')
+              .replace(/\[\s*\_+\s*\]/g, '<span class="blank-space">[___]</span>')
+              .replace(/\<\s*\_+\s*\>/g, '<span class="blank-space">&lt;___&gt;</span>')
+              .replace(/\(\s*blank\s*\)/gi, '<span class="blank-space">(___)</span>')
+              .replace(/\[\s*blank\s*\)/gi, '<span class="blank-space">[___]</span>')
+              .replace(/\<\s*blank\s*\>/gi, '<span class="blank-space">&lt;___&gt;</span>')
+              .replace(/\(\s*điền\s*\)/gi, '<span class="blank-space">(điền)</span>')
+              .replace(/\[\s*điền\s*\]/gi, '<span class="blank-space">[điền]</span>')
+              .replace(/\<\s*điền\s*\>/gi, '<span class="blank-space">&lt;điền&gt;</span>')
+          }}
+          className="fill-in-blank-content"
+        />
+      );
+    }
+
+    // Default rendering
+    return <div dangerouslySetInnerHTML={{ __html: processedContent }} />;
+  };
+
+  const toggleChildQuestion = (id: string) => {
+    setExpandedChildQuestions(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
+  const handleEditClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    toast.info("Tính năng đang phát triển", {
+      description: "Chức năng chỉnh sửa câu hỏi đang được hoàn thiện.",
+      duration: 3000,
+    });
+  };
+
+  // Render any media files attached to the question
+  const renderMediaFiles = (files: any[]) => {
+    if (!files || files.length === 0) return null;
+
+    return (
+      <div className="media-files mt-4">
+        <h4 className="text-sm font-medium mb-2">Tài liệu đính kèm:</h4>
+        <div className="flex flex-wrap gap-2">
+          {files.map((file, index) => {
+            // Determine file type and render appropriate component
+            if (file.fileType === 1) { // Audio
+              return <MediaPlayer key={file.id} file={file} type="audio" />;
+            } else if (file.fileType === 2) { // Image
+              return (
+                <div key={file.id} className="image-container w-full max-w-md">
+                  <img
+                    src={file.cdnUrl || file.spacesUrl}
+                    alt={`Image ${index + 1}`}
+                    className="rounded border border-gray-200 max-h-64 object-contain"
+                  />
+                </div>
+              );
+            } else if (file.fileType === 4) { // Video
+              return <MediaPlayer key={file.id} file={file} type="video" />;
+            } else {
+              // Other file types
+              return (
+                <a
+                  key={file.id}
+                  href={file.cdnUrl || file.spacesUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="file-link flex items-center gap-1 p-2 bg-gray-100 rounded text-sm"
+                >
+                  <FileText /> {file.originalName || file.fileName}
+                </a>
+              );
+            }
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // Render file type indicators
+  const renderFileTypeIndicators = (files: any[]) => {
+    if (!files || files.length === 0) return null;
+
+    const fileTypes = {
+      image: files.some(f => f.fileType === 2),
+      audio: files.some(f => f.fileType === 1),
+      video: files.some(f => f.fileType === 4),
+      document: files.some(f => f.fileType === 3)
+    };
+
+    return (
+      <div className="file-indicators flex gap-1 mt-2">
+        {fileTypes.image && (
+          <Tooltip content="Có hình ảnh">
+            <Badge variant="outline"><Image size={14} /></Badge>
+          </Tooltip>
+        )}
+        {fileTypes.audio && (
+          <Tooltip content="Có âm thanh">
+            <Badge variant="outline"><Music size={14} /></Badge>
+          </Tooltip>
+        )}
+        {fileTypes.video && (
+          <Tooltip content="Có video">
+            <Badge variant="outline"><Video size={14} /></Badge>
+          </Tooltip>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <Card
+      className={`mb-4 overflow-hidden ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
+      onClick={() => onSelect && onSelect(question)}
+    >
+      <CardHeader className="flex flex-wrap justify-between items-start gap-2 pb-2 border-b">
+        <div className="flex items-center gap-2">
+          {onSelect && (
+            isPreview ? (
+              <RadioGroupItem
+                value={question.MaCauHoi?.toString() || ''}
+                checked={isSelected}
+                onClick={() => onSelect(question)}
+              />
+            ) : (
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={() => onSelect(question)}
+              />
+            )
+          )}
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-base">
+                Câu {question.questionNumber || ''}
+              </span>
+
+              {question.type === 'group' && (
+                <Badge variant="outline">Câu hỏi nhóm</Badge>
+              )}
+
+              {question.type === 'fill-in-blank' && (
+                <Badge variant="outline">Điền khuyết</Badge>
+              )}
+
+              {question.has_latex && (
+                <Badge variant="outline">LaTeX</Badge>
+              )}
+
+              {renderFileTypeIndicators(question.files)}
+            </div>
+
+            {question.clo && (
+              <div className="text-sm mt-1">
+                CLO: {question.clo}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Hide edit buttons
+        <div className="flex gap-2">
+          {onEdit && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(question);
+              }}
+            >
+              Chỉnh sửa
+            </Button>
+          )}
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="bg-gray-50 hover:bg-gray-100"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleShowAnswers();
+            }}
+          >
+            {showAllAnswers ? 'Ẩn đáp án' : 'Hiển đáp án'}
+          </Button>
+        </div>
+        */}
+      </CardHeader>
+
+      <CardContent className="pt-4">
+        <div className="question-content">
+          {renderContent(question.content)}
+        </div>
+
+        {renderMediaFiles(question.files)}
+
+        {question.answers && question.answers.length > 0 && (
+          <div className="answers-container mt-4">
+            <div className="grid gap-2">
+              {question.answers.map((answer: any, index: number) => (
+                <div
+                  key={answer.id || index}
+                  className={`p-2 rounded ${answer.isCorrect ? 'bg-green-50 border-l-4 border-green-500' : 'bg-gray-50'}`}
+                >
+                  <div className="flex items-start gap-2">
+                    <span className="font-medium min-w-[24px]">{String.fromCharCode(65 + index)}.</span>
+                    <div className="w-full">{renderContent(answer.content)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {question.type === 'group' && question.childQuestions && question.childQuestions.length > 0 && (
+          <div className="child-questions mt-4 border-t pt-4">
+            <h3 className="font-medium mb-2">Câu hỏi con ({question.childQuestions.length})</h3>
+
+            {question.childQuestions.map((child: any) => (
+              <div key={child.id} className="child-question border-l-2 pl-3 py-2 mb-3">
+                <div
+                  className="flex justify-between cursor-pointer"
+                  onClick={() => toggleChildQuestion(child.id)}
+                >
+                  <h4 className="font-medium">
+                    {question.questionNumber}.{child.questionNumber || ''}
+                    {child.type === 'fill-in-blank' && (
+                      <Badge variant="outline" className="ml-2">Điền khuyết</Badge>
+                    )}
+                    {child.has_latex && (
+                      <Badge variant="outline" className="ml-2">LaTeX</Badge>
+                    )}
+                  </h4>
+                  <Button size="sm" variant="outline">
+                    {expandedChildQuestions[child.id] ? 'Thu gọn' : 'Mở rộng'}
+                  </Button>
+                </div>
+
+                {(expandedChildQuestions[child.id] || isPreview) && (
+                  <div className="mt-2">
+                    <div className="question-content">
+                      {renderContent(child.content)}
+                    </div>
+
+                    {renderMediaFiles(child.files)}
+
+                    {child.answers && child.answers.length > 0 && (
+                      <div className="answers-container mt-2">
+                        <div className="grid gap-2">
+                          {child.answers.map((answer: any, index: number) => (
+                            <div
+                              key={answer.id || index}
+                              className={`p-2 rounded ${answer.isCorrect ? 'bg-green-50 border-l-4 border-green-500' : 'bg-gray-50'}`}
+                            >
+                              <div className="flex items-start gap-2">
+                                <span className="font-medium min-w-[24px]">{String.fromCharCode(65 + index)}.</span>
+                                <div className="w-full">{renderContent(answer.content)}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

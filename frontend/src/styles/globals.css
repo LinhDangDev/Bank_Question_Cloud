@@ -74,3 +74,77 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Đánh dấu chỗ điền khuyết */
+.blank-space {
+  display: inline-block;
+  min-width: 60px;
+  padding: 0 4px;
+  margin: 0 2px;
+  border-bottom: 2px solid #4b5563;
+  text-align: center;
+  color: #6b7280;
+  background-color: #f3f4f6;
+  border-radius: 2px;
+}
+
+/* CSS cho câu hỏi có LaTeX */
+.math-renderer {
+  overflow-x: auto;
+  max-width: 100%;
+  line-height: 1.6;
+}
+
+.math-renderer .katex-display {
+  margin: 1em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* CSS riêng cho công thức hoá học */
+.chemistry-renderer .katex {
+  font-size: 1.1em;
+}
+
+.chemistry-renderer sub {
+  font-size: 0.8em;
+  vertical-align: sub;
+  line-height: 1;
+}
+
+/* CSS cho các file media */
+.media-files img {
+  max-width: 100%;
+  height: auto;
+  max-height: 400px;
+  object-fit: contain;
+  margin: 0 auto;
+  display: block;
+}
+
+.media-player audio,
+.media-player video {
+  width: 100%;
+  max-width: 100%;
+  border-radius: 4px;
+}
+
+/* CSS cho câu hỏi nhóm */
+.child-question {
+  border-color: #d1d5db;
+}
+
+.child-question:hover {
+  border-color: #6b7280;
+}
+
+.answers-container {
+  margin-top: 1rem;
+}
+
+/* Đánh dấu đáp án đúng */
+.correct-answer {
+  border-left-width: 4px;
+  border-color: #10b981;
+  background-color: #ecfdf5;
+}

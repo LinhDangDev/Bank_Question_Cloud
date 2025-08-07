@@ -6,8 +6,11 @@ import { CauTraLoi } from '../../entities/cau-tra-loi.entity';
 import { CauHoiChoDuyet } from '../../entities/cau-hoi-cho-duyet.entity';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as JSZip from 'jszip';
+import { spawn } from 'child_process';
 import { v4 as uuidv4 } from 'uuid';
 import { DocxParserService } from '../../services/docx-parser.service';
+import { PythonEnhancedDocxParserService } from '../../services/python-enhanced-docx-parser.service';
 import { PaginationDto } from '../../dto/pagination.dto';
 import { MulterFile } from '../../interfaces/multer-file.interface';
 
@@ -41,6 +44,7 @@ interface ImportSession {
     fileId: string;
     filePath: string;
     questions: ImportedQuestion[];
+    extractedFiles?: any[]; // Store extracted media files for preview
     maPhan?: string;
     createdAt: Date;
 }
@@ -59,10 +63,67 @@ export class QuestionsImportService {
         @InjectRepository(CauHoiChoDuyet)
         private readonly cauHoiChoDuyetRepository: Repository<CauHoiChoDuyet>,
         private readonly docxParserService: DocxParserService,
+        private readonly pythonEnhancedDocxParserService: PythonEnhancedDocxParserService,
         private readonly dataSource: DataSource,
     ) {
         // Start a cleanup timer
         setInterval(() => this.cleanupExpiredSessions(), 5 * 60 * 1000); // Cleanup every 5 minutes
+    }
+
+    /**
+     * Parse questions using the new Python enhanced parser
+     */
+    async parseAndSaveQuestionsWithPython(
+        file: MulterFile,
+        maPhan?: string,
+        options: ParseOptions = { processImages: true, limit: 100 }
+    ): Promise<{ fileId: string; count: number }> {
+        // Create a unique ID for this import session
+        const fileId = uuidv4();
+
+        try {
+            this.logger.log(`Using Python enhanced parser for file: ${file.originalname}`);
+
+            // Use Python enhanced parser
+            const result = await this.pythonEnhancedDocxParserService.parseUploadedFile(file, {
+                processImages: options.processImages,
+                extractStyles: true,
+                preserveLatex: true,
+                maxQuestions: options.limit
+            });
+
+            if (!result.success) {
+                throw new Error(`Python parser failed: ${result.errors?.join(', ')}`);
+            }
+
+            this.logger.log(`Python parser returned ${result.questions.length} questions`);
+
+            // Map Python questions to ImportedQuestion format
+            const mappedQuestions = this.mapPythonQuestions(result.questions);
+
+            // Apply any limits to the questions (if specified)
+            const limitedQuestions = options.limit && mappedQuestions.length > options.limit
+                ? mappedQuestions.slice(0, options.limit)
+                : mappedQuestions;
+
+            // Store the parsed questions in the import session
+            this.importSessions.set(fileId, {
+                fileId,
+                filePath: result.filePath,
+                questions: limitedQuestions,
+                maPhan,
+                createdAt: new Date(),
+            });
+
+            return {
+                fileId,
+                count: limitedQuestions.length,
+            };
+
+        } catch (error) {
+            this.logger.error(`Error in Python parser: ${error.message}`, error.stack);
+            throw error;
+        }
     }
 
     async parseAndSaveQuestions(
@@ -84,45 +145,237 @@ export class QuestionsImportService {
         fs.writeFileSync(filePath, file.buffer);
 
         try {
-            // Use the DocxParserService to parse the file with Python integration
-            const { questions } = await this.docxParserService.processUploadedFile({
-                ...file,
-                path: filePath // Ensure path is available for direct file access
-            });
+            // Check if this is a compressed file (ZIP or RAR)
+            const fileExt = path.extname(file.originalname).toLowerCase();
+            if (fileExt === '.zip' || fileExt === '.rar') {
+                this.logger.log(`Detected compressed file: ${fileExt}`);
+                const { extractedPath, files } = await this.extractCompressedFile(file);
 
-            this.logger.log(`DocxParserService returned ${questions.length} questions`);
+                // Filter for DOCX files
+                const docxFiles = files.filter(f => path.extname(f).toLowerCase() === '.docx');
 
-            // Apply any limits to the questions (if specified)
-            const limitedQuestions = options.limit && questions.length > options.limit
-                ? questions.slice(0, options.limit)
-                : questions;
+                if (docxFiles.length === 0) {
+                    throw new BadRequestException('Không tìm thấy file Word (.docx) trong file nén.');
+                }
 
-            // Store the parsed questions in the import session
-            this.importSessions.set(fileId, {
-                fileId,
-                filePath,
-                questions: limitedQuestions,
-                maPhan,
-                createdAt: new Date(),
-            });
+                // Process the first DOCX file found
+                const docxFile = docxFiles[0];
+                this.logger.log(`Processing extracted DOCX: ${docxFile}`);
 
-            this.logger.log(`Parsed ${limitedQuestions.length} questions for file ID ${fileId}`);
+                // Create a MulterFile-like object for the extracted file
+                const fileBuffer = await fs.promises.readFile(docxFile);
+                const extractedFile: MulterFile = {
+                    buffer: fileBuffer,
+                    originalname: path.basename(docxFile),
+                    fieldname: file.fieldname,
+                    encoding: file.encoding,
+                    mimetype: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    size: fileBuffer.length,
+                    path: docxFile
+                };
 
-            // Clean up expired sessions
-            this.cleanupExpiredSessions();
+                // Use the DocxParserService to parse the file
+                const { questions } = await this.docxParserService.processUploadedFile(extractedFile);
 
-            return {
-                fileId,
-                count: limitedQuestions.length,
-            };
+                this.logger.log(`DocxParserService returned ${questions.length} questions from compressed file`);
+
+                // Map ProcessedQuestion[] to ImportedQuestion[]
+                const mappedQuestions = this.mapProcessedQuestions(questions);
+
+                // Apply any limits to the questions (if specified)
+                const limitedQuestions = options.limit && mappedQuestions.length > options.limit
+                    ? mappedQuestions.slice(0, options.limit)
+                    : mappedQuestions;
+
+                // Store the parsed questions in the import session
+                this.importSessions.set(fileId, {
+                    fileId,
+                    filePath,
+                    questions: limitedQuestions,
+                    maPhan,
+                    createdAt: new Date(),
+                });
+
+                return {
+                    fileId,
+                    count: limitedQuestions.length,
+                };
+            } else {
+                // Normal DOCX processing
+                const { questions } = await this.docxParserService.processUploadedFile({
+                    ...file,
+                    path: filePath // Ensure path is available for direct file access
+                });
+
+                this.logger.log(`DocxParserService returned ${questions.length} questions`);
+
+                // Map ProcessedQuestion[] to ImportedQuestion[]
+                const mappedQuestions = this.mapProcessedQuestions(questions);
+
+                // Apply any limits to the questions (if specified)
+                const limitedQuestions = options.limit && mappedQuestions.length > options.limit
+                    ? mappedQuestions.slice(0, options.limit)
+                    : mappedQuestions;
+
+                // Store the parsed questions in the import session
+                this.importSessions.set(fileId, {
+                    fileId,
+                    filePath,
+                    questions: limitedQuestions,
+                    maPhan,
+                    createdAt: new Date(),
+                });
+
+                this.logger.log(`Parsed ${limitedQuestions.length} questions for file ID ${fileId}`);
+
+                // Clean up expired sessions
+                this.cleanupExpiredSessions();
+
+                return {
+                    fileId,
+                    count: limitedQuestions.length,
+                };
+            }
         } catch (error) {
-            this.logger.error(`Error parsing DOCX file: ${error.message}`, error.stack);
+            this.logger.error(`Error parsing file: ${error.message}`, error.stack);
             // Clean up the file if parsing failed
             if (fs.existsSync(filePath)) {
                 fs.unlinkSync(filePath);
             }
-            throw error;
+
+            // Enhanced error handling with specific error types
+            if (error.message.includes('corrupted') || error.message.includes('invalid')) {
+                throw new BadRequestException('File bị hỏng hoặc không đúng định dạng. Vui lòng kiểm tra lại file.');
+            } else if (error.message.includes('permission') || error.message.includes('access')) {
+                throw new BadRequestException('Không thể truy cập file. File có thể đang được mở bởi ứng dụng khác.');
+            } else if (error.message.includes('size') || error.message.includes('large')) {
+                throw new BadRequestException('File quá lớn. Vui lòng giảm kích thước file xuống dưới 50MB.');
+            } else if (error.message.includes('format') || error.message.includes('structure')) {
+                throw new BadRequestException('Cấu trúc file không đúng định dạng. Vui lòng kiểm tra lại nội dung câu hỏi.');
+            } else {
+                throw new BadRequestException(`Lỗi xử lý file: ${error.message}`);
+            }
         }
+    }
+
+    /**
+     * Hỗ trợ import từ các file nén như RAR và ZIP
+     */
+    private async extractCompressedFile(file: MulterFile): Promise<{
+        extractedPath: string;
+        files: string[];
+    }> {
+        const extractDir = path.join(process.cwd(), 'temp', 'extracted', uuidv4());
+        await fs.promises.mkdir(extractDir, { recursive: true });
+
+        const fileExt = path.extname(file.originalname).toLowerCase();
+
+        if (fileExt === '.zip') {
+            return this.extractZipFile(file, extractDir);
+        } else if (fileExt === '.rar') {
+            return this.extractRarFile(file, extractDir);
+        } else {
+            throw new Error('Unsupported compressed file format. Supported formats: ZIP, RAR');
+        }
+    }
+
+    /**
+     * Extract ZIP file
+     */
+    private async extractZipFile(file: MulterFile, extractDir: string): Promise<{
+        extractedPath: string;
+        files: string[];
+    }> {
+        const zip = new JSZip();
+        const contents = await zip.loadAsync(file.buffer);
+        const files: string[] = [];
+
+        for (const [fileName, fileData] of Object.entries(contents.files)) {
+            if (fileData.dir) continue;
+
+            const content = await fileData.async('nodebuffer');
+            const targetPath = path.join(extractDir, fileName);
+
+            // Ensure directory exists
+            await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
+
+            // Write file
+            await fs.promises.writeFile(targetPath, content);
+            files.push(targetPath);
+        }
+
+        return {
+            extractedPath: extractDir,
+            files
+        };
+    }
+
+    /**
+     * Extract RAR file
+     */
+    private async extractRarFile(file: MulterFile, extractDir: string): Promise<{
+        extractedPath: string;
+        files: string[];
+    }> {
+        // Save the RAR file temporarily
+        const tempRarPath = path.join(extractDir, 'temp.rar');
+        await fs.promises.writeFile(tempRarPath, file.buffer);
+
+        // Use unrar command if available, otherwise use alternative libraries
+        try {
+            await this.executeCommand('unrar', ['x', '-y', tempRarPath, extractDir]);
+
+            // Get the list of extracted files
+            const files = await this.getAllFiles(extractDir, []);
+            return {
+                extractedPath: extractDir,
+                files
+            };
+        } catch (error) {
+            this.logger.error(`Failed to extract RAR file: ${error.message}`);
+            throw new Error('Failed to extract RAR file. Make sure unrar is installed on the server or use ZIP format.');
+        }
+    }
+
+    /**
+     * Execute command as promise
+     */
+    private executeCommand(command: string, args: string[]): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const childProcess = spawn(command, args);
+
+            childProcess.on('error', (error) => {
+                reject(error);
+            });
+
+            childProcess.on('close', (code) => {
+                if (code === 0) {
+                    resolve();
+                } else {
+                    reject(new Error(`Command exited with code ${code}`));
+                }
+            });
+        });
+    }
+
+    /**
+     * Recursively get all files in a directory
+     */
+    private async getAllFiles(dir: string, filelist: string[] = []): Promise<string[]> {
+        const files = await fs.promises.readdir(dir);
+
+        for (const file of files) {
+            const filepath = path.join(dir, file);
+            const stat = await fs.promises.stat(filepath);
+
+            if (stat.isDirectory()) {
+                filelist = await this.getAllFiles(filepath, filelist);
+            } else {
+                filelist.push(filepath);
+            }
+        }
+
+        return filelist;
     }
 
     // Use our enhanced parser for better question detection
@@ -131,20 +384,79 @@ export class QuestionsImportService {
         options: ParseOptions
     ): Promise<ImportedQuestion[]> {
         try {
-            // Try to use the Python-based enhanced parser first
             const result = await this.docxParserService.parseDocx(filePath, {
+                uploadMedia: true,
+                generateThumbnails: true,
                 processImages: options.processImages,
-                extractStyles: true
             });
 
-            this.logger.log(`Successfully parsed ${result.length} questions from ${path.basename(filePath)}`);
-            return result;
+            this.logger.log(`Successfully parsed ${result.questions.length} questions from ${path.basename(filePath)}`);
+            return this.mapProcessedQuestions(result.questions);
         } catch (error) {
-            this.logger.warn(`Enhanced parser failed: ${error.message}, falling back to default...`);
-
-            // If the enhanced parser fails, fall back to the original parser or throw
-            throw new Error(`Document parsing failed: ${error.message}`);
+            this.logger.error(`Error parsing DOCX with enhanced parser: ${error.message}`, error.stack);
+            throw error;
         }
+    }
+
+    /**
+     * Maps ProcessedQuestion[] to ImportedQuestion[]
+     */
+    private mapProcessedQuestions(questions: any[]): ImportedQuestion[] {
+        return questions.map(q => {
+            const importedQuestion: ImportedQuestion = {
+                id: uuidv4(),
+                content: q.content,
+                clo: q.clo || null,
+                type: q.type,
+                answers: q.options?.map((option: string, index: number) => ({
+                    id: uuidv4(),
+                    content: option,
+                    isCorrect: q.correctAnswer === String.fromCharCode(65 + index), // A, B, C, D...
+                    order: index
+                })) || [],
+                files: q.mediaFiles?.map((media: any) => ({
+                    type: media.type,
+                    path: media.uploadedUrl || media.originalUrl
+                })) || []
+            };
+
+            // Handle child questions for group questions
+            if (q.childQuestions && q.childQuestions.length > 0) {
+                importedQuestion.childQuestions = this.mapProcessedQuestions(q.childQuestions);
+                importedQuestion.groupContent = q.groupContent;
+            }
+
+            return importedQuestion;
+        });
+    }
+
+    /**
+     * Maps Python parsed questions to ImportedQuestion[]
+     */
+    private mapPythonQuestions(questions: any[]): ImportedQuestion[] {
+        return questions.map(q => {
+            const importedQuestion: ImportedQuestion = {
+                id: uuidv4(),
+                content: q.content,
+                clo: q.clo || null,
+                type: q.type || 'single-choice',
+                questionNumber: undefined,
+                answers: q.answers?.map((a: any) => ({
+                    id: uuidv4(),
+                    content: a.content,
+                    isCorrect: a.isCorrect,
+                    order: a.order
+                })) || []
+            };
+
+            // Handle child questions for group questions
+            if (q.childQuestions && q.childQuestions.length > 0) {
+                importedQuestion.childQuestions = this.mapPythonQuestions(q.childQuestions);
+                importedQuestion.groupContent = q.groupContent;
+            }
+
+            return importedQuestion;
+        });
     }
 
     async getImportedQuestions(fileId: string, paginationDto: PaginationDto) {

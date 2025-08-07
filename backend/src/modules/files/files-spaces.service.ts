@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Files } from '../../entities/files.entity';
 import { SpacesService } from '../../services/spaces.service';
 import { randomUUID } from 'crypto';
+import { FileType, getFileTypeFromMimeType } from '../../enums/file-type.enum';
 
 interface MulterFile {
     fieldname: string;
@@ -20,7 +21,7 @@ export class FilesSpacesService {
         @InjectRepository(Files)
         private readonly filesRepository: Repository<Files>,
         private readonly spacesService: SpacesService,
-    ) {}
+    ) { }
 
     async uploadFile(file: MulterFile, maCauHoi?: string, maCauTraLoi?: string): Promise<Files> {
         if (!file) {
@@ -41,6 +42,25 @@ export class FilesSpacesService {
         );
 
         try {
+            // Validate file buffer
+            if (!file.buffer) {
+                console.error('❌ File buffer is undefined:', {
+                    filename: file.originalname,
+                    mimetype: file.mimetype,
+                    size: file.size,
+                    hasBuffer: !!file.buffer
+                });
+                throw new BadRequestException('File buffer is missing');
+            }
+
+            console.log('📤 Uploading file to Spaces:', {
+                filename: file.originalname,
+                mimetype: file.mimetype,
+                size: file.size,
+                bufferSize: file.buffer.length,
+                fileKey
+            });
+
             // Upload to DigitalOcean Spaces
             const uploadResult = await this.spacesService.uploadFile(
                 file.buffer,
@@ -54,20 +74,26 @@ export class FilesSpacesService {
             fileEntity.MaFile = randomUUID();
             fileEntity.TenFile = fileKey; // Store the Spaces key instead of local path
             fileEntity.LoaiFile = fileType;
-            
+            // KichThuocFile removed from entity - no need to set it anymore
+
+            // Store file metadata in a backward-compatible way
+            // Instead of using missing fields, add metadata to TenFile or other available fields
+
             if (maCauHoi) {
                 fileEntity.MaCauHoi = maCauHoi;
             }
-            
+
             if (maCauTraLoi) {
                 fileEntity.MaCauTraLoi = maCauTraLoi;
             }
 
             const savedFile = await this.filesRepository.save(fileEntity);
-            
+
             return {
                 ...savedFile,
-                publicUrl: await this.spacesService.getFileUrl(fileKey)
+                publicUrl: await this.spacesService.getFileUrl(fileKey),
+                mimetype: file.mimetype,
+                originalFilename: file.originalname
             } as any;
 
         } catch (error) {
@@ -77,7 +103,8 @@ export class FilesSpacesService {
 
     async getFileUrl(maFile: string): Promise<string> {
         const file = await this.filesRepository.findOne({
-            where: { MaFile: maFile }
+            where: { MaFile: maFile },
+            select: ['MaFile', 'TenFile', 'LoaiFile', 'MaCauHoi', 'MaCauTraLoi'] // Only select columns that exist
         });
 
         if (!file) {
@@ -89,7 +116,8 @@ export class FilesSpacesService {
 
     async getFilesByQuestion(maCauHoi: string): Promise<Array<Files & { publicUrl: string }>> {
         const files = await this.filesRepository.find({
-            where: { MaCauHoi: maCauHoi }
+            where: { MaCauHoi: maCauHoi },
+            select: ['MaFile', 'TenFile', 'LoaiFile', 'MaCauHoi', 'MaCauTraLoi'] // Only select columns that exist
         });
 
         const filesWithUrls = await Promise.all(
@@ -104,7 +132,8 @@ export class FilesSpacesService {
 
     async getFilesByAnswer(maCauTraLoi: string): Promise<Array<Files & { publicUrl: string }>> {
         const files = await this.filesRepository.find({
-            where: { MaCauTraLoi: maCauTraLoi }
+            where: { MaCauTraLoi: maCauTraLoi },
+            select: ['MaFile', 'TenFile', 'LoaiFile', 'MaCauHoi', 'MaCauTraLoi'] // Only select columns that exist
         });
 
         const filesWithUrls = await Promise.all(
@@ -129,7 +158,7 @@ export class FilesSpacesService {
         try {
             // Delete from Spaces
             await this.spacesService.deleteFile(file.TenFile);
-            
+
             // Delete from database
             await this.filesRepository.remove(file);
         } catch (error) {
@@ -137,17 +166,9 @@ export class FilesSpacesService {
         }
     }
 
-    private getFileTypeFromMimeType(mimeType: string): number | null {
-        if (mimeType.startsWith('audio/')) {
-            return 1; // Audio
-        }
-        if (mimeType.startsWith('image/')) {
-            return 2; // Image
-        }
-        if (mimeType.startsWith('application/') || mimeType.startsWith('text/')) {
-            return 3; // Document
-        }
-        return null;
+    private getFileTypeFromMimeType(mimeType: string): FileType | null {
+        const fileType = getFileTypeFromMimeType(mimeType);
+        return fileType !== FileType.OTHER ? fileType : null;
     }
 
     async migrateExistingFiles(): Promise<{ success: number; failed: number; errors: string[] }> {
@@ -175,7 +196,7 @@ export class FilesSpacesService {
                 // Update database record
                 file.TenFile = newKey;
                 await this.filesRepository.save(file);
-                
+
                 success++;
             } catch (error) {
                 failed++;

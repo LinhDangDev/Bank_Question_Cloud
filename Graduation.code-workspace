@@ -1,10 +1,10 @@
 {
-	"folders": [
-		{
-			"name": "Graduation",
-			"path": "."
-		}
-	],
+    "folders": [
+        {
+            "name": "Graduation",
+            "path": "."
+        }
+    ],
     "settings": {
         "powershell.cwd": "Graduation",
         "liveServer.settings.multiRootWorkspaceName": "UI",

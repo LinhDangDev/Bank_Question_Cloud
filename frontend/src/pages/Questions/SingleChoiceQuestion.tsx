@@ -16,7 +16,8 @@ import { Dialog } from '@/components/ui/dialog';
 import MathModal from '../../components/Modal/MathModal';
 import { useModal } from '../../hooks/useModal';
 import { MathRenderer } from '../../components/MathRenderer';
-import { questionApi, monHocApi, phanApi, khoaApi, cloApi, fileApi, fetchWithAuth } from '@/services/api';
+import { cauHoiApi, monHocApi, phanApi, khoaApi, cloApi, fileApi, fetchWithAuth } from '@/services/api';
+import { createTinyMCEConfig, TINYMCE_API_KEY } from '../../utils/tinymce-config';
 
 // @ts-ignore
 declare global {
@@ -534,7 +535,7 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
 
           try {
             // Update parent question
-            const parentRes = await questionApi.update(question.MaCauHoi, parentQuestion);
+            const parentRes = await cauHoiApi.update(question.MaCauHoi, parentQuestion);
             if (!parentRes.data) {
               throw new Error('Lưu câu hỏi nhóm thất bại!');
             }
@@ -565,12 +566,12 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
               };
 
               if (isNew) {
-                const subRes = await questionApi.createWithAnswers(subQuestionData);
+                const subRes = await cauHoiApi.createWithAnswers(subQuestionData);
                 if (!subRes.data) {
                   throw new Error(`Lưu câu hỏi con ${subQ.MaSoCauHoi} thất bại!`);
                 }
               } else {
-                const subRes = await questionApi.updateWithAnswers(subQ.MaCauHoi, subQuestionData);
+                const subRes = await cauHoiApi.updateWithAnswers(subQ.MaCauHoi, subQuestionData);
                 if (!subRes.data) {
                   throw new Error(`Lưu câu hỏi con ${subQ.MaSoCauHoi} thất bại!`);
                 }
@@ -601,7 +602,7 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
               SoLanDung: 0
             };
 
-            const parentRes = await questionApi.create(parentQuestion);
+            const parentRes = await cauHoiApi.create(parentQuestion);
             if (!parentRes.data) {
               throw new Error('Tạo câu hỏi nhóm thất bại!');
             }
@@ -630,7 +631,7 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
                 }))
               };
 
-              const subRes = await questionApi.createWithAnswers(subQuestionData);
+              const subRes = await cauHoiApi.createWithAnswers(subQuestionData);
               if (!subRes.data) {
                 throw new Error(`Tạo câu hỏi con ${subQ.MaSoCauHoi} thất bại!`);
               }
@@ -680,10 +681,10 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
 
           if (question && question.MaCauHoi) {
             // Update existing question
-            response = await questionApi.updateWithAnswers(question.MaCauHoi, payload);
+            response = await cauHoiApi.updateWithAnswers(question.MaCauHoi, payload);
           } else {
             // Create new question
-            response = await questionApi.createWithAnswers(payload);
+            response = await cauHoiApi.createWithAnswers(payload);
           }
 
           if (!response.data) {
@@ -997,29 +998,10 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
             </label>
             <div className="rounded-xl border border-blue-200 bg-white p-1.5 shadow-sm">
               <EditorAny
-                apiKey="6gjaodohdncfz36azjc7q49f26yrhh881rljxqshfack7cax"
+                apiKey={TINYMCE_API_KEY}
                 value={content}
                 onEditorChange={setContent}
-                init={{
-                  height: 120,
-                  menubar: false,
-                  plugins: [
-                    'advlist autolink lists link image charmap preview anchor',
-                    'searchreplace visualblocks code fullscreen',
-                    'insertdatetime media table code help wordcount',
-                    'mathjax',
-                    'table',
-                    'media',
-                    'codesample',
-                  ],
-                  toolbar:
-                    'bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | fontselect fontsizeselect formatselect | forecolor backcolor removeformat | subscript superscript | link image media table codesample blockquote | mathjax',
-                  mathjax: {
-                    lib: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js',
-                  },
-                  content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }',
-                  toolbar_mode: 'sliding',
-                }}
+                init={createTinyMCEConfig(120, false)}
               />
             </div>
           </div>
@@ -1050,18 +1032,10 @@ const SingleChoiceQuestion = ({ question, isGroup = false, latexMode = false, to
                     <label className="block text-sm font-medium text-gray-700 mb-1">Nội dung câu hỏi con</label>
                     <div className="rounded-lg border border-blue-200 bg-white p-1.5 shadow-sm">
                       <EditorAny
-                        apiKey="6gjaodohdncfz36azjc7q49f26yrhh881rljxqshfack7cax"
+                        apiKey={TINYMCE_API_KEY}
                         value={subQuestion.NoiDung}
                         onEditorChange={(content: string) => updateSubQuestion(subIdx, 'NoiDung', content)}
-                        init={{
-                          height: 80,
-                          menubar: false,
-                          plugins: ['advlist autolink lists link image charmap', 'searchreplace', 'table', 'mathjax'],
-                          toolbar: 'bold italic | bullist numlist | link image | mathjax',
-                          mathjax: {
-                            lib: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js',
-                          }
-                        }}
+                        init={createTinyMCEConfig(80, true)}
                       />
                     </div>
                   </div>

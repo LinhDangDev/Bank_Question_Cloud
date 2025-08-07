@@ -13,13 +13,17 @@ import { MulterModule } from '@nestjs/platform-express';
 import { DocxTemplateService } from '../../services/docx-template.service';
 import { PdfService } from '../../services/pdf.service';
 import spacesConfig from '../../config/spaces.config';
+import { memoryStorage } from 'multer';
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([Files]),
         ConfigModule.forFeature(spacesConfig),
         MulterModule.register({
-            dest: './uploads',
+            storage: memoryStorage(),
+            limits: {
+                fileSize: 50 * 1024 * 1024, // 50MB
+            },
         }),
     ],
     controllers: [FilesController, FilesSpacesController, FilesUrlController],

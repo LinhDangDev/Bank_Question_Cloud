@@ -2,10 +2,10 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { SpacesService } from './spaces.service';
 import * as sharp from 'sharp';
 import * as mime from 'mime-types';
-import { 
-    ExtractedMediaFile, 
-    MediaFileType, 
-    MediaProcessingOptions 
+import {
+    ExtractedMediaFile,
+    MediaFileType,
+    MediaProcessingOptions
 } from '../interfaces/exam-package.interface';
 
 @Injectable()
@@ -21,7 +21,7 @@ export class MediaProcessingService {
         imageFormats: ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
     };
 
-    constructor(private readonly spacesService: SpacesService) {}
+    constructor(private readonly spacesService: SpacesService) { }
 
     async processMediaFiles(
         mediaFiles: ExtractedMediaFile[],
@@ -59,13 +59,18 @@ export class MediaProcessingService {
         imageFile: ExtractedMediaFile,
         options: MediaProcessingOptions
     ): Promise<ExtractedMediaFile> {
-        let processedBuffer = imageFile.buffer;
+        const fileData = imageFile.data || imageFile.buffer;
+        let processedBuffer = fileData;
         let processedMimeType = imageFile.mimeType;
-        let fileName = imageFile.fileName;
+        let fileName = imageFile.name || imageFile.fileName;
+
+        if (!fileName || !fileData) {
+            throw new Error('Invalid image file: missing fileName or data');
+        }
 
         if (options.convertImagesToWebP && !fileName.endsWith('.webp')) {
             try {
-                processedBuffer = await sharp(imageFile.buffer)
+                processedBuffer = await sharp(fileData)
                     .resize(options.maxImageWidth, options.maxImageHeight, {
                         fit: 'inside',
                         withoutEnlargement: true
@@ -76,13 +81,16 @@ export class MediaProcessingService {
                 processedMimeType = 'image/webp';
                 fileName = fileName.replace(/\.[^/.]+$/, '.webp');
 
-                this.logger.log(`Converted ${imageFile.fileName} to WebP format`);
+                this.logger.log(`Converted ${fileName} to WebP format`);
             } catch (error) {
-                this.logger.warn(`Failed to convert ${imageFile.fileName} to WebP, using original: ${error.message}`);
-                processedBuffer = imageFile.buffer;
+                this.logger.warn(`Failed to convert ${fileName} to WebP, using original: ${error.message}`);
+                processedBuffer = fileData;
                 processedMimeType = imageFile.mimeType;
-                fileName = imageFile.fileName;
             }
+        }
+
+        if (!processedBuffer || !processedMimeType) {
+            throw new Error('Failed to process image file');
         }
 
         const spacesKey = this.generateSpacesKey(fileName, 'images');
@@ -97,7 +105,8 @@ export class MediaProcessingService {
 
         return {
             ...imageFile,
-            fileName,
+            name: fileName,
+            fileName, // Backward compatibility
             convertedBuffer: processedBuffer,
             convertedMimeType: processedMimeType,
             spacesKey,
@@ -109,12 +118,20 @@ export class MediaProcessingService {
         audioFile: ExtractedMediaFile,
         options: MediaProcessingOptions
     ): Promise<ExtractedMediaFile> {
-        const spacesKey = this.generateSpacesKey(audioFile.fileName, 'audio');
-        
+        const fileName = audioFile.name || audioFile.fileName;
+        const fileData = audioFile.data || audioFile.buffer;
+        const mimeType = audioFile.mimeType;
+
+        if (!fileName || !fileData || !mimeType) {
+            throw new Error('Invalid audio file: missing fileName, data, or mimeType');
+        }
+
+        const spacesKey = this.generateSpacesKey(fileName, 'audio');
+
         const uploadResult = await this.spacesService.uploadFile(
-            audioFile.buffer,
+            fileData,
             spacesKey,
-            audioFile.mimeType,
+            mimeType,
             true
         );
 
@@ -122,6 +139,8 @@ export class MediaProcessingService {
 
         return {
             ...audioFile,
+            name: fileName,
+            fileName, // Backward compatibility
             spacesKey,
             uploadedUrl
         };
@@ -131,7 +150,7 @@ export class MediaProcessingService {
         const timestamp = Date.now();
         const extension = fileName.split('.').pop();
         const baseName = fileName.replace(/\.[^/.]+$/, '');
-        
+
         return `${folder}/${timestamp}_${baseName}.${extension}`;
     }
 

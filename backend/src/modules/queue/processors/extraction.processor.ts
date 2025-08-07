@@ -25,23 +25,20 @@ export class ExtractionProcessor {
             const request = await this.yeuCauRutTrichRepository.findOne({
                 where: { MaYeuCau: job.data.requestId },
             });
-
             if (!request) {
                 throw new Error(`Request with ID ${job.data.requestId} not found`);
             }
-
             // 2. Parse the request data
             const requestData = JSON.parse(request.NoiDungRutTrich || '{}');
-
-            // 3. Generate the exam
+            // 3. Generate the exam (enforcing soLuongDe = 1 for performance)
             const result = await this.examService.generateExam({
                 maMonHoc: requestData.maMonHoc,
                 tenDeThi: requestData.tenDeThi,
                 matrix: requestData.matrix,
                 hoanViDapAn: requestData.hoanViDapAn || false,
                 nguoiTao: request.HoTenGiaoVien || 'Unknown',
+                soLuongDe: 1 // Force to 1 to ensure performance
             });
-
             // 4. Update the request with the result
             await this.yeuCauRutTrichRepository.update(job.data.requestId, {
                 NoiDungRutTrich: JSON.stringify({
@@ -54,16 +51,13 @@ export class ExtractionProcessor {
                     },
                 }),
             });
-
             this.logger.log(`Extraction job ${job.id} completed successfully`);
-
             return {
                 success: true,
                 deThiId: result.deThiIds[0],
             };
         } catch (error) {
             this.logger.error(`Error processing extraction job ${job.id}: ${error.message}`, error.stack);
-
             // Update the request with error information
             try {
                 await this.yeuCauRutTrichRepository.update(job.data.requestId, {
@@ -75,7 +69,6 @@ export class ExtractionProcessor {
             } catch (updateError) {
                 this.logger.error(`Failed to update request status: ${updateError.message}`);
             }
-
             throw error;
         }
     }

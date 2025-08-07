@@ -1,25 +1,31 @@
 export interface ExamPackageStructure {
-    wordDocument: ExtractedFile;
+    wordDocument: ExtractedFile | null;
     mediaFiles: ExtractedMediaFile[];
     audioFiles: ExtractedMediaFile[];
     imageFiles: ExtractedMediaFile[];
 }
 
 export interface ExtractedFile {
-    fileName: string;
-    originalName: string;
-    buffer: Buffer;
-    mimeType: string;
-    relativePath: string;
+    name: string;
+    fileName?: string; // Backward compatibility
+    originalName?: string;
+    path: string;
+    size: number;
+    data: Buffer;
+    buffer?: Buffer; // Backward compatibility
+    mimeType?: string;
+    relativePath?: string; // Backward compatibility
 }
 
 export interface ExtractedMediaFile extends ExtractedFile {
-    fileType: MediaFileType;
-    targetFolder: 'audio' | 'images';
+    type: 'audio' | 'image' | 'document' | 'unknown';
+    fileType?: MediaFileType; // Backward compatibility
+    targetFolder?: 'audio' | 'images';
     convertedBuffer?: Buffer;
     convertedMimeType?: string;
     uploadedUrl?: string;
     spacesKey?: string;
+    url?: string;
 }
 
 export interface ProcessedQuestion {

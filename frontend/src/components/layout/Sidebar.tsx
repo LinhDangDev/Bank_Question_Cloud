@@ -39,12 +39,7 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
 
   // Xác định trang chủ phù hợp với vai trò
   const getHomeRoute = () => {
-    if (isAdmin()) {
-      return "/dashboard";
-    } else if (isTeacher()) {
-      return "/questions"; // Teachers go to questions page
-    }
-    return "/";
+    return "/"; // Always return to homepage
   };
 
   return (
@@ -83,7 +78,19 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
           </h2>
           <div className="space-y-1">
             <Link
-              to={getHomeRoute()}
+              to="/"
+              className={`flex items-center px-2 py-2 text-sm rounded-lg ${
+                !isExpanded ? "justify-center" : ""
+              } ${isDark ? "hover:bg-gray-700" : "hover:bg-gray-100"}`}
+              aria-label="Trang chủ"
+            >
+              <BookOpen className="w-5 h-5" />
+              <span className={`ml-3 ${!isExpanded && "hidden"}`}>
+                Trang chủ
+              </span>
+            </Link>
+            <Link
+              to="/dashboard"
               className={`flex items-center px-2 py-2 text-sm rounded-lg ${
                 !isExpanded ? "justify-center" : ""
               } ${isDark ? "hover:bg-gray-700" : "hover:bg-gray-100"}`}
@@ -94,7 +101,7 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
                 Dashboard
               </span>
             </Link>
-            <Link
+            {/* <Link
               to="/search"
               className={`flex items-center px-2 py-2 text-sm rounded-lg ${
                 !isExpanded ? "justify-center" : ""
@@ -105,7 +112,7 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
               <span className={`ml-3 ${!isExpanded && "hidden"}`}>
                 Tìm kiếm nhanh
               </span>
-            </Link>
+            </Link> */}
           </div>
         </div>
 
@@ -283,7 +290,7 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
         )}
 
         {/* Hỗ trợ section */}
-        <div>
+        {/* <div>
           <h2
             className={`text-xs uppercase font-semibold mb-1 ${
               !isExpanded && "sr-only"
@@ -317,10 +324,10 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
               </span>
             </Link>
           </div>
-        </div>
+        </div> */}
 
         {/* Cài đặt section */}
-        <div>
+        {/* <div>
           <h2
             className={`text-xs uppercase font-semibold mb-1 ${
               !isExpanded && "sr-only"
@@ -340,7 +347,7 @@ const Sidebar = ({ isExpanded, onToggle }: SidebarProps) => {
               <span className={`ml-3 ${!isExpanded && "hidden"}`}>Cài đặt</span>
             </Link>
           </div>
-        </div>
+        </div> */}
       </div>
 
       {/* Toggle button at bottom */}

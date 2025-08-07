@@ -17,6 +17,8 @@ const environments: Record<string, any> = {
             enableArithAbort: true,
             encrypt: process.env.DB_ENCRYPT === 'true',
             trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE !== 'false',
+            requestTimeout: 60000, // 60 seconds
+            connectionTimeout: 30000, // 30 seconds
         }
     },
     server: {
@@ -29,6 +31,8 @@ const environments: Record<string, any> = {
         options: {
             encrypt: process.env.SERVER_DB_ENCRYPT === 'true',
             trustServerCertificate: process.env.SERVER_DB_TRUST_SERVER_CERTIFICATE !== 'false',
+            requestTimeout: 60000, // 60 seconds
+            connectionTimeout: 30000, // 30 seconds
         }
     },
 };

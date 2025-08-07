@@ -1,18 +1,20 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { deThiApi, examApi } from '@/services/api';
-import { ArrowLeft, Download, Edit, Printer, Clock, Book, AlertTriangle, Eye, EyeOff, Pencil, FileText, CheckCircle } from 'lucide-react';
+import { examApi, deThiApi } from '@/services/api';
+import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { toast } from 'react-toastify';
-import QuestionItem from '@/components/QuestionItem';
-import { useAuth } from '@/context/AuthContext';
 import { Switch } from '@/components/ui/switch';
-import { convertMediaMarkupToHtml } from '@/utils/mediaMarkup';
-import { processMediaContent } from '@/utils/mediaContentProcessor';
-import { Label } from '@/components/ui/label';
+import { FileText, Book, Clock, Calendar, User, Bookmark, Download, ArrowLeft, Edit, CheckCircle } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import QuestionItem from '@/components/QuestionItem';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import ErrorDisplay from '@/components/ErrorDisplay';
+import { processMediaMarkup } from '@/utils/mediaMarkup';
+import { toast } from 'sonner';
+import { ExamWordExportDialog } from '@/components/ExamWordExportDialog';
+import { SimpleExamWordExportDialog } from '@/components/SimpleExamWordExportDialog';
 
 interface Exam {
   MaDeThi: string;
@@ -84,9 +86,10 @@ const ExamDetail = () => {
   const [examDetails, setExamDetails] = useState<ExamDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exportLoading, setExportLoading] = useState(false);
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const [showAnswers, setShowAnswers] = useState(true);
+  const [showAnswers, setShowAnswers] = useState(true); // Always show answers
   const printFrameRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -96,7 +99,6 @@ const ExamDetail = () => {
         setLoading(false);
         return;
       }
-
       try {
         setLoading(true);
         // Use the hierarchical questions endpoint instead
@@ -104,9 +106,7 @@ const ExamDetail = () => {
           examApi.getExamById(id),
           deThiApi.getHierarchicalQuestions(id)
         ]);
-
         setExam(examResponse.data);
-
         // Process the hierarchical questions response
         if (hierarchicalResponse.data && typeof hierarchicalResponse.data === 'object') {
           // Extract questions from the hierarchical structure
@@ -138,25 +138,17 @@ const ExamDetail = () => {
   }, [id]);
 
   const handleEditExam = () => {
-    if (exam && !exam.DaDuyet && id && isAdmin) {
-      navigate(`/exams/edit/${id}`);
-    } else {
-      toast.warning("Không thể chỉnh sửa đề thi đã được duyệt");
-    }
+    toast.info("Tính năng đang phát triển", {
+      description: "Chức năng chỉnh sửa đề thi đang được hoàn thiện.",
+      duration: 3000,
+    });
   };
 
   const handleApproveExam = async () => {
-    if (!id || !isAdmin) return;
-
-    try {
-      await examApi.approveExam(id);
-      toast.success("Đã duyệt đề thi thành công");
-      // Update the exam status locally
-      setExam(prev => prev ? { ...prev, DaDuyet: true } : null);
-    } catch (error) {
-      console.error("Error approving exam:", error);
-      toast.error("Không thể duyệt đề thi");
-    }
+    toast.info("Tính năng đang phát triển", {
+      description: "Chức năng phê duyệt đề thi đang được hoàn thiện.",
+      duration: 3000,
+    });
   };
 
   const handlePrintExam = () => {
@@ -301,16 +293,16 @@ const ExamDetail = () => {
             return `
               <div class="question group-question">
                 <div class="question-number">Câu ${index + 1} - ${index + (question.CauHoiCon?.length || question.SoCauHoiCon || 5)}: Câu hỏi nhóm</div>
-                <div class="group-content">${processMediaContent(cleanedParentContent)}</div>
+                <div class="group-content">${processMediaMarkup(cleanedParentContent)}</div>
 
                 ${question.CauHoiCon ? question.CauHoiCon.map((childQ, childIdx) => {
                   const cleanedChildContent = cleanChildQuestionContent(childQ.NoiDung || '');
                   return `
                     <div class="child-question">
-                      <div class="child-question-number">Câu ${index + childIdx + 1}: ${processMediaContent(cleanedChildContent)}</div>
+                      <div class="child-question-number">Câu ${index + childIdx + 1}: ${processMediaMarkup(cleanedChildContent)}</div>
                       ${childQ.CauTraLoi ? childQ.CauTraLoi.map((answer, ansIdx) => {
                         const letter = String.fromCharCode(65 + ansIdx);
-                        const processedAnswer = processMediaContent(answer.NoiDung || '');
+                        const processedAnswer = processMediaMarkup(answer.NoiDung || '');
                         return `
                           <div class="answer ${answer.LaDapAn ? 'correct-answer' : ''}">
                             <span class="answer-letter">${letter}.</span> ${processedAnswer}
@@ -324,13 +316,13 @@ const ExamDetail = () => {
             `;
           } else {
             // Handle regular questions
-            const processedContent = processMediaContent(question.NoiDung || '');
+            const processedContent = processMediaMarkup(question.NoiDung || '');
             return `
               <div class="question">
                 <div class="question-number">Câu ${index + 1}: ${processedContent}</div>
                 ${question.CauTraLoi ? question.CauTraLoi.map((answer, idx) => {
                   const letter = String.fromCharCode(65 + idx);
-                  const processedAnswer = processMediaContent(answer.NoiDung || '');
+                  const processedAnswer = processMediaMarkup(answer.NoiDung || '');
                   return `
                     <div class="answer ${answer.LaDapAn ? 'correct-answer' : ''}">
                       <span class="answer-letter">${letter}.</span> ${processedAnswer}
@@ -395,48 +387,25 @@ const ExamDetail = () => {
   };
 
   const handleEditAllQuestions = () => {
-    if (id) {
-      navigate(`/exams/edit-questions/${id}`);
-    }
+    toast.info("Tính năng đang phát triển", {
+      description: "Chức năng chỉnh sửa tất cả câu hỏi đang được hoàn thiện.",
+      duration: 3000,
+    });
+  };
+
+  const handleFeatureUnderDevelopment = () => {
+    toast.info("Tính năng đang phát triển", {
+      description: "Chức năng này đang được hoàn thiện.",
+      duration: 3000,
+    });
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
-  if (error) {
-    return (
-      <div className="p-6">
-        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded">
-          <div className="flex items-center">
-            <AlertTriangle className="mr-2" />
-            <p>{error}</p>
-          </div>
-          <Button onClick={handleBack} className="mt-4">
-            <ArrowLeft className="mr-2" size={16} />
-            Quay lại
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!exam) {
-    return (
-      <div className="p-6">
-        <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded">
-          <p>Không tìm thấy thông tin đề thi</p>
-          <Button onClick={handleBack} className="mt-4">
-            <ArrowLeft className="mr-2" size={16} />
-            Quay lại
-          </Button>
-        </div>
-      </div>
-    );
+  if (error || !exam) {
+    return <ErrorDisplay message={error || "Không tìm thấy thông tin đề thi"} />;
   }
 
   // Đảm bảo examDetails là mảng trước khi dùng reduce
@@ -562,78 +531,212 @@ const ExamDetail = () => {
   };
 
   return (
-    <div className="p-6">
-      {/* Hidden iframe for printing */}
-      <iframe
-        ref={printFrameRef}
-        style={{ display: 'none' }}
-        title="print-frame"
-      />
-
-      <div className="flex items-center mb-6 space-x-4">
-        <Button variant="outline" onClick={handleBack}>
-          <ArrowLeft className="mr-2" size={16} />
+    <div className="container mx-auto py-6 px-4">
+      <div className="flex items-center gap-4 mb-6">
+        <Button
+          variant="outline"
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2"
+        >
+          <ArrowLeft size={16} />
           Quay lại
         </Button>
-        <h1 className="text-2xl font-bold flex-grow">{exam.TenDeThi}</h1>
-        <div className="flex space-x-2">
-          {isAdmin && !exam.DaDuyet && (
-            <Button className="bg-green-600 hover:bg-green-700" onClick={handleApproveExam}>
-              <CheckCircle className="mr-2" size={16} />
-              Duyệt đề thi
-            </Button>
-          )}
+        <h1 className="text-2xl font-bold flex-1">{exam.TenDeThi}</h1>
+
+        {/* Hide edit buttons */}
+        {/*
+        <div className="flex gap-2">
           {isAdmin && (
             <>
-              <Button variant="outline" onClick={handleEditExam} disabled={exam.DaDuyet}>
-                <Edit className="mr-2" size={16} />
+              {!exam.DaDuyet ? (
+                <Button
+                  onClick={handleApproveExam}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  <CheckCircle size={16} />
+                  Duyệt đề thi
+                </Button>
+              ) : null}
+              <Button
+                onClick={handleEditExam}
+                variant="outline"
+                className="flex items-center gap-2"
+              >
+                <Edit size={16} />
                 Chỉnh sửa
-              </Button>
-              <Button variant="outline" onClick={handleEditAllQuestions} disabled={exam.DaDuyet}>
-                <Pencil className="mr-2" size={16} />
-                Chỉnh sửa câu hỏi
               </Button>
             </>
           )}
-          <Button variant="outline" onClick={handlePrintExam}>
-            <Printer className="mr-2" size={16} />
-            In
+
+          <Button
+            onClick={() => {
+              console.log('TEST BUTTON CLICKED!');
+              alert('Button hoat dong!');
+            }}
+          >
+            TEST
           </Button>
-          <Button onClick={handleDownloadExam}>
-            <Download className="mr-2" size={16} />
+
+          <Button
+            className="flex items-center gap-2"
+            disabled={exportLoading}
+            onClick={async () => {
+              if (!id || !exam) {
+                alert('Khong co thong tin de thi');
+                return;
+              }
+
+              setExportLoading(true);
+
+              console.log('� Starting Word export for exam:', id);
+
+              try {
+                const exportOptions = {
+                  examTitle: exam.TenDeThi || 'ĐỀ THI',
+                  subject: 'Cơ Sở Dữ Liệu',
+                  course: 'Khoa CNTT',
+                  semester: 'Học kỳ 1',
+                  academicYear: '2024-2025',
+                  examDate: new Date().toLocaleDateString('vi-VN'),
+                  duration: '90 phút',
+                  instructions: 'Thời gian làm bài: 90 phút. Không được sử dụng tài liệu.',
+                  allowMaterials: false,
+                  showAnswers: false,
+                  separateAnswerSheet: false,
+                  studentInfo: {
+                    studentId: '',
+                    studentName: '',
+                    className: ''
+                  }
+                };
+
+                console.log('📋 Export options:', exportOptions);
+
+                const response = await fetch(`/api/exam-word-export/${id}/export`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify(exportOptions)
+                });
+
+                console.log('📡 Response status:', response.status);
+
+                if (!response.ok) {
+                  const errorText = await response.text();
+                  throw new Error(`Export failed: ${errorText}`);
+                }
+
+                const blob = await response.blob();
+                console.log('📁 File blob size:', blob.size, 'bytes');
+
+                // Download file
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${exam.TenDeThi || 'ĐỀ_THI'}_${Date.now()}.docx`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+
+                console.log('✅ Export successful!');
+                alert('Tải file Word thành công!');
+
+              } catch (error: any) {
+                console.error('Export error:', error);
+                alert('Loi: ' + error.message);
+              } finally {
+                setExportLoading(false);
+              }
+            }}
+          >
+            <Download size={16} />
+            {exportLoading ? 'Dang tai...' : 'Tai Word'}
+          </Button>
+          <Button onClick={handleDownloadPDF} variant="outline" className="flex items-center gap-2">
+            <Download size={16} />
+            Tải PDF
+          </Button>
+        </div>
+        */}
+
+        {/* Show download buttons with notifications */}
+        <div className="flex gap-2">
+          <Button
+            onClick={handleFeatureUnderDevelopment}
+            className="flex items-center gap-2"
+          >
+            <Download size={16} />
             Tải Word
           </Button>
-          <Button variant="secondary" onClick={handleDownloadPDF}>
-            <FileText className="mr-2" size={16} />
+          <Button
+            onClick={handleFeatureUnderDevelopment}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            <Download size={16} />
             Tải PDF
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        <Card className="col-span-1">
-          <CardContent className="pt-6">
-            <h2 className="text-xl font-semibold mb-4">Thông tin đề thi</h2>
-
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-gray-500">Môn học</p>
-                <p className="font-medium">{exam.MonHoc?.TenMonHoc || 'Không có thông tin'}</p>
-              </div>
-
-              <div>
-                <p className="text-sm text-gray-500">Ngày tạo</p>
-                <div className="flex items-center">
-                  <Clock size={16} className="mr-2 text-gray-500" />
-                  <p>{new Date(exam.NgayTao).toLocaleDateString('vi-VN')}</p>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Sidebar Info */}
+        <div className="lg:col-span-1">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="space-y-4">
+                <div className="border-b pb-4">
+                  <p className="text-sm text-gray-500 mb-1">Môn học</p>
+                  <div className="flex items-center">
+                    <Book size={16} className="mr-2 text-blue-500" />
+                    <p className="font-medium">{exam.MonHoc?.TenMonHoc || 'Không có thông tin'}</p>
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <p className="text-sm text-gray-500">Số câu hỏi</p>
-                <div className="flex items-center">
-                  <Book size={16} className="mr-2 text-gray-500" />
-                  <div>
+                <div className="border-b pb-4">
+                  <p className="text-sm text-gray-500 mb-1">Ngày tạo</p>
+                  <div className="flex items-center">
+                    <Calendar size={16} className="mr-2 text-blue-500" />
+                    <p className="font-medium">{new Date(exam.NgayTao).toLocaleDateString('vi-VN', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })}</p>
+                  </div>
+                </div>
+
+                <div className="border-b pb-4">
+                  <p className="text-sm text-gray-500 mb-1">Thời gian tạo</p>
+                  <div className="flex items-center">
+                    <Clock size={16} className="mr-2 text-blue-500" />
+                    <p className="font-medium">{new Date(exam.NgayTao).toLocaleDateString('vi-VN', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}</p>
+                  </div>
+                </div>
+
+                <div className="border-b pb-4">
+                  <p className="text-sm text-gray-500 mb-1">Cấu trúc đề thi</p>
+                  <Badge className={exam.LoaiBoChuongPhan ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800"}>
+                    {exam.LoaiBoChuongPhan ? 'Không phân cấp chương' : 'Phân cấp theo chương'}
+                  </Badge>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {exam.LoaiBoChuongPhan
+                      ? 'Câu hỏi không được chia theo chương/phần'
+                      : 'Câu hỏi được phân chia theo chương/phần'}
+                  </p>
+                </div>
+
+                <div className="border-b pb-4">
+                  <p className="text-sm text-gray-500 mb-1">Thống kê câu hỏi</p>
+                  <div className="space-y-2 mt-2">
                     {(() => {
                       const detailsArray = Array.isArray(examDetails) ? examDetails : [];
                       const groupQuestions = detailsArray.filter(q =>
@@ -651,131 +754,193 @@ const ExamDetail = () => {
                       );
 
                       return (
-                        <div>
-                          <p className="font-medium">{detailsArray.length} câu tổng</p>
-                          {groupQuestions.length > 0 && (
-                            <p className="text-xs text-gray-500">
-                              ({singleQuestions.length} đơn + {groupQuestions.length} nhóm = {totalChildQuestions} câu con)
-                            </p>
-                          )}
-                        </div>
+                        <>
+                          <div className="bg-gray-50 p-3 rounded-md flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Tổng số câu hỏi:</span>
+                            <span className="font-semibold text-lg">{detailsArray.length}</span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="bg-blue-50 p-2 rounded-md">
+                              <div className="text-xs text-blue-600">Câu hỏi đơn</div>
+                              <div className="font-medium text-blue-700">{singleQuestions.length}</div>
+                            </div>
+                            <div className="bg-purple-50 p-2 rounded-md">
+                              <div className="text-xs text-purple-600">Câu hỏi nhóm</div>
+                              <div className="font-medium text-purple-700">{groupQuestions.length}</div>
+                            </div>
+                            {groupQuestions.length > 0 && (
+                              <div className="bg-indigo-50 p-2 rounded-md col-span-2">
+                                <div className="text-xs text-indigo-600">Câu hỏi con</div>
+                                <div className="font-medium text-indigo-700">{totalChildQuestions}</div>
+                              </div>
+                            )}
+                          </div>
+                        </>
                       );
                     })()}
                   </div>
                 </div>
-              </div>
 
-              <div>
-                <p className="text-sm text-gray-500">Trạng thái</p>
-                <Badge className={exam.DaDuyet ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}>
-                  {exam.DaDuyet ? 'Đã duyệt' : 'Chưa duyệt'}
-                </Badge>
+                {/* Hide answer toggle
+                <div className="pt-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">Hiển thị đáp án</p>
+                    <Switch
+                      id="show-answers"
+                      checked={showAnswers}
+                      onCheckedChange={setShowAnswers}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {showAnswers
+                      ? 'Đáp án đúng được hiển thị trong danh sách câu hỏi'
+                      : 'Đáp án đúng bị ẩn trong danh sách câu hỏi'}
+                  </p>
+                </div>
+                */}
               </div>
+            </CardContent>
+          </Card>
+        </div>
 
-              <div>
-                <p className="text-sm text-gray-500">Cấu trúc</p>
-                <Badge className={exam.LoaiBoChuongPhan ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800"}>
-                  {exam.LoaiBoChuongPhan ? 'Không phân cấp' : 'Phân cấp chương/phần'}
-                </Badge>
+        {/* Main Content */}
+        <div className="lg:col-span-3">
+          <Tabs defaultValue="questions" className="w-full">
+            <TabsList className="mb-6 w-full justify-start">
+              <TabsTrigger value="questions" className="flex-1 max-w-[200px]">
+                <FileText className="mr-2" size={16} />
+                Danh sách câu hỏi
+              </TabsTrigger>
+              <TabsTrigger value="summary" className="flex-1 max-w-[200px]">
+                <Book className="mr-2" size={16} />
+                Tóm tắt đề thi
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="questions">
+              <div className="space-y-6">
+                {(() => {
+                  // Flatten all questions into a single array for continuous numbering
+                  const allQuestions = Object.values(groupedQuestions).flatMap(group => group.questions);
+                  return allQuestions.map((detail, qIndex) => (
+                    <Card key={detail.MaCauHoi} className="overflow-hidden">
+                      <CardContent className="pt-6 pb-6">
+                        <QuestionItem
+                          key={detail.MaCauHoi}
+                          question={{
+                            ...transformQuestion(detail.CauHoi, showAnswers),
+                            questionNumber: qIndex + 1
+                          }}
+                        />
+                      </CardContent>
+                    </Card>
+                  ));
+                })()}
               </div>
+            </TabsContent>
 
-              <div className="flex items-center space-x-2 pt-4">
-                <Switch
-                  id="show-answers"
-                  checked={showAnswers}
-                  onCheckedChange={setShowAnswers}
-                />
-                <Label htmlFor="show-answers">
-                  {showAnswers ? (
-                    <div className="flex items-center">
-                      <Eye className="w-4 h-4 mr-1" />
-                      Hiển thị đáp án
+            <TabsContent value="summary">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4">Thống kê tổng quan</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {(() => {
+                          const detailsArray = Array.isArray(examDetails) ? examDetails : [];
+                          const groupQuestions = detailsArray.filter(q =>
+                            (q.CauHoi.SoCauHoiCon && q.CauHoi.SoCauHoiCon > 0) ||
+                            q.CauHoi.LaCauHoiNhom ||
+                            (q.CauHoi.CauHoiCon && q.CauHoi.CauHoiCon.length > 0)
+                          );
+                          const singleQuestions = detailsArray.filter(q =>
+                            !((q.CauHoi.SoCauHoiCon && q.CauHoi.SoCauHoiCon > 0) ||
+                              q.CauHoi.LaCauHoiNhom ||
+                              (q.CauHoi.CauHoiCon && q.CauHoi.CauHoiCon.length > 0))
+                          );
+
+
+                          return (
+                            <>
+                              <div className="bg-blue-50 p-4 rounded-lg">
+                                <div className="text-2xl font-bold text-blue-700">{detailsArray.length}</div>
+                                <div className="text-sm text-blue-600">Tổng số câu hỏi</div>
+                              </div>
+                              <div className="bg-green-50 p-4 rounded-lg">
+                                <div className="text-2xl font-bold text-green-700">{singleQuestions.length}</div>
+                                <div className="text-sm text-green-600">Câu hỏi đơn</div>
+                              </div>
+                              <div className="bg-purple-50 p-4 rounded-lg">
+                                <div className="text-2xl font-bold text-purple-700">{groupQuestions.length}</div>
+                                <div className="text-sm text-purple-600">Câu hỏi nhóm</div>
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
                     </div>
-                  ) : (
-                    <div className="flex items-center">
-                      <EyeOff className="w-4 h-4 mr-1" />
-                      Ẩn đáp án
-                    </div>
-                  )}
-                </Label>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
-        <Card className="col-span-1 lg:col-span-2">
-          <CardContent className="pt-6">
-            <h2 className="text-xl font-semibold mb-4">Nội dung đề thi</h2>
-
-            <Tabs defaultValue="questions" className="w-full">
-              <TabsList className="mb-4">
-                <TabsTrigger value="questions">Danh sách câu hỏi</TabsTrigger>
-                <TabsTrigger value="summary">Tóm tắt</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="questions">
-                <div className="space-y-6">
-                  {Object.values(groupedQuestions).map((group, index) => (
-                    <div key={group.phan.MaPhan || index}>
-                      <h3 className="font-semibold border-b pb-2 mb-4">
-                        {group.phan.TenPhan || 'Chương không xác định'}
-                      </h3>
-                      <div className="space-y-4">
-                        {group.questions.map((detail, qIndex) => (
-                          <QuestionItem
-                            key={detail.MaCauHoi}
-                            question={transformQuestion(detail.CauHoi, showAnswers)}
-                            index={qIndex + 1}
-                          />
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4">Phân bố theo chương</h3>
+                      <div className="space-y-3">
+                        {Object.entries(groupedQuestions).map(([phanId, group]) => (
+                          <div key={phanId} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                            <span className="font-medium">{group.phan.TenPhan}</span>
+                            <Badge variant="outline">{group.questions.length} câu hỏi</Badge>
+                          </div>
                         ))}
                       </div>
                     </div>
-                  ))}
-                </div>
-              </TabsContent>
 
-              <TabsContent value="summary">
-                <div className="space-y-4">
-                  {Object.values(groupedQuestions).map((group, index) => {
-                    const groupQuestions = group.questions.filter(q =>
-                      (q.CauHoi.SoCauHoiCon && q.CauHoi.SoCauHoiCon > 0) ||
-                      q.CauHoi.LaCauHoiNhom ||
-                      (q.CauHoi.CauHoiCon && q.CauHoi.CauHoiCon.length > 0)
-                    );
-                    const singleQuestions = group.questions.filter(q =>
-                      !((q.CauHoi.SoCauHoiCon && q.CauHoi.SoCauHoiCon > 0) ||
-                        q.CauHoi.LaCauHoiNhom ||
-                        (q.CauHoi.CauHoiCon && q.CauHoi.CauHoiCon.length > 0))
-                    );
-
-                    return (
-                      <div key={group.phan.MaPhan || index} className="p-4 border rounded-md">
-                        <h3 className="font-semibold">{group.phan.TenPhan || 'Chương không xác định'}</h3>
-                        <div className="mt-2 space-y-1">
-                          <p className="text-sm text-gray-600">Tổng số câu hỏi: {group.questions.length}</p>
-                          {singleQuestions.length > 0 && (
-                            <p className="text-sm text-blue-600">Câu hỏi đơn: {singleQuestions.length}</p>
-                          )}
-                          {groupQuestions.length > 0 && (
-                            <div className="text-sm text-purple-600">
-                              <p>Câu hỏi nhóm: {groupQuestions.length}</p>
-                              <p className="text-xs text-gray-500 ml-2">
-                                (Tổng câu con: {groupQuestions.reduce((sum, q) =>
-                                  sum + (q.CauHoi.CauHoiCon?.length || q.CauHoi.SoCauHoiCon || 0), 0
-                                )})
-                              </p>
-                            </div>
-                          )}
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4">Thông tin đề thi</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Tên đề thi:</span>
+                            <span className="font-medium">{exam?.TenDeThi}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Môn học:</span>
+                            <span className="font-medium">{exam?.MonHoc?.TenMonHoc || 'Không có thông tin'}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Ngày tạo:</span>
+                            <span className="font-medium">{new Date(exam?.NgayTao || '').toLocaleDateString('vi-VN')}</span>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Trạng thái:</span>
+                            <Badge className={exam?.DaDuyet ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}>
+                              {exam?.DaDuyet ? 'Đã duyệt' : 'Chờ duyệt'}
+                            </Badge>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Cấu trúc:</span>
+                            <Badge className={exam?.LoaiBoChuongPhan ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800"}>
+                              {exam?.LoaiBoChuongPhan ? 'Không phân cấp' : 'Phân cấp chương'}
+                            </Badge>
+                          </div>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+          </Tabs>
+        </div>
       </div>
+
+      {/* Hidden print iframe */}
+      <iframe
+        ref={printFrameRef}
+        style={{ display: 'none' }}
+        title="Print Frame"
+      />
     </div>
   );
 };

@@ -10,6 +10,8 @@ import { CreateCauTraLoiDto } from '../../dto/cau-tra-loi.dto';
 import { PaginationDto } from '../../dto/pagination.dto';
 import { PAGINATION_CONSTANTS } from '../../constants/pagination.constants';
 import { CauTraLoi } from '../../entities/cau-tra-loi.entity';
+import { ChiTietDeThi } from '../../entities/chi-tiet-de-thi.entity';
+import { Files } from '../../entities/files.entity';
 import { randomUUID } from 'crypto';
 import { CauTraLoiService } from '../cau-tra-loi/cau-tra-loi.service';
 
@@ -460,13 +462,49 @@ export class CauHoiService extends BaseService<CauHoi> {
 
     async findByCauHoiCha(maCauHoiCha: string, paginationDto: PaginationDto) {
         const { page = 1, limit = 10 } = paginationDto;
-        const [items, total] = await this.cauHoiRepository.findAndCount({
+        const [questions, total] = await this.cauHoiRepository.findAndCount({
             where: { MaCauHoiCha: maCauHoiCha },
             skip: (page - 1) * limit,
             take: limit,
             order: {
-                NgayTao: 'DESC'
+                MaSoCauHoi: 'ASC' // Order by question number for proper sequence
+            },
+            relations: ['CLO'] // Include CLO relation
+        });
+
+        // Get all answers for these child questions
+        const questionIds = questions.map(q => q.MaCauHoi);
+        const answers = await this.dataSource
+            .getRepository(CauTraLoi)
+            .find({
+                where: { MaCauHoi: In(questionIds) },
+                order: { ThuTu: 'ASC' },
+            });
+
+        // Group answers by question ID
+        const answersMap = answers.reduce((map, answer) => {
+            if (!map[answer.MaCauHoi]) {
+                map[answer.MaCauHoi] = [];
             }
+            map[answer.MaCauHoi].push(answer);
+            return map;
+        }, {});
+
+        // Combine questions with their answers and CLO info
+        const items = questions.map(question => {
+            // Extract CLO information if available
+            const cloInfo = question.CLO ? {
+                MaCLO: question.CLO.MaCLO,
+                TenCLO: question.CLO.TenCLO
+            } : null;
+
+            return {
+                question: {
+                    ...question,
+                    cloInfo // Add CLO info
+                },
+                answers: answersMap[question.MaCauHoi] || [],
+            };
         });
 
         return {
@@ -577,8 +615,54 @@ export class CauHoiService extends BaseService<CauHoi> {
     }
 
     async delete(id: string): Promise<void> {
-        await super.delete(id);
-        await this.clearQuestionsCache();
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+
+        try {
+            // Check if question exists
+            const existingQuestion = await this.findOne(id);
+            if (!existingQuestion) {
+                throw new NotFoundException(`Question with ID ${id} not found`);
+            }
+
+            // Delete related Files first
+            await queryRunner.manager.delete(Files, { MaCauHoi: id });
+
+            // Delete related CauTraLoi (answers)
+            await queryRunner.manager.delete(CauTraLoi, { MaCauHoi: id });
+
+            // Delete related ChiTietDeThi (exam details)
+            await queryRunner.manager.delete(ChiTietDeThi, { MaCauHoi: id });
+
+            // If this is a parent question, delete child questions
+            if (existingQuestion.SoCauHoiCon > 0) {
+                const childQuestions = await queryRunner.manager.find(CauHoi, {
+                    where: { MaCauHoiCha: id }
+                });
+
+                for (const childQuestion of childQuestions) {
+                    // Delete child question's related data
+                    await queryRunner.manager.delete(Files, { MaCauHoi: childQuestion.MaCauHoi });
+                    await queryRunner.manager.delete(CauTraLoi, { MaCauHoi: childQuestion.MaCauHoi });
+                    await queryRunner.manager.delete(ChiTietDeThi, { MaCauHoi: childQuestion.MaCauHoi });
+
+                    // Delete child question
+                    await queryRunner.manager.delete(CauHoi, { MaCauHoi: childQuestion.MaCauHoi });
+                }
+            }
+
+            // Finally delete the main question
+            await queryRunner.manager.delete(CauHoi, { MaCauHoi: id });
+
+            await queryRunner.commitTransaction();
+            await this.clearQuestionsCache();
+        } catch (error) {
+            await queryRunner.rollbackTransaction();
+            throw error;
+        } finally {
+            await queryRunner.release();
+        }
     }
 
     async softDeleteCauHoi(id: string): Promise<void> {
