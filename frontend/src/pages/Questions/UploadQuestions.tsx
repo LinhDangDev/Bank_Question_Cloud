@@ -482,11 +482,6 @@ const UploadQuestions = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const navigate = useNavigate();
 
-  // New states for ZIP package upload
-  const [isZipLoading, setIsZipLoading] = useState(false);
-  const [zipError, setZipError] = useState<string | null>(null);
-  const [zipUploadResult, setZipUploadResult] = useState<any>(null);
-
   // Toggle group expansion
   const toggleGroup = (questionId: string) => {
     setExpandedGroups((prev) =>
@@ -711,92 +706,6 @@ const UploadQuestions = () => {
   const showGuide = (type: 'word' | 'excel' | 'backup' | 'package') => {
     setGuideType(type);
     setShowGuideModal(true);
-  };
-
-  // Handle ZIP file upload for exam packages
-  const handleZipFileSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (!file.name.toLowerCase().endsWith('.zip')) {
-      setZipError('Vui lòng chọn file ZIP');
-      return;
-    }
-
-    if (file.size > 100 * 1024 * 1024) { // 100MB limit
-      setZipError('File ZIP quá lớn. Vui lòng chọn file nhỏ hơn 100MB');
-      return;
-    }
-
-    await processZipFile(file);
-  };
-
-  // Process ZIP file containing exam package
-  const processZipFile = async (file: File) => {
-    setIsZipLoading(true);
-    setZipError(null);
-    setZipUploadResult(null);
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      // Add chapter ID if selected
-      if (chapterId) {
-        formData.append('maPhan', chapterId);
-      }
-
-      // Add processing options
-      formData.append('processImages', 'true');
-      formData.append('processAudio', 'true');
-      formData.append('saveToDatabase', 'false'); // Preview mode first
-      formData.append('limit', '100');
-
-      const response = await fetch(`${API_BASE_URL}/exam-package/upload`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: formData
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Lỗi xử lý gói đề: ${response.status}: ${errorText}`);
-      }
-
-      const result = await response.json();
-      setZipUploadResult(result);
-
-      // Convert result to ParsedQuestion format for preview
-      if (result.questions && result.questions.length > 0) {
-        const convertedQuestions = result.questions.map((q: any) => ({
-          id: q.id || uuidv4(),
-          content: q.content || q.processedContent || '',
-          clo: q.clo,
-          type: q.type || 'single-choice',
-          answers: q.answers || [],
-          childQuestions: q.childQuestions || [],
-          groupContent: q.groupContent,
-          hoanVi: q.hoanVi
-        }));
-
-        setSelectedQuestions(convertedQuestions);
-        toast.success(`Đã xử lý thành công ${result.questions.length} câu hỏi từ gói đề thi!`);
-      }
-
-    } catch (err: any) {
-      console.error('Error processing ZIP file:', err);
-      setZipError(err.message || 'Lỗi xử lý gói đề thi. Vui lòng kiểm tra định dạng và thử lại.');
-      toast.error(err.message || 'Lỗi xử lý gói đề thi');
-    } finally {
-      setIsZipLoading(false);
-      // Reset the file input
-      const zipInput = document.getElementById('zipFileInput') as HTMLInputElement;
-      if (zipInput) {
-        zipInput.value = '';
-      }
-    }
   };
 
   // Handle select/deselect all questions
@@ -1347,60 +1256,9 @@ const UploadQuestions = () => {
 
       case 'package':
         return (
-          <div className="space-y-4">
-            <h3 className="font-medium text-lg">Hướng dẫn tạo gói đề thi</h3>
-
-            <div className="bg-green-50 border border-green-200 rounded-md p-4 text-sm space-y-3">
-              <h4 className="font-medium text-green-800">Cấu trúc gói đề thi (ZIP)</h4>
-              <div className="space-y-2">
-                <p><strong>📄 File Word (.docx)</strong> - Bắt buộc</p>
-                <p className="ml-4 text-gray-600">• Chứa nội dung câu hỏi theo định dạng chuẩn</p>
-                <p className="ml-4 text-gray-600">• Sử dụng markup [AUDIO: filename] và [IMAGE: filename]</p>
-
-                <p><strong>🎵 Thư mục /audio</strong> - Tùy chọn</p>
-                <p className="ml-4 text-gray-600">• Chứa các file âm thanh (.mp3, .wav, .m4a)</p>
-
-                <p><strong>🖼️ Thư mục /images</strong> - Tùy chọn</p>
-                <p className="ml-4 text-gray-600">• Chứa các file hình ảnh (.jpg, .png, .gif, .bmp)</p>
-                <p className="ml-4 text-gray-600">• Tự động chuyển đổi sang WebP để tối ưu</p>
-              </div>
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-4 text-sm space-y-3">
-              <h4 className="font-medium text-blue-800">Tính năng tự động</h4>
-              <ul className="list-disc list-inside space-y-1 text-gray-700">
-                <li>Phân tích và trích xuất câu hỏi từ Word</li>
-                <li>Upload media lên Digital Ocean Spaces</li>
-                <li>Chuyển đổi hình ảnh sang WebP (chất lượng 85%)</li>
-                <li>Thay thế đường dẫn local thành full URLs</li>
-                <li>Nhận diện gạch chân để thiết lập HoanVi</li>
-                <li>Xử lý LaTeX và công thức toán học</li>
-              </ul>
-            </div>
-
-            <div className="bg-amber-50 border border-amber-200 rounded-md p-4 text-sm space-y-2">
-              <h4 className="font-medium text-amber-800">Lưu ý quan trọng</h4>
-              <ul className="list-disc list-inside space-y-1 text-gray-700">
-                <li>Kích thước tối đa: 100MB</li>
-                <li>Tên file media phải khớp với markup trong Word</li>
-                <li>Sử dụng đường dẫn tương đối trong markup</li>
-                <li>Kiểm tra preview trước khi lưu vào database</li>
-              </ul>
-            </div>
-
-            <div className="bg-gray-50 border rounded-md p-3 text-sm">
-              <h4 className="font-medium mb-2">Ví dụ cấu trúc ZIP:</h4>
-              <pre className="text-xs font-mono text-gray-600">
-{`exam-package.zip
-├── questions.docx
-├── audio/
-│   ├── listening1.mp3
-│   └── pronunciation.wav
-└── images/
-    ├── diagram1.jpg
-    └── chart2.png`}
-              </pre>
-            </div>
+          <div className="space-y-3">
+            <h3 className="font-medium">Hướng dẫn nhập gói câu hỏi</h3>
+            <p className="text-sm">Chức năng đang được phát triển...</p>
           </div>
         );
 
@@ -1433,33 +1291,8 @@ const UploadQuestions = () => {
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-start">
               <span className="mr-2 mt-0.5">⚠️</span>
               <div>
-                <p className="font-medium">Lỗi upload Word</p>
+                <p className="font-medium">Lỗi</p>
                 <p>{error}</p>
-              </div>
-            </div>
-          )}
-
-          {/* ZIP Error display */}
-          {zipError && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-start">
-              <span className="mr-2 mt-0.5">⚠️</span>
-              <div>
-                <p className="font-medium">Lỗi upload gói đề thi</p>
-                <p>{zipError}</p>
-              </div>
-            </div>
-          )}
-
-          {/* ZIP Success display */}
-          {zipUploadResult && (
-            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700 flex items-start">
-              <span className="mr-2 mt-0.5">✅</span>
-              <div>
-                <p className="font-medium">Xử lý gói đề thi thành công</p>
-                <p>Đã xử lý {zipUploadResult.statistics?.totalQuestions || 0} câu hỏi</p>
-                {zipUploadResult.statistics?.mediaReplacementsMade > 0 && (
-                  <p>Đã thay thế {zipUploadResult.statistics.mediaReplacementsMade} tham chiếu media</p>
-                )}
               </div>
             </div>
           )}
@@ -1532,149 +1365,41 @@ const UploadQuestions = () => {
             </div>
           </div>
 
-          {/* Upload Options - Two Sections */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-
-            {/* Section 1: Upload Word Document */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center mb-4">
-                <FileText className="h-6 w-6 text-blue-600 mr-2" />
-                <h2 className="text-lg font-medium">Upload File Word</h2>
-              </div>
-
-              <div
-                className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors duration-200 ${
-                  isLoading
-                    ? 'border-blue-500 bg-blue-50 cursor-not-allowed'
-                    : dragOver
-                      ? 'border-blue-500 bg-blue-50 cursor-pointer'
-                      : 'border-gray-300 hover:border-blue-400 cursor-pointer'
-                }`}
-                onDragOver={!isLoading ? handleDragOver : undefined}
-                onDragLeave={!isLoading ? handleDragLeave : undefined}
-                onDrop={!isLoading ? handleDrop : undefined}
-                onClick={() => !isLoading && fileInputRef.current?.click()}
-              >
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileSelected}
-                  className="hidden"
-                  accept=".docx,.doc"
-                  disabled={isLoading}
-                />
-                <div className="mx-auto flex flex-col items-center">
-                  {isLoading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-3"></div>
-                      <h3 className="text-base font-medium text-blue-700">Đang xử lý file Word...</h3>
-                      <p className="text-sm text-blue-600 mt-1">Vui lòng đợi, đang phân tích nội dung</p>
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="h-10 w-10 text-gray-400 mb-3" />
-                      <h3 className="text-base font-medium text-gray-700">Tải lên file Word</h3>
-                      <p className="text-sm text-gray-500 mt-1">Kéo thả hoặc nhấp để chọn file</p>
-                      <p className="text-xs text-gray-400 mt-1">Hỗ trợ: .docx, .doc</p>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-4 space-y-2">
-                <button
-                  type="button"
-                  className={`w-full inline-flex items-center justify-center px-3 py-2 border shadow-sm text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                    isLoading
-                      ? 'border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed'
-                      : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50 focus:ring-blue-500'
-                  }`}
-                  onClick={() => !isLoading && showGuide('word')}
-                  disabled={isLoading}
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  Xem hướng dẫn định dạng Word
-                </button>
-
-                <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-md">
-                  <p className="font-medium mb-1">Tính năng:</p>
-                  <ul className="list-disc list-inside space-y-1">
-                    <li>Phân tích câu hỏi từ file Word</li>
-                    <li>Tự động nhận diện CLO</li>
-                    <li>Hỗ trợ LaTeX và công thức toán</li>
-                    <li>Xử lý định dạng gạch chân (HoanVi)</li>
-                  </ul>
-                </div>
+          {/* File upload area */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+            <h2 className="text-lg font-medium mb-4">Tải lên tệp tin</h2>
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center ${
+                dragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400'
+              } transition-colors duration-200 cursor-pointer`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelected}
+                className="hidden"
+                accept=".docx,.doc"
+              />
+              <div className="mx-auto flex flex-col items-center">
+                <UploadIcon className="h-12 w-12 text-gray-400 mb-3" />
+                <h3 className="text-lg font-medium text-gray-700">Kéo thả hoặc nhấp để tải lên</h3>
+                <p className="text-sm text-gray-500 mt-1">Hỗ trợ tệp tin Word (.docx, .doc)</p>
               </div>
             </div>
 
-            {/* Section 2: Upload Exam Package (ZIP) */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center mb-4">
-                <Database className="h-6 w-6 text-green-600 mr-2" />
-                <h2 className="text-lg font-medium">Upload Gói Đề Thi</h2>
-              </div>
-
-              <div
-                className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors duration-200 ${
-                  isZipLoading
-                    ? 'border-green-500 bg-green-50 cursor-not-allowed'
-                    : 'border-green-300 hover:border-green-400 cursor-pointer'
-                }`}
-                onClick={() => !isZipLoading && document.getElementById('zipFileInput')?.click()}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                onClick={() => showGuide('word')}
               >
-                <input
-                  id="zipFileInput"
-                  type="file"
-                  className="hidden"
-                  accept=".zip"
-                  onChange={handleZipFileSelected}
-                  disabled={isZipLoading}
-                />
-                <div className="mx-auto flex flex-col items-center">
-                  {isZipLoading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-green-600 mb-3"></div>
-                      <h3 className="text-base font-medium text-green-700">Đang xử lý gói đề thi...</h3>
-                      <p className="text-sm text-green-600 mt-1">Vui lòng đợi, quá trình có thể mất vài phút</p>
-                    </>
-                  ) : (
-                    <>
-                      <Database className="h-10 w-10 text-gray-400 mb-3" />
-                      <h3 className="text-base font-medium text-gray-700">Tải lên gói đề thi</h3>
-                      <p className="text-sm text-gray-500 mt-1">Kéo thả hoặc nhấp để chọn file ZIP</p>
-                      <p className="text-xs text-gray-400 mt-1">Hỗ trợ: .zip (tối đa 100MB)</p>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-4 space-y-2">
-                <button
-                  type="button"
-                  className={`w-full inline-flex items-center justify-center px-3 py-2 border shadow-sm text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                    isZipLoading
-                      ? 'border-green-200 text-green-400 bg-green-25 cursor-not-allowed'
-                      : 'border-green-300 text-green-700 bg-green-50 hover:bg-green-100 focus:ring-green-500'
-                  }`}
-                  onClick={() => !isZipLoading && showGuide('package')}
-                  disabled={isZipLoading}
-                >
-                  <Database className="h-4 w-4 mr-2" />
-                  Xem hướng dẫn gói đề thi
-                </button>
-
-                <div className="text-xs text-gray-500 bg-green-50 p-3 rounded-md">
-                  <p className="font-medium mb-1">Cấu trúc gói đề:</p>
-                  <ul className="list-disc list-inside space-y-1">
-                    <li>File Word (.docx) - Bắt buộc</li>
-                    <li>Thư mục /audio - Tùy chọn</li>
-                    <li>Thư mục /images - Tùy chọn</li>
-                    <li>Tự động chuyển đổi WebP</li>
-                    <li>Upload lên Digital Ocean Spaces</li>
-                  </ul>
-                </div>
-              </div>
+                <FileText className="h-4 w-4 mr-2" />
+                Xem hướng dẫn định dạng
+              </button>
             </div>
           </div>
 
