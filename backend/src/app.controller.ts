@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Header } from '@nestjs/common';
 import { AppService } from './app.service';
 import { getCurrentDatabaseEnvironment, getAvailableEnvironments, setDatabaseEnvironment } from './config/database.config';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { renderPrometheusMetrics } from './monitoring-metrics';
 
 @ApiTags('Health & Config')
 @Controller()
@@ -49,6 +50,14 @@ export class AppController {
             uptime: process.uptime(),
             pid: process.pid
         };
+    }
+
+    @Get('metrics')
+    @Header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8')
+    @ApiOperation({ summary: 'Prometheus metrics endpoint' })
+    @ApiResponse({ status: 200, description: 'Prometheus metrics exposition' })
+    getMetrics() {
+        return renderPrometheusMetrics();
     }
 
     @Get('db-config')

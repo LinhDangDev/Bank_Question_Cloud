@@ -25,6 +25,7 @@ import Feedback from '@/pages/Support/Feedback'
 import Settings from '@/pages/Settings/Settings'
 import NotFound from '@/pages/NotFound'
 import EditQuestion from '@/pages/Questions/EditQuestion'
+import MonitoringPage from '@/pages/Monitoring/MonitoringPage'
 import { ThemeProvider } from '@/context/ThemeContext'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
@@ -137,6 +138,7 @@ function AppRoutes() {
           <Route path="users/add" element={<AddUser />} />
           <Route path="users/edit/:id" element={<EditUser />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="monitoring" element={<MonitoringPage />} />
           <Route path="help" element={<Help />} />
           <Route path="feedback" element={<Feedback />} />
           <Route path="search" element={<Search />} />

@@ -10,6 +10,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as express from 'express';
 import { getCurrentDatabaseEnvironment } from './config/database.config';
+import { recordHttpRequest } from './monitoring-metrics';
 
 // Improved function to find and load .env file
 const loadEnvFile = () => {
@@ -105,6 +106,16 @@ async function bootstrap() {
     }
 
     app.use(express.static(publicPath));
+
+    app.use((req, res, next) => {
+        const startTime = Date.now();
+
+        res.on('finish', () => {
+            recordHttpRequest(res.statusCode, Date.now() - startTime);
+        });
+
+        next();
+    });
 
     // Serve uploaded files (audio, images) as static files
     const uploadsPath = path.resolve(__dirname, '../uploads');

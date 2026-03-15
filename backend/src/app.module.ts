@@ -31,6 +31,7 @@ import { QuestionParserModule } from './modules/question-parser/question-parser.
 import { PythonEnhancedDocxParserModule } from './modules/python-enhanced-docx-parser/python-enhanced-docx-parser.module';
 import { ExamWordExportModule } from './modules/exam-word-export/exam-word-export.module';
 import { PythonDocxParserModule } from './modules/python-docx-parser/python-docx-parser.module';
+import { MonitoringModule } from './modules/monitoring/monitoring.module';
 import databaseConfig from './config/database.config';
 import { DbConfigController } from './utils/db-env-switcher';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
@@ -92,6 +93,7 @@ import * as path from 'path';
         PythonDocxParserModule,
         PythonEnhancedDocxParserModule,
         ExamWordExportModule,
+        MonitoringModule,
     ],
     controllers: [AppController, DbConfigController],
     providers: [AppService],

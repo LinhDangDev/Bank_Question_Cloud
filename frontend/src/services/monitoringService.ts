@@ -56,16 +56,10 @@ class MonitoringService {
   }
 
   /**
-   * Trigger manual health check
+   * Refresh the current system health snapshot.
    */
-  async triggerHealthCheck(): Promise<{ success: boolean; message: string }> {
-    try {
-      const response = await api.post(`${this.baseUrl}/health/check`);
-      return response.data;
-    } catch (error) {
-      console.error('Error triggering health check:', error);
-      throw new Error('Failed to trigger health check');
-    }
+  async refreshSystemHealth(): Promise<SystemHealth> {
+    return this.getSystemHealth();
   }
 }
 
