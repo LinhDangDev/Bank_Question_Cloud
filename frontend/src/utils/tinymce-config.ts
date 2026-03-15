@@ -72,4 +72,4 @@ export const createTinyMCEConfig = (height: number = 120, isMinimal: boolean = f
     };
 };
 
-export const TINYMCE_API_KEY = "6gjaodohdncfz36azjc7q49f26yrhh881rljxqshfack7cax";
+export const TINYMCE_API_KEY = import.meta.env.VITE_TINYMCE_API_KEY || '';

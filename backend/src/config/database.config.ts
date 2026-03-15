@@ -11,7 +11,7 @@ const environments: Record<string, any> = {
         host: process.env.DB_HOST || "localhost",
         port: parseInt(process.env.DB_PORT || '1433', 10),
         username: process.env.DB_USERNAME || "sa",
-        password: process.env.DB_PASSWORD || "Cntt15723@",
+        password: process.env.DB_PASSWORD || "CHANGE_ME_DB_PASSWORD",
         database: process.env.DB_DATABASE || "question_bank",
         options: {
             enableArithAbort: true,
@@ -23,10 +23,10 @@ const environments: Record<string, any> = {
     },
     server: {
         type: "mssql",
-        host: process.env.SERVER_DB_HOST || "questionbank-primary.ctkouguw85yr.ap-southeast-1.rds.amazonaws.com",
+        host: process.env.SERVER_DB_HOST || "103.173.226.35",
         port: parseInt(process.env.SERVER_DB_PORT || "1433", 10),
-        username: process.env.SERVER_DB_USERNAME || "admin",
-        password: process.env.SERVER_DB_PASSWORD || "QuestionBank2025!",
+        username: process.env.SERVER_DB_USERNAME || "sa",
+        password: process.env.SERVER_DB_PASSWORD || "CHANGE_ME_SERVER_DB_PASSWORD",
         database: process.env.SERVER_DB_DATABASE || "question_bank",
         options: {
             encrypt: process.env.SERVER_DB_ENCRYPT === 'true',
