@@ -591,4 +591,5 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
     }
 };
 
+export { api };
 export default api;
