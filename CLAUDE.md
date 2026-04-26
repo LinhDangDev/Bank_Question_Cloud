@@ -8,51 +8,51 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 # Install dependencies
 cd backend
-pnpm install
+bun install
 
 # Development
-pnpm run dev                # Start development server (http://localhost:3001)
-pnpm run swagger           # View Swagger API documentation
+bun run dev                # Start development server (http://localhost:3001)
+bun run swagger           # View Swagger API documentation
 
 # Database Management
-pnpm run db:switch         # Interactive database switcher
-pnpm run db:local          # Switch to local database
-pnpm run db:server         # Switch to server database  
-pnpm run db:status         # Check current database status
-pnpm run db:test           # Test database connection
-pnpm run setup:env         # Create initial .env file
+bun run db:switch         # Interactive database switcher
+bun run db:local          # Switch to local database
+bun run db:server         # Switch to server database  
+bun run db:status         # Check current database status
+bun run db:test           # Test database connection
+bun run setup:env         # Create initial .env file
 
 # Testing
-pnpm run test              # Run unit tests
-pnpm run test:watch        # Run tests in watch mode
-pnpm run test:cov          # Run tests with coverage
-pnpm run test:e2e          # Run end-to-end tests
-pnpm run test:api          # Test API endpoints
+bun run test              # Run unit tests
+bun run test:watch        # Run tests in watch mode
+bun run test:cov          # Run tests with coverage
+bun run test:e2e          # Run end-to-end tests
+bun run test:api          # Test API endpoints
 
 # Code Quality
-pnpm run lint              # Run ESLint
-pnpm run format            # Run Prettier
+bun run lint              # Run ESLint
+bun run format            # Run Prettier
 
 # Build
-pnpm run build             # Build for production
-pnpm run start:prod        # Start production server
+bun run build             # Build for production
+bun run start:prod        # Start production server
 ```
 
 ### Frontend Commands
 ```bash
 # Install dependencies
 cd frontend
-pnpm install
+bun install
 
 # Development
-pnpm run dev               # Start development server (http://localhost:3000)
+bun run dev               # Start development server (http://localhost:3000)
 
 # Build
-pnpm run build             # Build for production
-pnpm run preview           # Preview production build
+bun run build             # Build for production
+bun run preview           # Preview production build
 
 # Code Quality
-pnpm run lint              # Run ESLint
+bun run lint              # Run ESLint
 ```
 
 ## High-Level Architecture
@@ -121,7 +121,7 @@ This is a comprehensive educational system with two main applications:
 ## Important Notes
 
 ### Environment Configuration
-- Always use `pnpm run setup:env` to create initial .env file
+- Always use `bun run setup:env` to create initial .env file
 - Database credentials must be configured before running
 - DigitalOcean Spaces credentials required for file storage
 
@@ -135,7 +135,7 @@ This is a comprehensive educational system with two main applications:
 - Unit tests use Jest with TypeScript support
 - Test files follow `*.spec.ts` pattern
 - Database tests require active connection
-- API tests available via `pnpm run test:api`
+- API tests available via `bun run test:api`
 
 ### Security Considerations
 - JWT tokens expire after 1 hour by default

@@ -120,10 +120,21 @@ build/
 .cursorignore
 
 
-#Ignore all files in the docs directory
-
-docs/
+# Track docs/ folder for internal documentation (refactor plans, rename map, system overview)
+# docs/
 
 # Ignore all files in the database directory
 database/
 deployment/
+
+# Ignore all files serena folder
+
+serena/
+
+
+/.aws-workspace/*
+
+# Bun + cleanup artifacts
+bun.lockb
+node_modules_OLD*/
+.bun/

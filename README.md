@@ -48,9 +48,9 @@ graph TB
 - **Database**: SQL Server with TypeORM
 - **Authentication**: JWT with Passport
 - **File Processing**: Python scripts for document parsing
-- **Queue System**: Bull with Redis
+- **Queue System**: Bull with Valkey/Redis OSS
 - **File Storage**: DigitalOcean Spaces
-- **Package Manager**: pnpm
+- **Package Manager**: bun
 
 ### Frontend
 - **Framework**: React 18 with TypeScript
@@ -65,12 +65,12 @@ graph TB
 - **Message Queue**: Apache Kafka
 - **Search Engine**: Qdrant (Vector Search)
 - **Monitoring**: Prometheus + Grafana
-- **Caching**: Redis
+- **Caching**: Valkey/Redis OSS
 
 ## 📋 Prerequisites
 
 - **Node.js**: >= 18.0.0
-- **pnpm**: >= 8.0.0
+- **bun**: >= 1.1.0
 - **SQL Server**: 2019 or later
 - **Python**: >= 3.8 (for document processing)
 - **Docker**: >= 20.10 (optional, for containerized deployment)
@@ -88,13 +88,13 @@ cd Graduation
 cd backend
 
 # Install dependencies
-pnpm install
+bun install
 
 # Setup environment configuration
-pnpm run setup:env
+bun run setup:env
 
 # Configure database connection
-pnpm run db:switch
+bun run db:switch
 ```
 
 ### 3. Frontend Setup
@@ -102,7 +102,7 @@ pnpm run db:switch
 cd frontend
 
 # Install dependencies
-pnpm install
+bun install
 ```
 
 ### 4. Database Setup
@@ -151,16 +151,16 @@ STORAGE_PROVIDER=spaces
 ### Database Switching
 ```bash
 # Switch to local database
-pnpm run db:local
+bun run db:local
 
 # Switch to server database
-pnpm run db:server
+bun run db:server
 
 # Check current database status
-pnpm run db:status
+bun run db:status
 
 # Test database connection
-pnpm run db:test
+bun run db:test
 ```
 
 ## 🚀 Running the Application
@@ -170,7 +170,7 @@ pnpm run db:test
 #### Backend
 ```bash
 cd backend
-pnpm run dev
+bun run dev
 # Server runs on http://localhost:3001
 # Swagger API docs: http://localhost:3001/api
 ```
@@ -178,7 +178,7 @@ pnpm run dev
 #### Frontend
 ```bash
 cd frontend
-pnpm run dev
+bun run dev
 # Application runs on http://localhost:3000
 ```
 
@@ -305,22 +305,22 @@ erDiagram
 cd backend
 
 # Run unit tests
-pnpm run test
+bun run test
 
 # Run tests with coverage
-pnpm run test:cov
+bun run test:cov
 
 # Run e2e tests
-pnpm run test:e2e
+bun run test:e2e
 ```
 
 ### API Testing
 ```bash
 # Test API endpoints
-pnpm run test:api
+bun run test:api
 
 # Test database connection
-pnpm run db:test
+bun run db:test
 ```
 
 ## 🚀 Deployment
@@ -341,8 +341,8 @@ pnpm run db:test
 3. **Application Deployment**
 ```bash
 # Build applications
-cd backend && pnpm run build
-cd frontend && pnpm run build
+cd backend && bun run build
+cd frontend && bun run build
 
 # Deploy using Docker
 docker-compose -f docker-compose.prod.yml up -d
@@ -364,7 +364,7 @@ CDN_BASE_URL=https://graduation-media.region.cdn.digitaloceanspaces.com
 1. **Database Connection Failed**
    - Check SQL Server is running
    - Verify connection string in `.env`
-   - Run `pnpm run db:test` to test connection
+   - Run `bun run db:test` to test connection
 
 2. **File Upload Issues**
    - Verify DigitalOcean Spaces credentials
