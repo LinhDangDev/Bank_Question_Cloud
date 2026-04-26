@@ -1,0 +1,14 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Backend app metrics via ALB or direct host (replace HOST:PORT)
+  - job_name: 'question-bank-backend'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['HOST:PORT']
