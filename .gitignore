@@ -140,3 +140,7 @@ deployment/
 bun.lockb
 node_modules_OLD*/
 .bun/
+
+
+sample_word_files/*
+template/*
