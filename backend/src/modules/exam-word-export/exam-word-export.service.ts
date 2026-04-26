@@ -5,7 +5,7 @@ import { DeThi } from '../../entities/de-thi.entity';
 import { ChiTietDeThi } from '../../entities/chi-tiet-de-thi.entity';
 import { CauHoi } from '../../entities/cau-hoi.entity';
 import { CauTraLoi } from '../../entities/cau-tra-loi.entity';
-import { DocxTemplateService } from '../../services/docx-template.service';
+import { DocxTemplateService } from './docx-template.service';
 import * as path from 'path';
 import * as fs from 'fs';
 

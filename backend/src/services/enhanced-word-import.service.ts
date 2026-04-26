@@ -6,7 +6,7 @@ import { CauTraLoi } from '../entities/cau-tra-loi.entity';
 import { Files } from '../entities/files.entity';
 import { Phan } from '../entities/phan.entity';
 import { QuestionParserService } from './question-parser.service';
-import { MediaContentProcessorService } from './media-content-processor.service';
+import { MediaContentProcessorService } from '../modules/multimedia-exam/media-content-processor.service';
 import { QuestionType } from '../enums/question-type.enum';
 import { FileType } from '../enums/file-type.enum';
 import {

@@ -8,10 +8,10 @@ import { FilesSpacesService } from './files-spaces.service';
 import { FilesSpacesController } from './files-spaces.controller';
 import { FilesUrlService } from './files-url.service';
 import { FilesUrlController } from './files-url.controller';
-import { SpacesService } from '../../services/spaces.service';
+import { SpacesService } from './spaces.service';
 import { MulterModule } from '@nestjs/platform-express';
-import { DocxTemplateService } from '../../services/docx-template.service';
-import { PdfService } from '../../services/pdf.service';
+import { DocxTemplateService } from '../exam-word-export/docx-template.service';
+import { PdfService } from '../exam-word-export/pdf.service';
 import spacesConfig from '../../config/spaces.config';
 import { memoryStorage } from 'multer';
 

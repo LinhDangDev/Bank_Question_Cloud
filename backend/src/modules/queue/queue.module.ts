@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bull';
 import { ExtractionProcessor } from './processors/extraction.processor';
-import { ExamService } from '../../services/exam.service';
-import { DocxTemplateService } from '../../services/docx-template.service';
-import { PdfService } from '../../services/pdf.service';
+import { ExamService } from '../de-thi/exam.service';
+import { DocxTemplateService } from '../exam-word-export/docx-template.service';
+import { PdfService } from '../exam-word-export/pdf.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CauHoi } from '../../entities/cau-hoi.entity';
 import { CauTraLoi } from '../../entities/cau-tra-loi.entity';

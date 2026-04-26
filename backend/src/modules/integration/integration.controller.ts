@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Logger, HttpStatus, HttpException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
-import { IntegrationService } from '../../services/integration.service';
+import { IntegrationService } from './integration.service';
 import {
     ExamDetailsResponseDto,
     ExamStatusResponseDto,

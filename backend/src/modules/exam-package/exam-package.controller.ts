@@ -13,7 +13,7 @@ import { ApiTags, ApiOperation, ApiConsumes, ApiBody, ApiResponse } from '@nestj
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { ExamPackageService } from '../../services/exam-package.service';
+import { ExamPackageService } from './exam-package.service';
 import { UploadExamPackageDto, ExamPackageUploadResponseDto } from '../../dto/exam-package.dto';
 import { MulterFile } from '../../interfaces/multer-file.interface';
 import * as fs from 'fs';

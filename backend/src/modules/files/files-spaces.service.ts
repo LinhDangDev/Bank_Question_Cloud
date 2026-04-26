@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Files } from '../../entities/files.entity';
-import { SpacesService } from '../../services/spaces.service';
+import { SpacesService } from './spaces.service';
 import { randomUUID } from 'crypto';
 import { FileType, getFileTypeFromMimeType } from '../../enums/file-type.enum';
 

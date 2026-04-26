@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { SpacesService } from './spaces.service';
+import { SpacesService } from '../modules/files/spaces.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as AdmZip from 'adm-zip';

@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { QuestionParserController } from '../../controllers/question-parser.controller';
 import { DocxParserService } from '../../services/docx-parser.service';
-import { StorageService } from '../../services/storage.service';
-import { ContentReplacementService } from '../../services/content-replacement.service';
-import { MediaProcessingService } from '../../services/media-processing.service';
-import { SpacesService } from '../../services/spaces.service';
+import { StorageService } from '../files/storage.service';
+import { ContentReplacementService } from '../multimedia-exam/content-replacement.service';
+import { MediaProcessingService } from '../multimedia-exam/media-processing.service';
+import { SpacesService } from '../files/spaces.service';
 import { ConfigModule } from '@nestjs/config';
 import spacesConfig from '../../config/spaces.config';
 

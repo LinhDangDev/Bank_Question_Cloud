@@ -13,7 +13,7 @@ import {
 import { ApiTags, ApiOperation, ApiParam, ApiBody, ApiResponse } from '@nestjs/swagger';
 import { Response } from 'express';
 import { ExamWordExportService, ExamWordExportOptions } from './exam-word-export.service';
-import { PythonExamWordExportService, PythonExportOptions } from '../../services/python-exam-word-export.service';
+import { PythonExamWordExportService, PythonExportOptions } from './python-exam-word-export.service';
 
 import { IsOptional, IsString, IsBoolean, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';

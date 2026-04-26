@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
-import { StorageService } from './storage.service';
-import { ContentReplacementService } from './content-replacement.service';
-import { MediaProcessingService } from './media-processing.service';
+import { StorageService } from '../modules/files/storage.service';
+import { ContentReplacementService } from '../modules/multimedia-exam/content-replacement.service';
+import { MediaProcessingService } from '../modules/multimedia-exam/media-processing.service';
 import { QuestionType } from '../enums/question-type.enum';
 import { MulterFile } from '../interfaces/multer-file.interface';
 

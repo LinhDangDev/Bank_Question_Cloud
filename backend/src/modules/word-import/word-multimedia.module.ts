@@ -3,7 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { WordMultimediaService } from './word-multimedia.service';
 import { WordMultimediaController } from './word-multimedia.controller';
 import { Files } from '../../entities/files.entity';
-import { SpacesService } from '../../services/spaces.service';
+import { SpacesService } from '../files/spaces.service';
 
 @Module({
     imports: [

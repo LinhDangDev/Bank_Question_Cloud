@@ -1,12 +1,12 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import { SpacesService } from './spaces.service';
+import { SpacesService } from '../files/spaces.service';
 import * as sharp from 'sharp';
 import * as mime from 'mime-types';
 import {
     ExtractedMediaFile,
     MediaFileType,
     MediaProcessingOptions
-} from '../interfaces/exam-package.interface';
+} from '../../interfaces/exam-package.interface';
 
 @Injectable()
 export class MediaProcessingService {

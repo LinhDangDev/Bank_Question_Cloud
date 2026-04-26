@@ -2,7 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Files } from '../../entities/files.entity';
-import { SpacesService } from '../../services/spaces.service';
+import { SpacesService } from '../files/spaces.service';
 import { FileType, getFileTypeFromExtension, getFolderByFileType } from '../../enums/file-type.enum';
 import * as AdmZip from 'adm-zip';
 import * as path from 'path';

@@ -1,14 +1,14 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, IsNull } from 'typeorm';
-import { DeThi } from '../entities/de-thi.entity';
-import { CauHoi } from '../entities/cau-hoi.entity';
-import { CauTraLoi } from '../entities/cau-tra-loi.entity';
-import { Phan } from '../entities/phan.entity';
-import { ChiTietDeThi } from '../entities/chi-tiet-de-thi.entity';
-import { MonHoc } from '../entities/mon-hoc.entity';
-import { Files } from '../entities/files.entity';
-import { SpacesUrlBuilder } from '../config/spaces.config';
+import { DeThi } from '../../entities/de-thi.entity';
+import { CauHoi } from '../../entities/cau-hoi.entity';
+import { CauTraLoi } from '../../entities/cau-tra-loi.entity';
+import { Phan } from '../../entities/phan.entity';
+import { ChiTietDeThi } from '../../entities/chi-tiet-de-thi.entity';
+import { MonHoc } from '../../entities/mon-hoc.entity';
+import { Files } from '../../entities/files.entity';
+import { SpacesUrlBuilder } from '../../config/spaces.config';
 import {
     ExamDetailsResponseDto,
     ExamStatusResponseDto,
@@ -20,7 +20,7 @@ import {
     PhanNewDto,
     CauHoiNewDto,
     CauTraLoiNewDto
-} from '../dto/integration.dto';
+} from '../../dto/integration.dto';
 
 @Injectable()
 export class IntegrationService {

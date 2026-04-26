@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { StorageConfig, getStorageConfig } from '../config/storage.config';
+import { StorageConfig, getStorageConfig } from '../../config/storage.config';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';

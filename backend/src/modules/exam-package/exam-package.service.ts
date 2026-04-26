@@ -1,12 +1,12 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
-import { DocxParserService } from './docx-parser.service';
-import { MediaProcessingService } from './media-processing.service';
-import { ContentReplacementService } from './content-replacement.service';
-import { CauHoi } from '../entities/cau-hoi.entity';
-import { CauTraLoi } from '../entities/cau-tra-loi.entity';
-import { Files } from '../entities/files.entity';
+import { DocxParserService } from '../../services/docx-parser.service';
+import { MediaProcessingService } from '../multimedia-exam/media-processing.service';
+import { ContentReplacementService } from '../multimedia-exam/content-replacement.service';
+import { CauHoi } from '../../entities/cau-hoi.entity';
+import { CauTraLoi } from '../../entities/cau-tra-loi.entity';
+import { Files } from '../../entities/files.entity';
 import * as yauzl from 'yauzl';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -24,8 +24,8 @@ import {
     ZipExtractionOptions,
     MediaProcessingOptions,
     MediaFileType
-} from '../interfaces/exam-package.interface';
-import { MulterFile } from '../interfaces/multer-file.interface';
+} from '../../interfaces/exam-package.interface';
+import { MulterFile } from '../../interfaces/multer-file.interface';
 
 @Injectable()
 export class ExamPackageService {

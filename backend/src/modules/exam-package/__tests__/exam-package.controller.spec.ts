@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { ExamPackageController } from '../exam-package.controller';
-import { ExamPackageService } from '../../../services/exam-package.service';
+import { ExamPackageService } from '../exam-package.service';
 import { JwtAuthGuard } from '../../../guards/jwt-auth.guard';
 import { RolesGuard } from '../../../guards/roles.guard';
 

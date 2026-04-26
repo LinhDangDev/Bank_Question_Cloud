@@ -7,12 +7,12 @@ import { ChiTietDeThi } from '../../entities/chi-tiet-de-thi.entity';
 import { CreateDeThiDto, UpdateDeThiDto } from '../../dto';
 import { PaginationDto } from '../../dto/pagination.dto';
 import { PAGINATION_CONSTANTS } from '../../constants/pagination.constants';
-import { ExamService } from '../../services/exam.service';
+import { ExamService } from './exam.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { DocxTemplateService } from '../../services/docx-template.service';
-import { PdfService } from '../../services/pdf.service';
+import { DocxTemplateService } from '../exam-word-export/docx-template.service';
+import { PdfService } from '../exam-word-export/pdf.service';
 import { CauHoi } from '../../entities/cau-hoi.entity';
 
 // Define the interface here to avoid importing from external module

@@ -3,7 +3,7 @@ import {
     MediaReference,
     ExtractedMediaFile,
     ProcessedQuestion
-} from '../interfaces/exam-package.interface';
+} from '../../interfaces/exam-package.interface';
 
 @Injectable()
 export class ContentReplacementService {

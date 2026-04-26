@@ -8,9 +8,9 @@ import { join } from 'path';
 import * as puppeteer from 'puppeteer';
 import * as PizZip from 'pizzip';
 import * as Docxtemplater from 'docxtemplater';
-import { DocxTemplateService } from '../../services/docx-template.service';
-import { PdfService } from '../../services/pdf.service';
-import { StorageService } from '../../services/storage.service';
+import { DocxTemplateService } from '../exam-word-export/docx-template.service';
+import { PdfService } from '../exam-word-export/pdf.service';
+import { StorageService } from './storage.service';
 import { FileType, getFileTypeFromExtension } from '../../enums/file-type.enum';
 
 // Define the file type for Express.Multer.File since it's not recognized

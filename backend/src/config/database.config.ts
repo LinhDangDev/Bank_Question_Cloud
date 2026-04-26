@@ -23,10 +23,10 @@ const environments: Record<string, any> = {
     },
     server: {
         type: "mssql",
-        host: process.env.SERVER_DB_HOST || "103.173.226.35",
+        host: process.env.SERVER_DB_HOST || "questionbank-primary.ctkouguw85yr.ap-southeast-1.rds.amazonaws.com",
         port: parseInt(process.env.SERVER_DB_PORT || "1433", 10),
-        username: process.env.SERVER_DB_USERNAME || "sa",
-        password: process.env.SERVER_DB_PASSWORD || "Pass123@",
+        username: process.env.SERVER_DB_USERNAME || "admin",
+        password: process.env.SERVER_DB_PASSWORD || "QuestionBank2025!",
         database: process.env.SERVER_DB_DATABASE || "question_bank",
         options: {
             encrypt: process.env.SERVER_DB_ENCRYPT === 'true',

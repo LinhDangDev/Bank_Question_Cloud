@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { SpacesService } from './spaces.service';
-import { MediaType } from '../enums/question-type.enum';
-import { MediaReference, MediaProcessingOptions } from '../interfaces/question-parser.interface';
+import { SpacesService } from '../files/spaces.service';
+import { MediaType } from '../../enums/question-type.enum';
+import { MediaReference, MediaProcessingOptions } from '../../interfaces/question-parser.interface';
 import * as path from 'path';
 import * as fs from 'fs';
 

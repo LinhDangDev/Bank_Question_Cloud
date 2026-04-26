@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { IntegrationController } from './integration.controller';
-import { IntegrationService } from '../../services/integration.service';
+import { IntegrationService } from './integration.service';
 
 // Import entities
 import { DeThi } from '../../entities/de-thi.entity';

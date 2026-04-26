@@ -4,7 +4,7 @@ import { Job } from 'bull';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { YeuCauRutTrich } from '../../../entities/yeu-cau-rut-trich.entity';
-import { ExamService } from '../../../services/exam.service';
+import { ExamService } from '../../de-thi/exam.service';
 
 @Processor('extraction')
 export class ExtractionProcessor {
