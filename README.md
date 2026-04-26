@@ -1,467 +1,173 @@
-# Graduation System - Question Bank & Exam Management
+# Graduation
 
-A comprehensive educational system for managing question banks and generating exams, built with modern microservices architecture. The system consists of two main applications: Question Bank System (App A) for question management and Exam System (App B) for exam generation and export.
+Question bank and exam management monorepo for an educational workflow. The repo currently contains one React frontend, one NestJS backend, SQL/database assets, deployment configs, monitoring configs, templates, and document-import support files.
 
-## 🏗️ System Architecture
+## What this repo is
 
-```mermaid
-graph TB
-    subgraph "Frontend Layer"
-        FE[React Frontend<br/>TypeScript + Vite]
-    end
+Current verified state:
+- Monorepo-style repository
+- Frontend: React 18 + Vite + TypeScript
+- Backend: NestJS 11 + TypeORM + SQL Server support
+- Architecture: modular monolith, not microservices
+- Supporting infra in repo: Redis, Kafka, Qdrant, Prometheus, Grafana, Nginx, Docker Compose
 
-    subgraph "Backend Services"
-        API[NestJS API Server<br/>Port 3001]
-        AUTH[Authentication Service]
-        QUEUE[Queue System<br/>Bull + Redis]
-    end
+Main product areas:
+- Question bank: academic catalog, questions, answers, import, approval, media
+- Exam management: exam generation, editing, packaging, export
 
-    subgraph "Data Layer"
-        DB[(SQL Server Database)]
-        SPACES[DigitalOcean Spaces<br/>File Storage]
-        REDIS[(Redis Cache)]
-    end
+## Repository layout
 
-    subgraph "Infrastructure"
-        DOCKER[Docker Containers]
-        KAFKA[Apache Kafka]
-        QDRANT[Qdrant Vector Search]
-        PROM[Prometheus Monitoring]
-        GRAF[Grafana Dashboard]
-    end
-
-    FE --> API
-    API --> AUTH
-    API --> QUEUE
-    API --> DB
-    API --> SPACES
-    QUEUE --> REDIS
-    API --> KAFKA
-    API --> QDRANT
-    PROM --> GRAF
+```text
+Graduation/
+├── backend/              NestJS API and business modules
+├── frontend/             React SPA
+├── database/             Database assets
+├── deployment/           Deployment support files
+├── monitoring/           Prometheus and Grafana config
+├── docs/                 Evergreen docs and internal planning docs
+├── scripts/              Utility and parser support scripts
+├── template/             Export templates
+├── templates/            Additional templates/reference assets
+└── sample_word_files/    Sample import files
 ```
 
-## 🚀 Technology Stack
+## Start here
+
+Read these docs first:
+- `docs/project-overview-pdr.md`
+- `docs/codebase-summary.md`
+- `docs/system-architecture.md`
+- `docs/deployment-guide.md`
+
+Existing internal reference docs still matter:
+- `docs/SYSTEM_OVERVIEW.md`
+- `docs/REFACTOR_PLAN_DETAILED.md`
+- `docs/RENAME_MAP.md`
+
+## Requirements
+
+Core requirements inferred from repo scripts and config:
+- Bun
+- SQL Server access for the current backend database baseline
+- Redis for queue-backed features
+
+Optional, depending on workflow:
+- Docker and Docker Compose
+- Python for parser/export support
+- Object storage credentials for non-local file storage
+
+## Local development
 
 ### Backend
-- **Framework**: NestJS (TypeScript)
-- **Database**: SQL Server with TypeORM
-- **Authentication**: JWT with Passport
-- **File Processing**: Python scripts for document parsing
-- **Queue System**: Bull with Valkey/Redis OSS
-- **File Storage**: DigitalOcean Spaces
-- **Package Manager**: bun
+```bash
+cd backend
+bun install
+bun run dev
+```
+
+Backend facts verified from code:
+- global API prefix: `/api`
+- Swagger UI: `/api`
+- health endpoints: `/health`, `/ready`, `/live`
+- metrics endpoint: `/metrics`
 
 ### Frontend
-- **Framework**: React 18 with TypeScript
-- **Build Tool**: Vite
-- **UI Components**: Material-UI, Ant Design, Radix UI
-- **Styling**: Tailwind CSS
-- **Math Rendering**: KaTeX, MathLive
-- **Rich Text**: React Quill
-
-### Infrastructure
-- **Containerization**: Docker & Docker Compose
-- **Message Queue**: Apache Kafka
-- **Search Engine**: Qdrant (Vector Search)
-- **Monitoring**: Prometheus + Grafana
-- **Caching**: Valkey/Redis OSS
-
-## 📋 Prerequisites
-
-- **Node.js**: >= 18.0.0
-- **bun**: >= 1.1.0
-- **SQL Server**: 2019 or later
-- **Python**: >= 3.8 (for document processing)
-- **Docker**: >= 20.10 (optional, for containerized deployment)
-
-## 🛠️ Installation
-
-### 1. Clone Repository
-```bash
-git clone <repository-url>
-cd Graduation
-```
-
-### 2. Backend Setup
-```bash
-cd backend
-
-# Install dependencies
-bun install
-
-# Setup environment configuration
-bun run setup:env
-
-# Configure database connection
-bun run db:switch
-```
-
-### 3. Frontend Setup
 ```bash
 cd frontend
-
-# Install dependencies
 bun install
-```
-
-### 4. Database Setup
-```bash
-# Run database migrations
-cd database/migrations
-# Execute SQL files in order:
-# 1. add-nguoi-tao-to-cau-hoi.sql
-# 2. create-cau-hoi-cho-duyet-table.sql
-```
-
-## ⚙️ Configuration
-
-### Environment Variables
-
-Create `.env` file in backend directory:
-
-```env
-# Database Configuration
-DB_ENV=local
-DB_HOST=localhost
-DB_PORT=1433
-DB_USERNAME=sa
-DB_PASSWORD=your_password
-DB_DATABASE=question_bank
-DB_ENCRYPT=false
-DB_TRUST_SERVER_CERTIFICATE=true
-
-# JWT Configuration
-JWT_SECRET=your_jwt_secret
-JWT_EXPIRATION=1h
-
-# File Storage (DigitalOcean Spaces)
-SPACES_ENDPOINT=region.digitaloceanspaces.com
-SPACES_BUCKET=graduation-media
-SPACES_ACCESS_KEY=your_access_key
-SPACES_SECRET_KEY=your_secret_key
-SPACES_REGION=fra1
-
-# Application Settings
-NODE_ENV=development
-PUBLIC_URL=http://localhost:3001
-STORAGE_PROVIDER=spaces
-```
-
-### Database Switching
-```bash
-# Switch to local database
-bun run db:local
-
-# Switch to server database
-bun run db:server
-
-# Check current database status
-bun run db:status
-
-# Test database connection
-bun run db:test
-```
-
-## 🚀 Running the Application
-
-### Development Mode
-
-#### Backend
-```bash
-cd backend
 bun run dev
-# Server runs on http://localhost:3001
-# Swagger API docs: http://localhost:3001/api
 ```
 
-#### Frontend
+## Important environment note
+
+Current code reality to verify in your environment:
+- backend `.env.example` defaults to port `3001`
+- `frontend/src/config.ts` currently sets `API_BASE_URL` to `http://localhost:3000/api`
+
+Do not assume local frontend-backend wiring is correct without checking the actual environment or proxy setup.
+
+## Useful scripts
+
+### Backend
 ```bash
-cd frontend
-bun run dev
-# Application runs on http://localhost:3000
-```
-
-### Docker Deployment
-```bash
-# Start all services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop services
-docker-compose down
-```
-
-## 🎯 Core Features
-
-### Question Bank System (App A)
-- **Question Management**: Create, edit, delete questions with multiple choice answers
-- **Word Import**: Import questions from Word documents with multimedia support
-- **Approval Workflow**: Teacher submissions require admin approval
-- **Multimedia Support**: Images, audio files, LaTeX formulas
-- **CLO Assignment**: Map questions to Course Learning Outcomes
-- **Chapter Organization**: Organize questions by subjects and chapters
-
-### Exam System (App B)
-- **Exam Generation**: Create exams using matrix-based question selection
-- **Bulk Generation**: Generate multiple exam variants from single matrix
-- **Export Options**: PDF and DOCX export with HUTECH template
-- **Answer Shuffling**: Randomize answer order (configurable)
-- **Integration API**: Seamless data exchange between systems
-
-### User Management
-- **Role-Based Access**: Admin and Teacher roles with specific permissions
-- **Authentication**: JWT-based secure authentication
-- **Department Isolation**: Teachers can only access their department data
-
-## 📁 Project Structure
-
-```
-Graduation/
-├── backend/                 # NestJS API server
-│   ├── src/
-│   │   ├── entities/       # TypeORM entities
-│   │   ├── modules/        # Feature modules
-│   │   ├── services/       # Business logic
-│   │   └── config/         # Configuration files
-│   ├── uploads/            # File uploads
-│   └── output/             # Generated files
-├── frontend/               # React application
-│   ├── src/
-│   │   ├── components/     # Reusable components
-│   │   ├── pages/          # Page components
-│   │   └── services/       # API services
-├── database/               # Database files
-│   ├── migrations/         # SQL migration files
-│   ├── scripts/            # Database scripts
-│   └── seeds/              # Seed data
-├── docs/                   # Documentation
-├── scripts/                # Utility scripts
-└── template/               # Document templates
-```
-
-## 🔌 API Endpoints
-
-### Authentication
-- `POST /auth/login` - User login
-- `POST /auth/logout` - User logout
-- `GET /auth/profile` - Get user profile
-
-### Question Management
-- `GET /cau-hoi` - List questions
-- `POST /cau-hoi` - Create question
-- `PUT /cau-hoi/:id` - Update question
-- `DELETE /cau-hoi/:id` - Delete question
-
-### Exam Management
-- `POST /de-thi/generate` - Generate exam
-- `POST /de-thi/bulk-generate` - Bulk generate exams
-- `GET /de-thi/:id/export/pdf` - Export PDF
-- `GET /de-thi/:id/export/docx` - Export DOCX
-
-### Integration API
-- `GET /integration/exam/:id/details` - Get exam details
-- `GET /integration/exam/:id/status` - Get exam status
-
-## 📊 Database Schema
-
-```mermaid
-erDiagram
-    USER ||--o{ EXAM : creates
-    USER ||--o{ QUESTION : creates
-    USER ||--o{ FILE : uploads
-    EXAM ||--|{ EXAM_DETAIL : contains
-    EXAM_DETAIL }|--|| QUESTION : references
-    QUESTION ||--o{ ANSWER : has
-    QUESTION }|--|| CLO : assigned_to
-    QUESTION }|--|| CHAPTER : belongs_to
-    CHAPTER }|--|| SUBJECT : belongs_to
-    SUBJECT }|--|| FACULTY : belongs_to
-    EXAM }|--|| SUBJECT : for_subject
-    FILE }|--|| QUESTION : attached_to
-    FILE }|--|| ANSWER : attached_to
-    EXTRACT_REQUEST ||--o{ EXAM : generates
-    USER ||--o{ EXTRACT_REQUEST : requests
-```
-
-### Key Entities
-- **User**: System users (Admin/Teacher roles)
-- **Khoa**: Faculties/Departments
-- **MonHoc**: Subjects within faculties
-- **Phan**: Chapters within subjects
-- **CauHoi**: Questions with metadata
-- **CauTraLoi**: Multiple choice answers
-- **DeThi**: Generated exams
-- **ChiTietDeThi**: Exam-question relationships
-- **CLO**: Course Learning Outcomes
-- **Files**: Multimedia attachments
-
-## 🧪 Testing
-
-### Backend Tests
-```bash
-cd backend
-
-# Run unit tests
+bun run build
+bun run lint
 bun run test
-
-# Run tests with coverage
 bun run test:cov
-
-# Run e2e tests
 bun run test:e2e
 ```
 
-### API Testing
+### Frontend
 ```bash
-# Test API endpoints
-bun run test:api
-
-# Test database connection
-bun run db:test
+bun run build
+bun run lint
+bun run test:e2e
 ```
 
-## 🚀 Deployment
+## Docker Compose options
 
-### Digital Ocean Deployment
+Available compose files:
+- `docker-compose.yml` — broader local stack with frontend, backend, Redis, Kafka, Qdrant, Prometheus, Grafana
+- `docker-compose.production.yml` — backend, Redis, and Nginx
+- `docker-compose.monitoring.yml` — monitoring-focused stack
+- `docker-compose.build.yml`
+- `docker-compose.simple.yml`
 
-1. **Server Setup**
+Typical commands:
 ```bash
-# Run setup script
-./scripts/setup-digitalocean.sh
+docker compose up -d
+docker compose -f docker-compose.production.yml up -d
 ```
 
-2. **Environment Configuration**
-- Configure production environment variables
-- Set up DigitalOcean Spaces for file storage
-- Configure database connection
+## Backend module overview
 
-3. **Application Deployment**
-```bash
-# Build applications
-cd backend && bun run build
-cd frontend && bun run build
+Verified from `backend/src/app.module.ts`:
+- auth and users
+- faculties, subjects, sections, CLOs
+- questions, answers, approvals, imports
+- exams, exam details, exam packages, exports
+- files, queue, integration, monitoring
+- multiple parser/import-related modules
 
-# Deploy using Docker
-docker-compose -f docker-compose.prod.yml up -d
-```
+This breadth is why the repo should be described as a modular monolith.
 
-### Production Environment Variables
-```env
-NODE_ENV=production
-DB_ENV=server
-PUBLIC_URL=https://your-domain.com
-SPACES_ENDPOINT=region.digitaloceanspaces.com
-CDN_BASE_URL=https://graduation-media.region.cdn.digitaloceanspaces.com
-```
+## Operational endpoints
 
-## 🔧 Troubleshooting
+Verified root backend endpoints:
+- `/health`
+- `/ready`
+- `/live`
+- `/metrics`
+- `/db-config`
 
-### Common Issues
+Monitoring routes also exist under:
+- `/api/monitoring`
+- `/api/monitoring/dashboard`
 
-1. **Database Connection Failed**
-   - Check SQL Server is running
-   - Verify connection string in `.env`
-   - Run `bun run db:test` to test connection
+## Deployment note
 
-2. **File Upload Issues**
-   - Verify DigitalOcean Spaces credentials
-   - Check file permissions in uploads directory
-   - Ensure CORS settings allow file uploads
+Verified Nginx config lives at:
+- `deployment/nginx/nginx.conf`
 
-3. **Word Import Failures**
-   - Install Python dependencies: `pip install python-docx mammoth`
-   - Check file format compatibility
-   - Verify template structure
+Before production deployment, verify that compose mount paths match the real location of Nginx config and certificates.
 
-4. **Authentication Problems**
-   - Check JWT secret configuration
-   - Verify user credentials in database
-   - Clear browser cache and tokens
+## Documentation map
 
-### Performance Optimization
+Standardized docs in `docs/`:
+- `project-overview-pdr.md`
+- `codebase-summary.md`
+- `code-standards.md`
+- `system-architecture.md`
+- `project-roadmap.md`
+- `deployment-guide.md`
 
-1. **Database Optimization**
-   - Add indexes for frequently queried fields
-   - Optimize complex queries
-   - Use database connection pooling
+## Current known issues to keep in mind
 
-2. **File Storage**
-   - Enable CDN for DigitalOcean Spaces
-   - Compress images before upload
-   - Implement file caching strategies
+- Frontend API base URL appears inconsistent with backend default port.
+- Route naming is mixed, with many core backend resources still using Vietnamese names.
+- Parser/import capabilities span multiple modules and legacy controller paths.
+- Compose files represent multiple environments and are not yet fully unified.
 
-## 📊 Monitoring
+## License
 
-### Prometheus Metrics
-- API response times
-- Database query performance
-- File upload statistics
-- User authentication metrics
-
-### Grafana Dashboards
-- System performance overview
-- User activity monitoring
-- Error rate tracking
-- Resource utilization
-
-## 🔄 System Workflow
-
-### Question Management Workflow
-```mermaid
-flowchart TD
-    A[Teacher Creates Question] --> B{Admin Review}
-    B -->|Approved| C[Question Added to Bank]
-    B -->|Rejected| D[Return to Teacher]
-    D --> E[Teacher Revises]
-    E --> B
-    C --> F[Available for Exam Generation]
-```
-
-### Exam Generation Workflow
-```mermaid
-flowchart TD
-    A[Define Exam Matrix] --> B[Select Questions by CLO]
-    B --> C[Apply Difficulty Weights]
-    C --> D[Generate Exam Variants]
-    D --> E[Export PDF/DOCX]
-    E --> F[Distribute Exams]
-```
-
-## 🛡️ Security Features
-
-- **JWT Authentication**: Secure token-based authentication
-- **Role-Based Authorization**: Admin and Teacher role separation
-- **Input Validation**: Comprehensive data validation using class-validator
-- **SQL Injection Prevention**: TypeORM parameterized queries
-- **File Upload Security**: File type validation and secure storage
-- **CORS Configuration**: Proper cross-origin resource sharing setup
-
-## 📈 Performance Features
-
-- **Database Indexing**: Optimized queries with proper indexes
-- **Caching Layer**: Redis caching for frequently accessed data
-- **File CDN**: DigitalOcean Spaces CDN for fast file delivery
-- **Queue System**: Background processing for heavy operations
-- **Connection Pooling**: Efficient database connection management
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch: `git checkout -b feature/new-feature`
-3. Commit changes: `git commit -am 'Add new feature'`
-4. Push to branch: `git push origin feature/new-feature`
-5. Submit pull request
-
-### Development Guidelines
-- Follow TypeScript best practices
-- Write unit tests for new features
-- Update documentation for API changes
-- Use conventional commit messages
-- Ensure code passes linting checks
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+See `LICENSE`.
