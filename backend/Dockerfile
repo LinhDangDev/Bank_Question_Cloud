@@ -1,72 +1,49 @@
-# Multi-stage Docker build for NestJS backend
-FROM node:18-alpine AS builder
+# Multi-stage Docker build for NestJS backend with Bun
+# Builder stage
+FROM oven/bun:1-alpine AS builder
 
-# Install pnpm
-RUN npm install -g pnpm
-
-# Set working directory
 WORKDIR /app
 
-# Copy package files first for better caching
-COPY package.json pnpm-lock.yaml ./
+# Install Python (required by docx_parser.py at runtime, also build deps)
+RUN apk add --no-cache python3 py3-pip
 
-# Install all dependencies (including devDependencies for build)
-RUN pnpm install
+COPY package.json bun.lockb* ./
+RUN bun install --frozen-lockfile
 
-# Copy source code
 COPY . .
-
-# Build the application
-RUN pnpm run build
+RUN bun run build
 
 # Production stage
-FROM node:18-alpine AS production
+FROM oven/bun:1-alpine AS production
 
-# Install pnpm
-RUN npm install -g pnpm
-
-# Create app directory
 WORKDIR /app
 
-# Copy package files
-COPY package.json pnpm-lock.yaml ./
+# Python runtime + native build tools for deps like sharp, bcrypt, msnodesqlv8
+RUN apk add --no-cache python3 py3-pip tini
 
-# Install production dependencies (express is now included in package.json)
-RUN pnpm install --prod
+COPY package.json bun.lockb* ./
+RUN bun install --frozen-lockfile --production
 
-# Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/public ./public
+COPY --from=builder /app/template ./template
+COPY --from=builder /app/python ./python
 
-# Copy necessary files
-COPY copy-env.js ./
-COPY .env* ./
-
-# Set environment variables for production
-ENV DB_ENV=server
 ENV NODE_ENV=production
 ENV PORT=3001
 
-# Create necessary directories with proper permissions
-RUN mkdir -p uploads/questions uploads/temp uploads/audio uploads/image output && \
-    chmod -R 755 uploads output
+RUN mkdir -p uploads/questions uploads/temp uploads/audio uploads/image output exports && \
+    chmod -R 755 uploads output exports
 
-# Create non-root user for security
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nestjs -u 1001 -G nodejs
-
-# Change ownership of app directory
-RUN chown -R nestjs:nodejs /app
-
-# Switch to non-root user
+# Non-root user
+RUN addgroup -S nodejs -g 1001 && adduser -S nestjs -u 1001 -G nodejs && \
+    chown -R nestjs:nodejs /app
 USER nestjs
 
-# Expose application port
 EXPOSE 3001
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:3001/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })" || exit 1
+    CMD bun -e "fetch('http://localhost:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
-# Start application with proper command
-CMD ["sh", "-c", "echo 'Patching TypeORM crypto issue...' && echo 'Starting application...' && node copy-env.js && node dist/src/main.js"]
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["bun", "dist/src/main.js"]
