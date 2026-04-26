@@ -1,72 +1,39 @@
-# Multi-stage Docker build for backend only
-FROM node:18-alpine AS base
-
-# Install pnpm globally and setup caching
-RUN npm install -g pnpm@latest && \
-    pnpm config set store-dir /root/.pnpm-store && \
-    pnpm config set registry https://registry.npmjs.org/
-
-# Set working directory
+# Multi-stage Docker build for backend (NestJS + Bun)
+FROM oven/bun:1-alpine AS base
 WORKDIR /app
+RUN apk add --no-cache python3 py3-pip tini
 
-# Builder stage
+# Builder
 FROM base AS builder
-
-# Copy package files first for better caching
-COPY backend/package.json backend/pnpm-lock.yaml ./
-
-# Install all dependencies with optimizations
-RUN --mount=type=cache,target=/root/.pnpm-store \
-    pnpm install --frozen-lockfile --prefer-offline
-
-# Copy backend source code
+COPY backend/package.json backend/bun.lockb* ./
+RUN --mount=type=cache,target=/root/.bun bun install --frozen-lockfile
 COPY backend/ ./
+RUN bun run build
 
-# Build backend for production
-RUN pnpm run build && \
-    pnpm prune --prod
-
-# Production stage
+# Production
 FROM base AS production
+COPY backend/package.json backend/bun.lockb* ./
+RUN --mount=type=cache,target=/root/.bun bun install --frozen-lockfile --production
 
-# Create app directory
-WORKDIR /app
-
-# Copy package files
-COPY backend/package.json backend/pnpm-lock.yaml ./
-
-# Install only production dependencies with cache mount
-RUN --mount=type=cache,target=/root/.pnpm-store \
-    pnpm install --frozen-lockfile --prod --prefer-offline
-
-# Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/public ./public
+COPY --from=builder /app/template ./template
+COPY --from=builder /app/python ./python
 
-# Copy necessary backend files
-COPY backend/copy-env.js ./
-COPY backend/.env* ./
+ENV NODE_ENV=production
+ENV PORT=3001
 
-# Create necessary directories with proper permissions
-RUN mkdir -p uploads/questions uploads/temp uploads/audio uploads/image output && \
-    chmod -R 755 uploads output
+RUN mkdir -p uploads/questions uploads/temp uploads/audio uploads/image output exports && \
+    chmod -R 755 uploads output exports
 
-# Create non-root user for security
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nestjs -u 1001 -G nodejs
-
-# Change ownership of app directory
-RUN chown -R nestjs:nodejs /app
-
-# Switch to non-root user
+RUN addgroup -S nodejs -g 1001 && adduser -S nestjs -u 1001 -G nodejs && \
+    chown -R nestjs:nodejs /app
 USER nestjs
 
-# Expose application port
 EXPOSE 3001
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:3001/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })" || exit 1
+    CMD bun -e "fetch('http://localhost:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
-# Start application
-CMD ["node", "dist/src/main.js"]
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["bun", "dist/src/main.js"]

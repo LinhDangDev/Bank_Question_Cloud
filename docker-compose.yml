@@ -3,7 +3,7 @@ services:
   frontend:
     build:
       context: ./frontend
-    command: pnpm run dev
+    command: bun run dev
     ports:
       - "3000:3000"
     networks:
