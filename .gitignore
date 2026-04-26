@@ -131,7 +131,7 @@ deployment/
 
 # Ignore all files serena folder
 
-serena/
+.serena/
 
 
 /.aws-workspace/*
