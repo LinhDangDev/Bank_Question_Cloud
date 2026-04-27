@@ -1,0 +1,17 @@
+- Finding files
+Processed 175 files (5.3s) (6 warnings)
+
+Γ£û Found 11 circular dependencies!
+
+1) entities/cau-hoi.entity.ts > entities/cau-tra-loi.entity.ts
+2) entities/cau-hoi.entity.ts > entities/chi-tiet-de-thi.entity.ts
+3) entities/chi-tiet-de-thi.entity.ts > entities/de-thi.entity.ts
+4) entities/mon-hoc.entity.ts > entities/clo.entity.ts > entities/cau-hoi.entity.ts > entities/chi-tiet-de-thi.entity.ts > entities/de-thi.entity.ts
+5) entities/cau-hoi.entity.ts > entities/chi-tiet-de-thi.entity.ts > entities/phan.entity.ts
+6) entities/chi-tiet-de-thi.entity.ts > entities/phan.entity.ts
+7) entities/mon-hoc.entity.ts > entities/clo.entity.ts > entities/cau-hoi.entity.ts > entities/chi-tiet-de-thi.entity.ts > entities/phan.entity.ts
+8) entities/clo.entity.ts > entities/cau-hoi.entity.ts
+9) entities/user.entity.ts > entities/khoa.entity.ts > entities/mon-hoc.entity.ts > entities/clo.entity.ts > entities/cau-hoi.entity.ts
+10) entities/mon-hoc.entity.ts > entities/clo.entity.ts
+11) entities/khoa.entity.ts > entities/mon-hoc.entity.ts
+

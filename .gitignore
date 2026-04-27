@@ -71,6 +71,7 @@ yarn-error.log*
 
 # Localization files
 *.json
+!docs/**/*.json
 
 # Cache files
 *.cache

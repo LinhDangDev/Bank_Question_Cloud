@@ -1,0 +1,853 @@
+{
+  "app.controller.spec.ts": [
+    "app.controller.ts",
+    "app.service.ts"
+  ],
+  "app.controller.ts": [
+    "app.service.ts",
+    "config/database.config.ts",
+    "monitoring-metrics.ts"
+  ],
+  "app.module.ts": [
+    "app.controller.ts",
+    "app.service.ts",
+    "config/database.config.ts",
+    "modules/audit-log/audit-log.module.ts",
+    "modules/auth/auth.module.ts",
+    "modules/cau-hoi-cho-duyet/cau-hoi-cho-duyet.module.ts",
+    "modules/cau-hoi/cau-hoi.module.ts",
+    "modules/cau-tra-loi/cau-tra-loi.module.ts",
+    "modules/chi-tiet-de-thi/chi-tiet-de-thi.module.ts",
+    "modules/clo/clo.module.ts",
+    "modules/de-thi/de-thi.module.ts",
+    "modules/enhanced-docx-parser/enhanced-docx-parser.module.ts",
+    "modules/exam-export/exam-export.module.ts",
+    "modules/exam-package/exam-package.module.ts",
+    "modules/exam-word-export/exam-word-export.module.ts",
+    "modules/files/files.module.ts",
+    "modules/integration/integration.module.ts",
+    "modules/khoa/khoa.module.ts",
+    "modules/mon-hoc/mon-hoc.module.ts",
+    "modules/monitoring/monitoring.module.ts",
+    "modules/multimedia-exam/multimedia-exam.module.ts",
+    "modules/notification/notification.module.ts",
+    "modules/phan/phan.module.ts",
+    "modules/python-docx-parser/python-docx-parser.module.ts",
+    "modules/python-enhanced-docx-parser/python-enhanced-docx-parser.module.ts",
+    "modules/question-parser/question-parser.module.ts",
+    "modules/questions-import/questions-import.module.ts",
+    "modules/queue/queue.module.ts",
+    "modules/users/users.module.ts",
+    "modules/word-import/word-multimedia.module.ts",
+    "modules/yeu-cau-rut-trich/yeu-cau-rut-trich.module.ts",
+    "utils/db-env-switcher.ts"
+  ],
+  "app.service.ts": [],
+  "common/base.service.ts": [
+    "constants/pagination.constants.ts",
+    "dto/pagination.dto.ts"
+  ],
+  "common/interceptors/audit.interceptor.ts": [
+    "modules/audit-log/audit-log.service.ts"
+  ],
+  "common/services/notification-helper.service.ts": [
+    "modules/notification/notification.service.ts"
+  ],
+  "config/database.config.ts": [],
+  "config/spaces.config.ts": [],
+  "config/storage.config.ts": [],
+  "config/typeorm.config.ts": [],
+  "constants/pagination.constants.ts": [],
+  "constants/permissions.constants.ts": [],
+  "controllers/enhanced-docx-parser.controller.ts": [
+    "services/enhanced-docx-parser.service.ts"
+  ],
+  "controllers/enhanced-docx-wasm-parser.controller.ts": [
+    "services/enhanced-docx-wasm-parser.service.ts"
+  ],
+  "controllers/python-docx-parser.controller.ts": [
+    "interfaces/multer-file.interface.ts",
+    "services/python-docx-parser.service.ts"
+  ],
+  "controllers/python-enhanced-docx-parser.controller.ts": [
+    "interfaces/multer-file.interface.ts",
+    "services/python-enhanced-docx-parser.service.ts"
+  ],
+  "controllers/question-parser.controller.ts": [
+    "enums/question-type.enum.ts",
+    "services/docx-parser.service.ts"
+  ],
+  "crypto-polyfill.ts": [],
+  "database/database.module.ts": [
+    "config/database.config.ts"
+  ],
+  "dto/audit-log.dto.ts": [],
+  "dto/auth.dto.ts": [],
+  "dto/cau-hoi-cho-duyet.dto.ts": [],
+  "dto/cau-hoi.dto.ts": [
+    "dto/cau-tra-loi.dto.ts"
+  ],
+  "dto/cau-tra-loi.dto.ts": [],
+  "dto/chi-tiet-de-thi.dto.ts": [],
+  "dto/clo.dto.ts": [],
+  "dto/de-thi.dto.ts": [],
+  "dto/exam-package.dto.ts": [],
+  "dto/files.dto.ts": [
+    "enums/file-type.enum.ts"
+  ],
+  "dto/index.ts": [
+    "dto/audit-log.dto.ts",
+    "dto/cau-hoi.dto.ts",
+    "dto/cau-tra-loi.dto.ts",
+    "dto/chi-tiet-de-thi.dto.ts",
+    "dto/clo.dto.ts",
+    "dto/de-thi.dto.ts",
+    "dto/files.dto.ts",
+    "dto/khoa.dto.ts",
+    "dto/mon-hoc.dto.ts",
+    "dto/notification.dto.ts",
+    "dto/phan.dto.ts",
+    "dto/user.dto.ts",
+    "dto/yeu-cau-rut-trich.dto.ts"
+  ],
+  "dto/integration.dto.ts": [],
+  "dto/khoa.dto.ts": [],
+  "dto/mon-hoc.dto.ts": [],
+  "dto/notification.dto.ts": [],
+  "dto/pagination.dto.ts": [
+    "constants/pagination.constants.ts"
+  ],
+  "dto/phan.dto.ts": [],
+  "dto/user.dto.ts": [],
+  "dto/yeu-cau-rut-trich.dto.ts": [],
+  "entities/audit-log.entity.ts": [
+    "entities/user.entity.ts"
+  ],
+  "entities/cau-hoi-cho-duyet.entity.ts": [
+    "entities/clo.entity.ts",
+    "entities/phan.entity.ts",
+    "entities/user.entity.ts"
+  ],
+  "entities/cau-hoi.entity.ts": [
+    "entities/cau-tra-loi.entity.ts",
+    "entities/chi-tiet-de-thi.entity.ts",
+    "entities/clo.entity.ts",
+    "entities/phan.entity.ts",
+    "entities/user.entity.ts"
+  ],
+  "entities/cau-tra-loi.entity.ts": [
+    "entities/cau-hoi.entity.ts"
+  ],
+  "entities/chi-tiet-de-thi.entity.ts": [
+    "entities/cau-hoi.entity.ts",
+    "entities/de-thi.entity.ts",
+    "entities/phan.entity.ts"
+  ],
+  "entities/clo.entity.ts": [
+    "entities/cau-hoi.entity.ts",
+    "entities/mon-hoc.entity.ts"
+  ],
+  "entities/de-thi.entity.ts": [
+    "entities/chi-tiet-de-thi.entity.ts",
+    "entities/mon-hoc.entity.ts"
+  ],
+  "entities/files.entity.ts": [
+    "enums/file-type.enum.ts"
+  ],
+  "entities/khoa.entity.ts": [
+    "entities/mon-hoc.entity.ts"
+  ],
+  "entities/mon-hoc.entity.ts": [
+    "entities/clo.entity.ts",
+    "entities/de-thi.entity.ts",
+    "entities/khoa.entity.ts",
+    "entities/phan.entity.ts"
+  ],
+  "entities/notification.entity.ts": [
+    "entities/user.entity.ts"
+  ],
+  "entities/phan.entity.ts": [
+    "entities/cau-hoi.entity.ts",
+    "entities/chi-tiet-de-thi.entity.ts",
+    "entities/mon-hoc.entity.ts"
+  ],
+  "entities/user.entity.ts": [
+    "entities/khoa.entity.ts"
+  ],
+  "entities/yeu-cau-rut-trich.entity.ts": [],
+  "enums/file-type.enum.ts": [],
+  "enums/question-type.enum.ts": [],
+  "interfaces/exam-package.interface.ts": [],
+  "interfaces/multer-file.interface.ts": [],
+  "interfaces/question-parser.interface.ts": [
+    "enums/question-type.enum.ts"
+  ],
+  "main.ts": [
+    "app.module.ts",
+    "config/database.config.ts",
+    "crypto-polyfill.ts",
+    "monitoring-metrics.ts"
+  ],
+  "middleware/skip-auth.middleware.ts": [],
+  "modules/audit-log/audit-log.controller.ts": [
+    "dto/audit-log.dto.ts",
+    "modules/audit-log/audit-log.service.ts",
+    "modules/auth/guards/jwt-auth.guard.ts"
+  ],
+  "modules/audit-log/audit-log.module.ts": [
+    "entities/audit-log.entity.ts",
+    "modules/audit-log/audit-log.controller.ts",
+    "modules/audit-log/audit-log.service.ts"
+  ],
+  "modules/audit-log/audit-log.service.ts": [
+    "dto/audit-log.dto.ts",
+    "entities/audit-log.entity.ts"
+  ],
+  "modules/auth/auth.controller.ts": [
+    "dto/auth.dto.ts",
+    "modules/auth/auth.service.ts",
+    "modules/auth/decorators/roles.decorator.ts",
+    "modules/auth/guards/jwt-auth.guard.ts",
+    "modules/auth/guards/local-auth.guard.ts",
+    "modules/auth/guards/roles.guard.ts"
+  ],
+  "modules/auth/auth.module.ts": [
+    "entities/user.entity.ts",
+    "modules/auth/auth.controller.ts",
+    "modules/auth/auth.service.ts",
+    "modules/auth/strategies/jwt.strategy.ts",
+    "modules/auth/strategies/local.strategy.ts"
+  ],
+  "modules/auth/auth.service.ts": [
+    "dto/auth.dto.ts",
+    "entities/user.entity.ts"
+  ],
+  "modules/auth/decorators/roles.decorator.ts": [],
+  "modules/auth/guards/jwt-auth.guard.ts": [],
+  "modules/auth/guards/local-auth.guard.ts": [],
+  "modules/auth/guards/roles.guard.ts": [
+    "constants/permissions.constants.ts",
+    "modules/auth/decorators/roles.decorator.ts"
+  ],
+  "modules/auth/strategies/jwt.strategy.ts": [],
+  "modules/auth/strategies/local.strategy.ts": [
+    "modules/auth/auth.service.ts"
+  ],
+  "modules/cau-hoi-cho-duyet/cau-hoi-cho-duyet.controller.ts": [
+    "dto/cau-hoi-cho-duyet.dto.ts",
+    "dto/pagination.dto.ts",
+    "entities/cau-hoi.entity.ts",
+    "modules/auth/decorators/roles.decorator.ts",
+    "modules/auth/guards/jwt-auth.guard.ts",
+    "modules/auth/guards/roles.guard.ts",
+    "modules/cau-hoi-cho-duyet/cau-hoi-cho-duyet.service.ts"
+  ],
+  "modules/cau-hoi-cho-duyet/cau-hoi-cho-duyet.module.ts": [
+    "common/services/notification-helper.service.ts",
+    "entities/cau-hoi-cho-duyet.entity.ts",
+    "entities/cau-hoi.entity.ts",
+    "entities/cau-tra-loi.entity.ts",
+    "entities/user.entity.ts",
+    "modules/cau-hoi-cho-duyet/cau-hoi-cho-duyet.controller.ts",
+    "modules/cau-hoi-cho-duyet/cau-hoi-cho-duyet.service.ts",
+    "modules/notification/notification.module.ts"
+  ],
+  "modules/cau-hoi-cho-duyet/cau-hoi-cho-duyet.service.ts": [
+    "common/services/notification-helper.service.ts",
+    "dto/cau-hoi-cho-duyet.dto.ts",
+    "dto/pagination.dto.ts",
+    "entities/cau-hoi-cho-duyet.entity.ts",
+    "entities/cau-hoi.entity.ts",
+    "entities/cau-tra-loi.entity.ts",
+    "entities/user.entity.ts"
+  ],
+  "modules/cau-hoi/cau-hoi.controller.ts": [
+    "dto/index.ts",
+    "dto/pagination.dto.ts",
+    "entities/cau-hoi.entity.ts",
+    "modules/auth/decorators/roles.decorator.ts",
+    "modules/auth/guards/jwt-auth.guard.ts",
+    "modules/auth/guards/roles.guard.ts",
+    "modules/cau-hoi/cau-hoi.service.ts"
+  ],
+  "modules/cau-hoi/cau-hoi.module.ts": [
+    "entities/cau-hoi.entity.ts",
+    "entities/cau-tra-loi.entity.ts",
+    "modules/cau-hoi/cau-hoi.controller.ts",
+    "modules/cau-hoi/cau-hoi.service.ts",
+    "modules/cau-tra-loi/cau-tra-loi.module.ts",
+    "modules/cau-tra-loi/cau-tra-loi.service.ts"
+  ],
+  "modules/cau-hoi/cau-hoi.service.ts": [
+    "common/base.service.ts",
+    "constants/pagination.constants.ts",
+    "dto/cau-tra-loi.dto.ts",
+    "dto/index.ts",
+    "dto/pagination.dto.ts",
+    "entities/cau-hoi.entity.ts",
+    "entities/cau-tra-loi.entity.ts",
+    "entities/chi-tiet-de-thi.entity.ts",
+    "entities/files.entity.ts",
+    "modules/cau-tra-loi/cau-tra-loi.service.ts"
+  ],
+  "modules/cau-tra-loi/cau-tra-loi.controller.ts": [
+    "dto/index.ts",
+    "dto/pagination.dto.ts",
+    "entities/cau-tra-loi.entity.ts",
+    "modules/cau-tra-loi/cau-tra-loi.service.ts"
+  ],
+  "modules/cau-tra-loi/cau-tra-loi.module.ts": [
+    "entities/cau-tra-loi.entity.ts",
+    "modules/cau-tra-loi/cau-tra-loi.controller.ts",
+    "modules/cau-tra-loi/cau-tra-loi.service.ts"
+  ],
+  "modules/cau-tra-loi/cau-tra-loi.service.ts": [
+    "common/base.service.ts",
+    "constants/pagination.constants.ts",
+    "dto/cau-tra-loi.dto.ts",
+    "dto/pagination.dto.ts",
+    "entities/cau-tra-loi.entity.ts"
+  ],
+  "modules/chi-tiet-de-thi/chi-tiet-de-thi.controller.ts": [
+    "dto/index.ts",
+    "dto/pagination.dto.ts",
+    "entities/chi-tiet-de-thi.entity.ts",
+    "modules/chi-tiet-de-thi/chi-tiet-de-thi.service.ts"
+  ],
+  "modules/chi-tiet-de-thi/chi-tiet-de-thi.module.ts": [
+    "entities/chi-tiet-de-thi.entity.ts",
+    "modules/chi-tiet-de-thi/chi-tiet-de-thi.controller.ts",
+    "modules/chi-tiet-de-thi/chi-tiet-de-thi.service.ts"
+  ],
+  "modules/chi-tiet-de-thi/chi-tiet-de-thi.service.ts": [
+    "common/base.service.ts",
+    "constants/pagination.constants.ts",
+    "dto/index.ts",
+    "dto/pagination.dto.ts",
+    "entities/chi-tiet-de-thi.entity.ts"
+  ],
+  "modules/clo/clo.controller.ts": [
+    "dto/clo.dto.ts",
+    "entities/clo.entity.ts",
+    "modules/clo/clo.service.ts"
+  ],
+  "modules/clo/clo.module.ts": [
+    "entities/clo.entity.ts",
+    "modules/clo/clo.controller.ts",
+    "modules/clo/clo.service.ts"
+  ],
+  "modules/clo/clo.service.ts": [
+    "dto/clo.dto.ts",
+    "entities/clo.entity.ts"
+  ],
+  "modules/de-thi/de-thi.controller.ts": [
+    "dto/index.ts",
+    "dto/integration.dto.ts",
+    "dto/pagination.dto.ts",
+    "entities/de-thi.entity.ts",
+    "modules/auth/decorators/roles.decorator.ts",
+    "modules/auth/guards/jwt-auth.guard.ts",
+    "modules/auth/guards/roles.guard.ts",
+    "modules/de-thi/de-thi.service.ts",
+    "modules/de-thi/exam.service.ts",
+    "modules/integration/integration.service.ts"
+  ],
+  "modules/de-thi/de-thi.module.ts": [
+    "entities/cau-hoi.entity.ts",
+    "entities/cau-tra-loi.entity.ts",
+    "entities/chi-tiet-de-thi.entity.ts",
+    "entities/de-thi.entity.ts",
+    "entities/files.entity.ts",
+    "entities/mon-hoc.entity.ts",
+    "entities/phan.entity.ts",
+    "modules/de-thi/de-thi.controller.ts",
+    "modules/de-thi/de-thi.service.ts",
+    "modules/de-thi/exam.service.ts",
+    "modules/exam-word-export/docx-template.service.ts",
+    "modules/exam-word-export/pdf.service.ts",
+    "modules/integration/integration.service.ts"
+  ],
+  "modules/de-thi/de-thi.service.ts": [
+    "common/base.service.ts",
+    "constants/pagination.constants.ts",
+    "dto/index.ts",
+    "dto/pagination.dto.ts",
+    "entities/cau-hoi.entity.ts",
+    "entities/chi-tiet-de-thi.entity.ts",
+    "entities/de-thi.entity.ts",
+    "modules/de-thi/exam.service.ts",
+    "modules/exam-word-export/docx-template.service.ts",
+    "modules/exam-word-export/pdf.service.ts"
+  ],
+  "modules/de-thi/exam.service.ts": [
+    "entities/cau-hoi.entity.ts",
+    "entities/cau-tra-loi.entity.ts",
+    "entities/chi-tiet-de-thi.entity.ts",
+    "entities/de-thi.entity.ts",
+    "entities/files.entity.ts",
+    "entities/phan.entity.ts",
+    "modules/exam-word-export/docx-template.service.ts",
+    "modules/exam-word-export/pdf.service.ts",
+    "utils/exam-validation.util.ts",
+    "utils/media-content-processor.util.ts",
+    "utils/media-markup.util.ts"
+  ],
+  "modules/enhanced-docx-parser/enhanced-docx-parser.module.ts": [
+    "controllers/enhanced-docx-parser.controller.ts",
+    "controllers/enhanced-docx-wasm-parser.controller.ts",
+    "modules/files/spaces.service.ts",
+    "services/enhanced-docx-parser.service.ts",
+    "services/enhanced-docx-wasm-parser.service.ts"
+  ],
+  "modules/exam-export/exam-export.controller.ts": [
+    "modules/auth/guards/jwt-auth.guard.ts",
+    "modules/exam-export/exam-export.service.ts"
+  ],
+  "modules/exam-export/exam-export.module.ts": [
+    "entities/cau-hoi.entity.ts",
+    "entities/cau-tra-loi.entity.ts",
+    "entities/chi-tiet-de-thi.entity.ts",
+    "entities/de-thi.entity.ts",
+    "entities/files.entity.ts",
+    "modules/exam-export/exam-export.controller.ts",
+    "modules/exam-export/exam-export.service.ts",
+    "modules/files/files.module.ts"
+  ],
+  "modules/exam-export/exam-export.service.ts": [
+    "entities/cau-hoi.entity.ts",
+    "entities/cau-tra-loi.entity.ts",
+    "entities/chi-tiet-de-thi.entity.ts",
+    "entities/de-thi.entity.ts",
+    "entities/files.entity.ts",
+    "modules/files/files-url.service.ts"
+  ],
+  "modules/exam-package/__tests__/exam-package.controller.spec.ts": [
+    "modules/exam-package/exam-package.controller.ts",
+    "modules/exam-package/exam-package.service.ts"
+  ],
+  "modules/exam-package/exam-package.controller.ts": [
+    "dto/exam-package.dto.ts",
+    "interfaces/multer-file.interface.ts",
+    "modules/auth/decorators/roles.decorator.ts",
+    "modules/auth/guards/jwt-auth.guard.ts",
+    "modules/auth/guards/roles.guard.ts",
+    "modules/exam-package/exam-package.service.ts"
+  ],
+  "modules/exam-package/exam-package.module.ts": [
+    "config/spaces.config.ts",
+    "entities/cau-hoi.entity.ts",
+    "entities/cau-tra-loi.entity.ts",
+    "entities/files.entity.ts",
+    "modules/exam-package/exam-package.controller.ts",
+    "modules/exam-package/exam-package.service.ts",
+    "modules/files/files-spaces.service.ts",
+    "modules/files/spaces.service.ts",
+    "modules/files/storage.service.ts",
+    "modules/multimedia-exam/content-replacement.service.ts",
+    "modules/multimedia-exam/media-processing.service.ts",
+    "services/docx-parser.service.ts"
+  ],
+  "modules/exam-package/exam-package.service.ts": [
+    "entities/cau-hoi.entity.ts",
+    "entities/cau-tra-loi.entity.ts",
+    "entities/files.entity.ts",
+    "interfaces/exam-package.interface.ts",
+    "interfaces/multer-file.interface.ts",
+    "modules/multimedia-exam/content-replacement.service.ts",
+    "modules/multimedia-exam/media-processing.service.ts",
+    "services/docx-parser.service.ts"
+  ],
+  "modules/exam-word-export/docx-template.service.ts": [],
+  "modules/exam-word-export/exam-word-export.controller.ts": [
+    "modules/exam-word-export/exam-word-export.service.ts",
+    "modules/exam-word-export/python-exam-word-export.service.ts"
+  ],
+  "modules/exam-word-export/exam-word-export.module.ts": [
+    "entities/cau-hoi.entity.ts",
+    "entities/cau-tra-loi.entity.ts",
+    "entities/chi-tiet-de-thi.entity.ts",
+    "entities/de-thi.entity.ts",
+    "modules/exam-word-export/docx-template.service.ts",
+    "modules/exam-word-export/exam-word-export.controller.ts",
+    "modules/exam-word-export/exam-word-export.service.ts",
+    "modules/exam-word-export/python-exam-word-export.service.ts"
+  ],
+  "modules/exam-word-export/exam-word-export.service.ts": [
+    "entities/cau-hoi.entity.ts",
+    "entities/cau-tra-loi.entity.ts",
+    "entities/chi-tiet-de-thi.entity.ts",
+    "entities/de-thi.entity.ts",
+    "modules/exam-word-export/docx-template.service.ts"
+  ],
+  "modules/exam-word-export/pdf.service.ts": [],
+  "modules/exam-word-export/python-exam-word-export.service.ts": [],
+  "modules/files/files-spaces.controller.ts": [
+    "modules/auth/decorators/roles.decorator.ts",
+    "modules/auth/guards/jwt-auth.guard.ts",
+    "modules/auth/guards/roles.guard.ts",
+    "modules/files/files-spaces.service.ts"
+  ],
+  "modules/files/files-spaces.service.ts": [
+    "entities/files.entity.ts",
+    "enums/file-type.enum.ts",
+    "modules/files/spaces.service.ts"
+  ],
+  "modules/files/files-url.controller.ts": [
+    "modules/auth/guards/jwt-auth.guard.ts",
+    "modules/files/files-url.service.ts"
+  ],
+  "modules/files/files-url.service.ts": [
+    "config/spaces.config.ts",
+    "entities/files.entity.ts"
+  ],
+  "modules/files/files.controller.ts": [
+    "modules/auth/decorators/roles.decorator.ts",
+    "modules/auth/guards/jwt-auth.guard.ts",
+    "modules/auth/guards/roles.guard.ts",
+    "modules/files/files.service.ts"
+  ],
+  "modules/files/files.module.ts": [
+    "config/spaces.config.ts",
+    "entities/files.entity.ts",
+    "modules/exam-word-export/docx-template.service.ts",
+    "modules/exam-word-export/pdf.service.ts",
+    "modules/files/files-spaces.controller.ts",
+    "modules/files/files-spaces.service.ts",
+    "modules/files/files-url.controller.ts",
+    "modules/files/files-url.service.ts",
+    "modules/files/files.controller.ts",
+    "modules/files/files.service.ts",
+    "modules/files/spaces.service.ts"
+  ],
+  "modules/files/files.service.ts": [
+    "entities/files.entity.ts",
+    "enums/file-type.enum.ts",
+    "modules/exam-word-export/docx-template.service.ts",
+    "modules/exam-word-export/pdf.service.ts",
+    "modules/files/storage.service.ts"
+  ],
+  "modules/files/spaces.service.ts": [],
+  "modules/files/storage.service.ts": [
+    "config/storage.config.ts"
+  ],
+  "modules/integration/integration.controller.ts": [
+    "dto/integration.dto.ts",
+    "modules/integration/integration.service.ts"
+  ],
+  "modules/integration/integration.module.ts": [
+    "entities/cau-hoi.entity.ts",
+    "entities/cau-tra-loi.entity.ts",
+    "entities/chi-tiet-de-thi.entity.ts",
+    "entities/de-thi.entity.ts",
+    "entities/files.entity.ts",
+    "entities/mon-hoc.entity.ts",
+    "entities/phan.entity.ts",
+    "modules/integration/integration.controller.ts",
+    "modules/integration/integration.service.ts"
+  ],
+  "modules/integration/integration.service.ts": [
+    "config/spaces.config.ts",
+    "dto/integration.dto.ts",
+    "entities/cau-hoi.entity.ts",
+    "entities/cau-tra-loi.entity.ts",
+    "entities/chi-tiet-de-thi.entity.ts",
+    "entities/de-thi.entity.ts",
+    "entities/files.entity.ts",
+    "entities/mon-hoc.entity.ts",
+    "entities/phan.entity.ts"
+  ],
+  "modules/khoa/khoa.controller.ts": [
+    "dto/khoa.dto.ts",
+    "modules/auth/decorators/roles.decorator.ts",
+    "modules/auth/guards/jwt-auth.guard.ts",
+    "modules/auth/guards/roles.guard.ts",
+    "modules/khoa/khoa.service.ts"
+  ],
+  "modules/khoa/khoa.module.ts": [
+    "entities/khoa.entity.ts",
+    "entities/user.entity.ts",
+    "modules/khoa/khoa.controller.ts",
+    "modules/khoa/khoa.service.ts"
+  ],
+  "modules/khoa/khoa.service.ts": [
+    "dto/khoa.dto.ts",
+    "entities/khoa.entity.ts",
+    "entities/user.entity.ts"
+  ],
+  "modules/mon-hoc/mon-hoc.controller.ts": [
+    "dto/mon-hoc.dto.ts",
+    "modules/auth/decorators/roles.decorator.ts",
+    "modules/auth/guards/jwt-auth.guard.ts",
+    "modules/auth/guards/roles.guard.ts",
+    "modules/mon-hoc/mon-hoc.service.ts"
+  ],
+  "modules/mon-hoc/mon-hoc.module.ts": [
+    "entities/mon-hoc.entity.ts",
+    "modules/mon-hoc/mon-hoc.controller.ts",
+    "modules/mon-hoc/mon-hoc.service.ts"
+  ],
+  "modules/mon-hoc/mon-hoc.service.ts": [
+    "dto/mon-hoc.dto.ts",
+    "entities/mon-hoc.entity.ts"
+  ],
+  "modules/monitoring/controllers/dashboard.controller.ts": [
+    "monitoring-metrics.ts"
+  ],
+  "modules/monitoring/controllers/monitoring.controller.ts": [
+    "modules/monitoring/services/alert-management.service.ts",
+    "modules/monitoring/services/real-time-monitoring.service.ts"
+  ],
+  "modules/monitoring/gateways/monitoring.gateway.ts": [
+    "modules/monitoring/services/alert-management.service.ts",
+    "modules/monitoring/services/real-time-monitoring.service.ts"
+  ],
+  "modules/monitoring/monitoring.module.ts": [
+    "modules/monitoring/controllers/dashboard.controller.ts",
+    "modules/monitoring/controllers/monitoring.controller.ts",
+    "modules/monitoring/gateways/monitoring.gateway.ts",
+    "modules/monitoring/services/advanced-metrics-collector.service.ts",
+    "modules/monitoring/services/alert-management.service.ts",
+    "modules/monitoring/services/predictive-analytics.service.ts",
+    "modules/monitoring/services/real-time-monitoring.service.ts"
+  ],
+  "modules/monitoring/services/advanced-metrics-collector.service.ts": [],
+  "modules/monitoring/services/alert-management.service.ts": [],
+  "modules/monitoring/services/predictive-analytics.service.ts": [],
+  "modules/monitoring/services/real-time-monitoring.service.ts": [
+    "monitoring-metrics.ts"
+  ],
+  "modules/multimedia-exam/content-replacement.service.ts": [
+    "interfaces/exam-package.interface.ts"
+  ],
+  "modules/multimedia-exam/media-content-processor.service.ts": [
+    "enums/question-type.enum.ts",
+    "interfaces/question-parser.interface.ts",
+    "modules/files/spaces.service.ts"
+  ],
+  "modules/multimedia-exam/media-processing.service.ts": [
+    "interfaces/exam-package.interface.ts",
+    "modules/files/spaces.service.ts"
+  ],
+  "modules/multimedia-exam/multimedia-exam.controller.ts": [
+    "dto/integration.dto.ts",
+    "modules/multimedia-exam/multimedia-exam.service.ts"
+  ],
+  "modules/multimedia-exam/multimedia-exam.module.ts": [
+    "entities/cau-hoi.entity.ts",
+    "entities/cau-tra-loi.entity.ts",
+    "entities/chi-tiet-de-thi.entity.ts",
+    "entities/de-thi.entity.ts",
+    "entities/files.entity.ts",
+    "entities/phan.entity.ts",
+    "modules/multimedia-exam/multimedia-exam.controller.ts",
+    "modules/multimedia-exam/multimedia-exam.service.ts"
+  ],
+  "modules/multimedia-exam/multimedia-exam.service.ts": [
+    "config/spaces.config.ts",
+    "entities/cau-hoi.entity.ts",
+    "entities/cau-tra-loi.entity.ts",
+    "entities/chi-tiet-de-thi.entity.ts",
+    "entities/de-thi.entity.ts",
+    "entities/files.entity.ts",
+    "entities/phan.entity.ts"
+  ],
+  "modules/notification/notification.controller.ts": [
+    "dto/notification.dto.ts",
+    "modules/auth/guards/jwt-auth.guard.ts",
+    "modules/notification/notification.service.ts"
+  ],
+  "modules/notification/notification.module.ts": [
+    "entities/notification.entity.ts",
+    "modules/notification/notification.controller.ts",
+    "modules/notification/notification.service.ts"
+  ],
+  "modules/notification/notification.service.ts": [
+    "dto/notification.dto.ts",
+    "entities/notification.entity.ts"
+  ],
+  "modules/phan/phan.controller.ts": [
+    "dto/phan.dto.ts",
+    "modules/auth/decorators/roles.decorator.ts",
+    "modules/auth/guards/jwt-auth.guard.ts",
+    "modules/auth/guards/roles.guard.ts",
+    "modules/phan/phan.service.ts"
+  ],
+  "modules/phan/phan.module.ts": [
+    "entities/phan.entity.ts",
+    "modules/phan/phan.controller.ts",
+    "modules/phan/phan.service.ts"
+  ],
+  "modules/phan/phan.service.ts": [
+    "dto/phan.dto.ts",
+    "entities/phan.entity.ts"
+  ],
+  "modules/python-docx-parser/python-docx-parser.module.ts": [
+    "controllers/python-docx-parser.controller.ts",
+    "modules/enhanced-docx-parser/enhanced-docx-parser.module.ts",
+    "services/python-docx-parser.service.ts"
+  ],
+  "modules/python-enhanced-docx-parser/python-enhanced-docx-parser.module.ts": [
+    "controllers/python-enhanced-docx-parser.controller.ts",
+    "services/python-enhanced-docx-parser.service.ts"
+  ],
+  "modules/question-parser/question-parser.module.ts": [
+    "config/spaces.config.ts",
+    "controllers/question-parser.controller.ts",
+    "modules/files/spaces.service.ts",
+    "modules/files/storage.service.ts",
+    "modules/multimedia-exam/content-replacement.service.ts",
+    "modules/multimedia-exam/media-processing.service.ts",
+    "services/docx-parser.service.ts"
+  ],
+  "modules/questions-import/questions-import.controller.ts": [
+    "dto/pagination.dto.ts",
+    "interfaces/multer-file.interface.ts",
+    "modules/auth/decorators/roles.decorator.ts",
+    "modules/auth/guards/jwt-auth.guard.ts",
+    "modules/auth/guards/roles.guard.ts",
+    "modules/questions-import/questions-import.service.ts"
+  ],
+  "modules/questions-import/questions-import.module.ts": [
+    "entities/cau-hoi-cho-duyet.entity.ts",
+    "entities/cau-hoi.entity.ts",
+    "entities/cau-tra-loi.entity.ts",
+    "modules/files/spaces.service.ts",
+    "modules/files/storage.service.ts",
+    "modules/multimedia-exam/content-replacement.service.ts",
+    "modules/multimedia-exam/media-processing.service.ts",
+    "modules/questions-import/questions-import.controller.ts",
+    "modules/questions-import/questions-import.service.ts",
+    "services/docx-parser.service.ts",
+    "services/python-enhanced-docx-parser.service.ts"
+  ],
+  "modules/questions-import/questions-import.service.ts": [
+    "dto/pagination.dto.ts",
+    "entities/cau-hoi-cho-duyet.entity.ts",
+    "entities/cau-hoi.entity.ts",
+    "entities/cau-tra-loi.entity.ts",
+    "interfaces/multer-file.interface.ts",
+    "services/docx-parser.service.ts",
+    "services/python-enhanced-docx-parser.service.ts"
+  ],
+  "modules/queue/processors/extraction.processor.ts": [
+    "entities/yeu-cau-rut-trich.entity.ts",
+    "modules/de-thi/exam.service.ts"
+  ],
+  "modules/queue/queue.module.ts": [
+    "entities/cau-hoi.entity.ts",
+    "entities/cau-tra-loi.entity.ts",
+    "entities/chi-tiet-de-thi.entity.ts",
+    "entities/de-thi.entity.ts",
+    "entities/files.entity.ts",
+    "entities/phan.entity.ts",
+    "entities/yeu-cau-rut-trich.entity.ts",
+    "modules/de-thi/exam.service.ts",
+    "modules/exam-word-export/docx-template.service.ts",
+    "modules/exam-word-export/pdf.service.ts",
+    "modules/queue/processors/extraction.processor.ts"
+  ],
+  "modules/users/users.controller.ts": [
+    "dto/user.dto.ts",
+    "modules/auth/decorators/roles.decorator.ts",
+    "modules/auth/guards/jwt-auth.guard.ts",
+    "modules/auth/guards/roles.guard.ts",
+    "modules/users/users.service.ts"
+  ],
+  "modules/users/users.module.ts": [
+    "entities/user.entity.ts",
+    "modules/users/users.controller.ts",
+    "modules/users/users.service.ts"
+  ],
+  "modules/users/users.service.ts": [
+    "dto/user.dto.ts",
+    "entities/user.entity.ts"
+  ],
+  "modules/word-import/word-multimedia.controller.ts": [
+    "modules/auth/guards/jwt-auth.guard.ts",
+    "modules/word-import/word-multimedia.service.ts"
+  ],
+  "modules/word-import/word-multimedia.module.ts": [
+    "entities/files.entity.ts",
+    "modules/files/spaces.service.ts",
+    "modules/word-import/word-multimedia.controller.ts",
+    "modules/word-import/word-multimedia.service.ts"
+  ],
+  "modules/word-import/word-multimedia.service.ts": [
+    "entities/files.entity.ts",
+    "enums/file-type.enum.ts",
+    "modules/files/spaces.service.ts"
+  ],
+  "modules/yeu-cau-rut-trich/yeu-cau-rut-trich.controller.ts": [
+    "dto/pagination.dto.ts",
+    "dto/yeu-cau-rut-trich.dto.ts",
+    "modules/auth/guards/jwt-auth.guard.ts",
+    "modules/yeu-cau-rut-trich/yeu-cau-rut-trich.service.ts"
+  ],
+  "modules/yeu-cau-rut-trich/yeu-cau-rut-trich.module.ts": [
+    "entities/yeu-cau-rut-trich.entity.ts",
+    "modules/yeu-cau-rut-trich/yeu-cau-rut-trich.controller.ts",
+    "modules/yeu-cau-rut-trich/yeu-cau-rut-trich.service.ts"
+  ],
+  "modules/yeu-cau-rut-trich/yeu-cau-rut-trich.service.ts": [
+    "dto/pagination.dto.ts",
+    "dto/yeu-cau-rut-trich.dto.ts",
+    "entities/yeu-cau-rut-trich.entity.ts"
+  ],
+  "monitoring-metrics.ts": [],
+  "services/__tests__/content-replacement.service.spec.ts": [
+    "interfaces/exam-package.interface.ts"
+  ],
+  "services/__tests__/media-processing.service.spec.ts": [
+    "interfaces/exam-package.interface.ts"
+  ],
+  "services/docx-parser.service.ts": [
+    "enums/question-type.enum.ts",
+    "interfaces/multer-file.interface.ts",
+    "modules/files/storage.service.ts",
+    "modules/multimedia-exam/content-replacement.service.ts",
+    "modules/multimedia-exam/media-processing.service.ts"
+  ],
+  "services/enhanced-docx-parser.service.ts": [
+    "interfaces/multer-file.interface.ts",
+    "modules/files/spaces.service.ts"
+  ],
+  "services/enhanced-docx-wasm-parser.service.ts": [
+    "interfaces/multer-file.interface.ts",
+    "modules/files/spaces.service.ts"
+  ],
+  "services/enhanced-question-parser.service.ts": [
+    "enums/question-type.enum.ts",
+    "interfaces/question-parser.interface.ts"
+  ],
+  "services/enhanced-word-import.service.ts": [
+    "entities/cau-hoi.entity.ts",
+    "entities/cau-tra-loi.entity.ts",
+    "entities/files.entity.ts",
+    "entities/phan.entity.ts",
+    "enums/file-type.enum.ts",
+    "enums/question-type.enum.ts",
+    "interfaces/multer-file.interface.ts",
+    "interfaces/question-parser.interface.ts",
+    "modules/multimedia-exam/media-content-processor.service.ts",
+    "services/question-parser.service.ts"
+  ],
+  "services/python-docx-parser.service.ts": [
+    "interfaces/multer-file.interface.ts",
+    "services/enhanced-docx-parser.service.ts"
+  ],
+  "services/python-enhanced-docx-parser.service.ts": [
+    "interfaces/multer-file.interface.ts"
+  ],
+  "services/question-parser.service.ts": [
+    "enums/question-type.enum.ts",
+    "interfaces/question-parser.interface.ts"
+  ],
+  "utils/db-env-switcher.ts": [
+    "config/database.config.ts"
+  ],
+  "utils/exam-validation.util.ts": [
+    "entities/cau-hoi.entity.ts"
+  ],
+  "utils/media-content-processor.util.ts": [],
+  "utils/media-markup.util.ts": []
+}
